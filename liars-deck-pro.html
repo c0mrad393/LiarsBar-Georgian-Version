@@ -6,101 +6,26 @@
   <title>მატყუარას ბარი — Liar's Deck</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;600;800;900&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;600;700;800&display=swap" rel="stylesheet" />
   <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      theme: { extend: {
-        colors: { neon: "#39FF14" },
-        fontFamily: { geo: ["'Noto Sans Georgian'", "system-ui", "sans-serif"] },
-      } },
-    };
-  </script>
   <style>
-    html, body, #root { height: 100%; margin: 0; background: #0a0a0a; }
+    html, body, #root { height: 100%; margin: 0; background: #09090b; }
     body { font-family: 'Noto Sans Georgian', system-ui, sans-serif; }
   </style>
 </head>
 <body>
   <div id="root">
-    <div style="color:#39FF14;font-family:sans-serif;padding:24px">იტვირთება…</div>
+    <div style="color:#c2a15a;font-family:sans-serif;padding:24px">იტვირთება…</div>
   </div>
 
+  <!-- Lightweight loader: no animation libraries. The component uses only React
+       plus Tailwind/CSS-keyframe animations, so it pastes straight into a
+       claude.ai Artifact as-is (just drop this loader). -->
   <script type="text/babel" data-presets="react">
-    const { useState, useEffect, useRef, useCallback, useMemo } = React;
-
-    /* ---- Framer Motion shim (CSS-transition backed) -------------------------
-       Used only for the local preview. In a claude.ai Artifact the component's
-       real `import { motion, AnimatePresence } from "framer-motion"` is used
-       instead. Supports the subset this game relies on: initial/animate/exit
-       single-value targets, transition.duration/delay, whileHover, whileTap.
-       (The marquee effects — neon breathing, screen shake, BANG flash — are
-        CSS keyframes inside the component, so they look identical either way.) */
-    function buildMotion(React) {
-      const { useState, useEffect, forwardRef } = React;
-      const FRAMER = new Set(["initial","animate","exit","transition","variants",
-        "whileHover","whileTap","whileInView","whileFocus","whileDrag","layout",
-        "layoutId","drag","dragConstraints","onAnimationComplete","viewport","custom","style"]);
-      const norm = (v) => (Array.isArray(v) ? v[v.length - 1] : v);
-      const toCSS = (o) => {
-        if (!o) return {};
-        const s = {}, t = [];
-        const x = norm(o.x), y = norm(o.y), sc = norm(o.scale), rot = norm(o.rotate), ry = norm(o.rotateY);
-        if (x != null) t.push("translateX(" + (typeof x === "number" ? x + "px" : x) + ")");
-        if (y != null) t.push("translateY(" + (typeof y === "number" ? y + "px" : y) + ")");
-        if (sc != null) t.push("scale(" + norm(sc) + ")");
-        if (rot != null) t.push("rotate(" + (typeof rot === "number" ? rot + "deg" : rot) + ")");
-        if (ry != null) t.push("rotateY(" + (typeof ry === "number" ? ry + "deg" : ry) + ")");
-        if (t.length) s.transform = t.join(" ");
-        ["opacity","boxShadow","backgroundColor","background","color","borderColor",
-         "filter","backdropFilter","width","height","top","left","right","bottom"]
-          .forEach((k) => { if (o[k] != null) s[k] = norm(o[k]); });
-        return s;
-      };
-      const make = (tag) => forwardRef(function MotionShim(props, ref) {
-        const { initial, animate, transition, whileHover, whileTap, style, children, ...rest } = props;
-        const clean = {};
-        for (const k in rest) if (!FRAMER.has(k)) clean[k] = rest[k];
-        const dur = transition && transition.duration != null ? transition.duration : 0.32;
-        const delay = transition && transition.delay != null ? transition.delay : 0;
-        const hasInit = initial && typeof initial === "object";
-        const [mounted, setMounted] = useState(!hasInit);
-        const [hover, setHover] = useState(false);
-        const [tap, setTap] = useState(false);
-        useEffect(() => {
-          if (!hasInit) return;
-          const id = requestAnimationFrame(() => requestAnimationFrame(() => setMounted(true)));
-          return () => cancelAnimationFrame(id);
-        }, []);
-        let target = !mounted ? initial : animate || {};
-        let merged = Object.assign({}, target);
-        if (hover && whileHover) merged = Object.assign(merged, whileHover);
-        if (tap && whileTap) merged = Object.assign(merged, whileTap);
-        const styleAll = Object.assign(
-          { transition: "all " + dur + "s cubic-bezier(.2,.8,.2,1)", transitionDelay: delay + "s" },
-          style, toCSS(merged)
-        );
-        const h = {};
-        if (whileHover) {
-          h.onMouseEnter = (e) => { setHover(true); clean.onMouseEnter && clean.onMouseEnter(e); };
-          h.onMouseLeave = (e) => { setHover(false); setTap(false); clean.onMouseLeave && clean.onMouseLeave(e); };
-        }
-        if (whileTap) {
-          h.onMouseDown = (e) => { setTap(true); clean.onMouseDown && clean.onMouseDown(e); };
-          h.onMouseUp = (e) => { setTap(false); clean.onMouseUp && clean.onMouseUp(e); };
-          if (!whileHover) h.onMouseLeave = (e) => { setTap(false); clean.onMouseLeave && clean.onMouseLeave(e); };
-        }
-        return React.createElement(tag, Object.assign({ ref: ref, style: styleAll }, clean, h), children);
-      });
-      const cache = {};
-      const motion = new Proxy({}, { get: (_, tag) => (cache[tag] || (cache[tag] = make(tag))) });
-      const AnimatePresence = ({ children }) => children;
-      return { motion, AnimatePresence };
-    }
-
+    const { useState, useEffect, useRef, useCallback } = React;
     async function boot() {
       try {
         const res = await fetch("./LiarsDeckPro.jsx", { cache: "no-store" });
@@ -110,16 +35,11 @@
           .replace(/^\s*import[^\n]*\n/gm, "")
           .replace(/export\s+default\s+function/, "function");
         const compiled = Babel.transform(src, { presets: ["react"] }).code;
-
-        const FM = (window.Motion && window.Motion.motion ? window.Motion
-                   : window.FramerMotion && window.FramerMotion.motion ? window.FramerMotion
-                   : buildMotion(React));
-
         const factory = new Function(
-          "React","useState","useEffect","useRef","useCallback","useMemo","motion","AnimatePresence",
+          "React", "useState", "useEffect", "useRef", "useCallback",
           compiled + "\nreturn LiarsDeckPro;"
         );
-        const Comp = factory(React, useState, useEffect, useRef, useCallback, useMemo, FM.motion, FM.AnimatePresence);
+        const Comp = factory(React, useState, useEffect, useRef, useCallback);
         ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(Comp));
       } catch (err) {
         document.getElementById("root").innerHTML =
