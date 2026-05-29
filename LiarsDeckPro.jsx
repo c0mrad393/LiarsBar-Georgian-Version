@@ -208,34 +208,33 @@ export default function LiarsDeckPro() {
   useEffect(() => {
     if (!roulette?.spinning || roulette.result) return;
     const t = after(1050, () => {
-      setPlayers((prev) => {
-        const list = prev.map((p) => ({ ...p }));
-        const v = list[roulette.victim];
-        const fired = v.pulls === v.bullet;
-        v.pulls += 1;
-        if (fired) {
-          v.alive = false;
-          setShake("hard"); setFlash("bang");
-          after(520, () => setShake(null)); after(950, () => setFlash(null));
-          logIt(`${T.bang}. ${nameOf(roulette.victim)} ${T.eliminated}.`, "alert");
+      const list = playersRef.current.map((p) => ({ ...p }));
+      const v = list[roulette.victim];
+      const fired = v.pulls === v.bullet;
+      v.pulls += 1;
+      if (fired) {
+        v.alive = false;
+        setShake("hard"); setFlash("bang");
+        after(520, () => setShake(null)); after(950, () => setFlash(null));
+        logIt(`${T.bang}. ${nameOf(roulette.victim)} ${T.eliminated}.`, "alert");
+      } else {
+        setShake("soft"); setFlash("click");
+        after(360, () => setShake(null)); after(620, () => setFlash(null));
+        logIt(`${T.click}. ${nameOf(roulette.victim)} ${T.survives}.`, "system");
+      }
+      playersRef.current = list;
+      setPlayers(list);
+      setRoulette((r) => ({ ...r, spinning: false, result: fired ? "dead" : "safe" }));
+      after(fired ? 2100 : 1450, () => {
+        const alive = list.filter((p) => p.alive);
+        if (alive.length <= 1) {
+          setWinner(alive[0] || null); setRoulette(null); setPhase("gameover");
+          if (alive[0]) logIt(`${nameOf(alive[0].id)} — ${T.winner}`, "system");
         } else {
-          setShake("soft"); setFlash("click");
-          after(360, () => setShake(null)); after(620, () => setFlash(null));
-          logIt(`${T.click}. ${nameOf(roulette.victim)} ${T.survives}.`, "system");
+          setRoulette(null);
+          const s = fired ? nextActive(list, roulette.victim) : roulette.victim;
+          dealRound(list, s === -1 ? 0 : s);
         }
-        setRoulette((r) => ({ ...r, spinning: false, result: fired ? "dead" : "safe" }));
-        after(fired ? 2100 : 1450, () => {
-          const alive = list.filter((p) => p.alive);
-          if (alive.length <= 1) {
-            setWinner(alive[0] || null); setRoulette(null); setPhase("gameover");
-            if (alive[0]) logIt(`${nameOf(alive[0].id)} — ${T.winner}`, "system");
-          } else {
-            setRoulette(null);
-            const s = fired ? nextActive(list, roulette.victim) : roulette.victim;
-            dealRound(list, s === -1 ? 0 : s);
-          }
-        });
-        return list;
       });
     });
     return () => clearTimeout(t);
