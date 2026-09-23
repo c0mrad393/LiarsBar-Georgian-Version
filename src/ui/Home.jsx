@@ -1,0 +1,123 @@
+import { useState } from "react";
+import { AVATARS, RULES, T } from "../i18n.js";
+import { cleanCode } from "../net.js";
+import { sfx } from "../sfx.js";
+import { Btn, Card, SoundToggle } from "./parts.jsx";
+
+export function Logo({ small }) {
+  return (
+    <div className="flex flex-col items-center text-center">
+      {!small && (
+        <div className="relative mb-2 h-28 w-48">
+          {["A", "K", "Q"].map((r, i) => (
+            <div
+              key={r}
+              className="a-deal absolute left-1/2 top-2"
+              style={{ animationDelay: `${i * 120}ms`, marginLeft: -31 + (i - 1) * 34 }}>
+              <div style={{ transform: `rotate(${(i - 1) * 16}deg) translateY(${Math.abs(i - 1) * 8}px)` }}>
+                <Card rank={r} size="md" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      <h1 className={`font-black tracking-tight text-ink ${small ? "text-xl" : "text-4xl sm:text-6xl"}`} style={{ textShadow: small ? "none" : "3px 3px 0 #ffc83d" }}>
+        {T.title}
+      </h1>
+      {!small && <p className="mt-2 font-display text-lg tracking-wide text-coral sm:text-xl">{T.tagline}</p>}
+    </div>
+  );
+}
+
+export default function Home({ profile, setProfile, invite, onSolo, onHost, onJoin, onDropInvite }) {
+  const [code, setCode] = useState(invite || "");
+  const [rules, setRules] = useState(false);
+  const setName = (name) => setProfile({ ...profile, name });
+  const ready = profile.name.trim().length > 0;
+
+  return (
+    <div className="mx-auto flex min-h-screen w-full max-w-xl flex-col px-4 pb-10 pt-4">
+      <div className="flex justify-end"><SoundToggle /></div>
+      <div className="a-fade-up mt-2"><Logo /></div>
+
+      {invite && (
+        <div className="a-pop comic mt-6 rounded-3xl bg-sun px-5 py-4 text-center">
+          <div className="text-2xl font-black">{T.invited}</div>
+          <div className="mt-1 text-sm font-semibold text-ink-soft">{T.invitedHint}</div>
+          <div className="mt-2 inline-block rounded-full border-2 border-ink bg-paper px-3 py-0.5 font-mono text-sm font-bold">{T.roomCode}: {invite}</div>
+        </div>
+      )}
+
+      <section className="comic a-fade-up mt-6 rounded-3xl bg-paper p-5" style={{ animationDelay: "80ms" }}>
+        <label className="text-sm font-extrabold" htmlFor="nm">{T.yourName}</label>
+        <input
+          id="nm"
+          value={profile.name}
+          maxLength={16}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={T.namePh}
+          className="mt-1.5 w-full rounded-2xl border-[3px] border-ink bg-cream px-4 py-3 text-lg font-bold outline-none focus:bg-white"
+        />
+        <div className="mt-4 text-sm font-extrabold">{T.pickAvatar}</div>
+        <div className="mt-2 grid grid-cols-6 gap-2">
+          {AVATARS.map((a) => {
+            const on = a === profile.avatar;
+            return (
+              <button
+                key={a}
+                onClick={() => { setProfile({ ...profile, avatar: a }); sfx("select"); }}
+                className={`flex aspect-square items-center justify-center rounded-2xl border-[2.5px] border-ink text-2xl transition-transform sm:text-3xl ${on ? "a-hop bg-sun" : "bg-cream hover:-translate-y-0.5"}`}
+                style={{ boxShadow: on ? "0 4px 0 #2b1d14" : "0 2px 0 #2b1d14" }}
+                aria-pressed={on}>
+                {a}
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <div className="a-fade-up mt-6 flex flex-col gap-3" style={{ animationDelay: "160ms" }}>
+        {invite ? (
+          <>
+            <Btn color="coral" disabled={!ready} onClick={() => onJoin(invite)} className="py-4 text-xl">🍻 {T.join}</Btn>
+            <button onClick={onDropInvite} className="mt-1 text-sm font-bold text-ink-soft underline decoration-2 underline-offset-4">{T.menu}</button>
+          </>
+        ) : (
+          <>
+            <Btn color="sun" disabled={!ready} onClick={onSolo} className="flex items-center gap-3 py-4 text-left">
+              <span className="text-3xl">🤖</span>
+              <span><span className="block text-lg">{T.solo}</span><span className="block text-xs font-semibold opacity-70">{T.soloHint}</span></span>
+            </Btn>
+            <Btn color="coral" disabled={!ready} onClick={onHost} className="flex items-center gap-3 py-4 text-left">
+              <span className="text-3xl">🎉</span>
+              <span><span className="block text-lg">{T.host}</span><span className="block text-xs font-semibold opacity-85">{T.hostHint}</span></span>
+            </Btn>
+            <form
+              className="flex gap-2"
+              onSubmit={(e) => { e.preventDefault(); const c = cleanCode(code); if (c && ready) onJoin(c); }}>
+              <input
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder={T.joinCode}
+                aria-label={T.joinCode}
+                className="comic-sm min-w-0 flex-1 rounded-2xl bg-paper px-4 py-3 font-mono text-lg font-bold lowercase outline-none"
+              />
+              <Btn color="mint" type="submit" disabled={!ready || !cleanCode(code)}>🔗 {T.join}</Btn>
+            </form>
+          </>
+        )}
+      </div>
+
+      <button onClick={() => setRules(!rules)} className="mt-8 self-center text-sm font-extrabold text-ink-soft underline decoration-wavy decoration-2 underline-offset-4">
+        📖 {T.rules}
+      </button>
+      {rules && (
+        <ol className="a-pop comic mt-3 list-none space-y-2 rounded-3xl bg-paper p-5 text-sm leading-relaxed">
+          {RULES.map((r, i) => (
+            <li key={i} className="flex gap-2"><span className="font-display text-coral">{i + 1}.</span><span>{r}</span></li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}

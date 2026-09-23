@@ -1,0 +1,191 @@
+// All player-facing text. Georgian first; English where it lands better.
+import { QUIP_COUNTS } from "./engine.js";
+
+export const RANKS = {
+  K: { geo: "მეფე", emoji: "🤴", color: "#ef5b3f", soft: "#ffe3dc" },
+  Q: { geo: "დედოფალი", emoji: "👸", color: "#c04bd8", soft: "#f6e2fb" },
+  A: { geo: "ტუზი", emoji: "⭐", color: "#2f7de1", soft: "#dde9fb" },
+};
+
+export const AVATARS = ["🐸", "🐵", "🐼", "🐔", "🦁", "🐨", "🐙", "🦄", "🐧", "🦖", "🐶", "🐹"];
+
+export const T = {
+  title: "მატყუარას ბარი",
+  tagline: "Liar's Bar · ქართული ვერსია",
+  subtitle: "ბლეფი · ბრალდება · რევოლვერი",
+  yourName: "შენი სახელი",
+  namePh: "მაგ. გიორგი",
+  pickAvatar: "აირჩიე პერსონაჟი",
+  solo: "ბოტებთან თამაში",
+  soloHint: "სკაბი, ფოქსი და ტოარი გელოდებიან",
+  host: "ოთახის შექმნა",
+  hostHint: "გაუგზავნე ლინკი მეგობრებს",
+  join: "შესვლა",
+  joinCode: "ოთახის კოდი",
+  invited: "მოგიწვიეს! 🎉",
+  invitedHint: "ჩაწერე სახელი და შემოდი ბარში",
+  back: "უკან",
+  rules: "როგორ ვითამაშო?",
+  lobby: "ლობი",
+  roomCode: "ოთახი",
+  invite: "მოსაწვევი ლინკი",
+  copy: "კოპირება",
+  copied: "დაკოპირდა! ✓",
+  share: "გაზიარება",
+  waitingPlayers: "ველოდებით მოთამაშეებს…",
+  emptySeat: "ცარიელი ადგილი",
+  botFill: "ცარიელ ადგილებზე ბოტები",
+  start: "დავიწყოთ!",
+  needTwo: "საჭიროა მინიმუმ 2 მოთამაშე",
+  waitHost: "host-ი მალე დაიწყებს…",
+  hostTag: "HOST",
+  you: "შენ",
+  leave: "გასვლა",
+  keepOpen: "ეს ტაბი არ დახურო: თამაში შენს ბრაუზერში მიმდინარეობს",
+  connecting: "ვუკავშირდებით…",
+  creating: "ოთახს ვქმნით…",
+  tableCard: "მაგიდის კარტი",
+  round: "რაუნდი",
+  yourTurn: "შენი სვლაა!",
+  pickCards: "აირჩიე 1–3 კარტი",
+  waitingFor: "სვლა აქვს:",
+  play: "დადება",
+  liar: "მატყუარა!",
+  liarEn: "LIAR!",
+  mustCall: "კარტები აღარ დაგრჩა: ახლა უნდა დაიჭირო!",
+  claims: "ამბობს:",
+  tableClear: "მაგიდა ცარიელია",
+  youDead: "შენ გავარდი 👻 თვალი ადევნე დანარჩენებს",
+  outOfCards: "კარტები აღარ გაქვს",
+  cards: "კარტი",
+  log: "რა ხდება",
+  truth: "სიმართლე!",
+  bluff: "ბლეფი!",
+  roulette: "რუსული რულეტი",
+  facesGun: "რევოლვერთან",
+  wrongCall: "ტყუილად დაადანაშაულა",
+  caught: "ბლეფზე წაისწრეს",
+  pull: "ჩახმახს ვწევ… 🙈",
+  pulling: "ტრრრრ…",
+  chance: "შანსი",
+  bang: "BANG!",
+  click: "ჩხაკ!",
+  survived: "გადარჩა!",
+  eliminated: "გავარდა!",
+  youWin: "შენ გაიმარჯვე! 🏆",
+  wins: "გაიმარჯვა!",
+  winSub: "ყველა გააცურე და ცოცხალი დარჩი.",
+  loseSub: "მეტი იღბალი შემდეგ ჯერზე 🍀",
+  again: "კიდევ ერთი!",
+  menu: "მენიუ",
+  waitRematch: "ველოდებით host-ს ახალი თამაშისთვის…",
+  offline: "offline · ბოტი თამაშობს",
+  hostLeft: "host-მა ბარი დატოვა 😢",
+  roomMissing: "ოთახი ვერ მოიძებნა. შეიძლება დაიხურა ან კოდი არასწორია.",
+  roomFull: "ოთახი სავსეა (მაქს. 4)",
+  alreadyStarted: "თამაში უკვე დაწყებულია",
+  netError: "კავშირის შეცდომა",
+  sound: "ხმა",
+  secs: "წმ",
+};
+
+export const RULES = [
+  "ყველას 5 კარტი ურიგდება. მაგიდაზე ცხადდება ერთი კარტი: 🤴 მეფე, 👸 დედოფალი ან ⭐ ტუზი.",
+  "შენს სვლაზე დებ 1–3 კარტს პირით ქვემოთ და ამბობ, რომ ყველა მაგიდის კარტია. შეგიძლია იბლეფო 😏",
+  "შემდეგი მოთამაშე ან თავის კარტს დებს, ან გიყვირის „მატყუარა!“",
+  "თუ ბლეფობდი, რევოლვერთან შენ ჯდები. თუ სიმართლეს ამბობდი, ვინც დაგადანაშაულა, ის ჯდება 🔫",
+  "რევოლვერში 6 ბუდეა და 1 ტყვია. ყოველ ჯერზე შანსი უარესდება.",
+  "იგებს ბოლოს დარჩენილი 🏆",
+];
+
+const Q = {
+  play: [
+    "სუფთა სიმართლე, ფიცს ვდებ 😇",
+    "Trust me, bro 🤝",
+    "ნუ მიყურებ ასე…",
+    "100% ლეგიტ",
+    "ბებიაჩემს ვფიცავ!",
+    "ეჭვი? ჩემზე?! 🙄",
+    "Easy money 💸",
+    "პოკერფეისი ჩართულია 😐",
+    "ეს კარტები წმინდაა ✨",
+    "რა კარგი დღეა, არა? 🙂",
+  ],
+  call: [
+    "მატყუარა! 🤥",
+    "LIAR! ცხვირი გაგეზარდა!",
+    "ვერ მომატყუებ, ძმაო!",
+    "Nope. არა. არაფრით.",
+    "ეგ ბლეფია, 100%!",
+    "აბა, გადმოაბრუნე! 👀",
+    "ჩემთან ეგ ნომერი არ გავა",
+    "Sus 🧐",
+  ],
+  truth: [
+    "ჰა! სიმართლე ვთქვი 😎",
+    "Told ya!",
+    "ახლა შენ იჯექი რევოლვერთან 😈",
+    "ბოდიშის მოხდას ველი…",
+    "ნდობა, ძმაო. ნდობა.",
+    "Get rekt 🤭",
+  ],
+  bluff: [
+    "ოოო, არა… 😬",
+    "ეგ… ხუმრობა იყო?",
+    "Oops. 🙃",
+    "კარგი, კარგი, ვბლეფობდი",
+    "ვინ, მე?! 😳",
+    "ახლა დედას ვეძახი 📞",
+  ],
+  safe: [
+    "ფუჰ… ჯერ ცოცხალი ვარ! 😅",
+    "დღეს ჩემი დღეა!",
+    "Lucky me 🍀",
+    "გული გამიჩერდა… 💓",
+    "აღარ ვიბლეფებ. (იბლეფებს)",
+    "ეს კოქტეილი ჩემზეა 🍹",
+    "Not today! 💪",
+    "საცვალი გამოსაცვლელია 😰",
+  ],
+  dead: [
+    "მე მოვბრუნდები! 👻",
+    "ამას ბებიას არ ვეტყვი…",
+    "GG 💀",
+    "ცხოვრება მაინც ლამაზი იყო",
+    "Worth it.",
+    "ჩემი ლუდი არავინ დალიოთ! 🍺",
+    "ლაგი იყო!! 😤",
+    "F in the chat",
+  ],
+  win: [
+    "Champion! 🏆",
+    "ბარი ჩემია!",
+    "ყველა გაგაცურეთ 😏",
+    "Too easy 😎",
+    "ლუდი ჩემზეა! 🍻",
+  ],
+};
+for (const k in QUIP_COUNTS) if (Q[k].length !== QUIP_COUNTS[k]) throw new Error(`quip count mismatch: ${k}`);
+
+export const quipText = (ev) => (ev.quip != null && Q[ev.type] ? Q[ev.type][ev.quip] : null);
+
+export const EMOTES = ["😂", "🤥", "😱", "😏", "🔥", "💀", "🍺", "👏"];
+
+/** One log line for an engine event; `nm(i)` names a seat from the viewer's point of view. */
+export function describe(ev, nm) {
+  const r = ev.rank && RANKS[ev.rank];
+  switch (ev.type) {
+    case "start": return "🍺 ბარი გაიხსნა. თამაში დაიწყო!";
+    case "deal": return `🃏 რაუნდი ${ev.round}: მაგიდაზე ${r.emoji} ${r.geo}. იწყებს ${nm(ev.seat)}.`;
+    case "play": return `${nm(ev.seat)}: ${ev.n}× ${r.emoji} ${r.geo}${ev.auto ? " ⏱" : ""}`;
+    case "call": return `📢 ${nm(ev.seat)} → „მატყუარა!“ → ${nm(ev.other)}`;
+    case "truth": return `✅ ${nm(ev.seat)} სიმართლეს ამბობდა!`;
+    case "bluff": return `❌ ${nm(ev.seat)} ბლეფობდა!`;
+    case "safe": return `😅 ჩხაკ! ${nm(ev.seat)} გადარჩა.`;
+    case "dead": return `💥 BANG! ${nm(ev.seat)} გავარდა.`;
+    case "win": return `🏆 ${nm(ev.seat)} გაიმარჯვა!`;
+    case "left": return `📴 ${nm(ev.seat)} გავიდა. ბოტი ჩაენაცვლა`;
+    case "back": return `🔌 ${nm(ev.seat)} დაბრუნდა!`;
+    default: return "";
+  }
+}

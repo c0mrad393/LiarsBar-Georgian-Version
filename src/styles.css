@@ -1,0 +1,277 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Noto Sans Georgian", system-ui, sans-serif;
+  --font-display: "Lilita One", "Noto Sans Georgian", system-ui, sans-serif;
+  --color-ink: #2b1d14;
+  --color-ink-soft: #6b5646;
+  --color-cream: #fff6e6;
+  --color-paper: #fffdf8;
+  --color-sun: #ffc83d;
+  --color-sun-deep: #f5a300;
+  --color-coral: #ff5a5f;
+  --color-coral-deep: #e23d43;
+  --color-mint: #2ec4b6;
+  --color-mint-deep: #159f92;
+  --color-grape: #9b5de5;
+  --color-sky: #3a86ff;
+  --color-felt: #2fa36b;
+  --color-felt-deep: #23875a;
+  --color-wood: #c07d3f;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+body {
+  font-family: var(--font-sans);
+  color: var(--color-ink);
+  background-color: var(--color-cream);
+  background-image:
+    radial-gradient(40rem 28rem at 8% -5%, #ffd9a8 0%, transparent 60%),
+    radial-gradient(36rem 26rem at 105% 10%, #cdeefd 0%, transparent 60%),
+    radial-gradient(40rem 30rem at 50% 115%, #d9f7c9 0%, transparent 60%),
+    radial-gradient(#2b1d1410 1.2px, transparent 1.2px);
+  background-size: auto, auto, auto, 22px 22px;
+  background-attachment: fixed;
+  -webkit-tap-highlight-color: transparent;
+}
+button {
+  cursor: pointer;
+  font: inherit;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+
+/* ---------------------------------------------------------------- comic kit */
+.comic {
+  border: 3px solid var(--color-ink);
+  box-shadow: 0 5px 0 var(--color-ink);
+}
+.comic-sm {
+  border: 2.5px solid var(--color-ink);
+  box-shadow: 0 3px 0 var(--color-ink);
+}
+.btn {
+  border: 3px solid var(--color-ink);
+  box-shadow: 0 5px 0 var(--color-ink);
+  transition: transform 0.12s ease, box-shadow 0.12s ease, filter 0.15s ease;
+  font-weight: 800;
+}
+.btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 7px 0 var(--color-ink);
+  filter: saturate(1.1) brightness(1.03);
+}
+.btn:active:not(:disabled) {
+  transform: translateY(4px);
+  box-shadow: 0 1px 0 var(--color-ink);
+}
+.btn:disabled {
+  filter: grayscale(0.9);
+  opacity: 0.45;
+}
+.felt {
+  background:
+    radial-gradient(120% 90% at 50% 30%, #3cc07e 0%, var(--color-felt) 45%, var(--color-felt-deep) 100%);
+  border: 10px solid var(--color-wood);
+  outline: 3px solid var(--color-ink);
+  box-shadow: 0 8px 0 var(--color-ink), inset 0 0 0 3px #00000022, inset 0 10px 30px #00000033;
+}
+.card-back {
+  background:
+    radial-gradient(circle at 50% 50%, #fff 0 22%, transparent 23%),
+    repeating-linear-gradient(45deg, var(--color-coral) 0 7px, #ff8a8d 7px 14px);
+}
+.speech {
+  position: relative;
+  background: var(--color-paper);
+  border: 2.5px solid var(--color-ink);
+  box-shadow: 0 3px 0 var(--color-ink);
+}
+.speech::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -9px;
+  width: 14px;
+  height: 14px;
+  background: var(--color-paper);
+  border-right: 2.5px solid var(--color-ink);
+  border-bottom: 2.5px solid var(--color-ink);
+  transform: translateX(-50%) rotate(45deg);
+}
+.speech.down::after {
+  bottom: auto;
+  top: -9px;
+  transform: translateX(-50%) rotate(225deg);
+}
+.no-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.no-scrollbar::-webkit-scrollbar-thumb {
+  background: #2b1d1430;
+  border-radius: 8px;
+}
+
+/* --------------------------------------------------------------- animation */
+@keyframes bob {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-5px) rotate(2deg); }
+}
+.a-bob { animation: bob 2.6s ease-in-out infinite; }
+
+@keyframes hop {
+  0%, 100% { transform: translateY(0) scale(1); }
+  30% { transform: translateY(-10px) scale(1.06, 0.96); }
+  55% { transform: translateY(0) scale(0.96, 1.05); }
+}
+.a-hop { animation: hop 0.9s ease-in-out infinite; }
+
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-8deg); }
+  75% { transform: rotate(8deg); }
+}
+.a-wiggle { animation: wiggle 0.5s ease-in-out infinite; }
+
+@keyframes tremble {
+  0%, 100% { transform: translate(0, 0); }
+  20% { transform: translate(-2px, 1px) rotate(-1deg); }
+  40% { transform: translate(2px, -1px) rotate(1deg); }
+  60% { transform: translate(-1px, -1px); }
+  80% { transform: translate(1px, 2px) rotate(-1deg); }
+}
+.a-tremble { animation: tremble 0.18s linear infinite; }
+
+@keyframes popIn {
+  0% { opacity: 0; transform: scale(0.4) rotate(-6deg); }
+  70% { opacity: 1; transform: scale(1.08) rotate(2deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+.a-pop { animation: popIn 0.42s cubic-bezier(0.2, 0.9, 0.3, 1.3) both; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.a-fade-up { animation: fadeUp 0.4s ease-out both; }
+
+@keyframes dealIn {
+  0% { opacity: 0; transform: translateY(-160px) rotate(-30deg) scale(0.6); }
+  70% { opacity: 1; transform: translateY(8px) rotate(4deg) scale(1.03); }
+  100% { opacity: 1; transform: translateY(0) rotate(0) scale(1); }
+}
+.a-deal { animation: dealIn 0.55s cubic-bezier(0.2, 0.8, 0.3, 1.2) both; }
+
+@keyframes dropIn {
+  0% { opacity: 0; transform: translateY(-70px) rotate(var(--r, 0deg)) scale(1.4); }
+  100% { opacity: 1; transform: translateY(0) rotate(var(--r, 0deg)) scale(1); }
+}
+.a-drop { animation: dropIn 0.38s cubic-bezier(0.3, 0.9, 0.4, 1.2) both; }
+
+@keyframes flip {
+  0% { transform: rotateY(180deg); }
+  100% { transform: rotateY(0deg); }
+}
+.flip-wrap { perspective: 700px; }
+.a-flip { animation: flip 0.55s cubic-bezier(0.3, 0.8, 0.3, 1.1) both; transform-style: preserve-3d; }
+
+@keyframes stamp {
+  0% { opacity: 0; transform: scale(2.6) rotate(-25deg); }
+  60% { opacity: 1; transform: scale(0.9) rotate(-8deg); }
+  100% { opacity: 1; transform: scale(1) rotate(-10deg); }
+}
+.a-stamp { animation: stamp 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+
+@keyframes shake {
+  0%, 100% { transform: translate(0, 0) rotate(0); }
+  10% { transform: translate(-10px, 4px) rotate(-1deg); }
+  20% { transform: translate(12px, -6px) rotate(1deg); }
+  35% { transform: translate(-12px, -2px) rotate(-0.6deg); }
+  50% { transform: translate(8px, 6px) rotate(0.6deg); }
+  70% { transform: translate(-5px, -3px); }
+  85% { transform: translate(3px, 2px); }
+}
+.a-shake { animation: shake 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
+@keyframes nudge {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+.a-nudge { animation: nudge 0.15s linear 3; }
+
+@keyframes flash {
+  0% { opacity: 1; }
+  100% { opacity: 0; }
+}
+.a-flash { animation: flash 0.7s ease-out forwards; }
+
+@keyframes burstIn {
+  0% { opacity: 0; transform: scale(0.2) rotate(-40deg); }
+  55% { opacity: 1; transform: scale(1.12) rotate(4deg); }
+  75% { transform: scale(0.96) rotate(-2deg); }
+  88% { opacity: 1; transform: scale(1) rotate(0); }
+  100% { opacity: 0; transform: scale(1.25) rotate(0); }
+}
+.a-burst { animation: burstIn 1.2s cubic-bezier(0.2, 0.9, 0.3, 1.1) both; }
+@keyframes spinSlow {
+  to { transform: rotate(360deg); }
+}
+.a-spin-slow { animation: spinSlow 6s linear infinite; }
+
+@keyframes floatUp {
+  0% { opacity: 0; transform: translateY(0) scale(0.4); }
+  15% { opacity: 1; transform: translateY(-14px) scale(1.25); }
+  100% { opacity: 0; transform: translateY(-110px) scale(1) rotate(var(--r, 10deg)); }
+}
+.a-float-up { animation: floatUp 2.4s ease-out forwards; }
+
+@keyframes ghost {
+  0% { opacity: 1; transform: translateY(0) scale(1); }
+  100% { opacity: 0.55; transform: translateY(-6px) scale(0.95); }
+}
+.a-ghost { animation: ghost 1.2s ease-out forwards, bob 3s ease-in-out 1.2s infinite; }
+
+@keyframes cylinderSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(var(--to, 1440deg)); }
+}
+.a-cylinder { animation: cylinderSpin 1.35s cubic-bezier(0.25, 0.1, 0.1, 1) forwards; }
+
+@keyframes confetti {
+  0% { transform: translate3d(0, -10vh, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate3d(var(--dx, 0), 110vh, 0) rotate(var(--rot, 720deg)); opacity: 1; }
+}
+.a-confetti { animation: confetti var(--dur, 3s) cubic-bezier(0.2, 0.6, 0.4, 1) var(--delay, 0s) forwards; }
+
+@keyframes arrow {
+  0%, 100% { transform: translate(-50%, 0); }
+  50% { transform: translate(-50%, 7px); }
+}
+.a-arrow { animation: arrow 0.7s ease-in-out infinite; }
+
+@keyframes ring {
+  0% { box-shadow: 0 0 0 0 #ffc83dcc; }
+  100% { box-shadow: 0 0 0 16px #ffc83d00; }
+}
+.a-ring { animation: ring 1.1s ease-out infinite; }
+
+@keyframes sweat {
+  0% { opacity: 0; transform: translate(0, 0) scale(0.6); }
+  20% { opacity: 1; }
+  100% { opacity: 0; transform: translate(var(--dx, 10px), 34px) scale(1); }
+}
+.a-sweat { animation: sweat 0.9s ease-in infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
