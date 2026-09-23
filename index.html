@@ -1,4 +1,46 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+<!DOCTYPE html>
+<html lang="ka">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>მატყუარას ბარი — Liar's Deck</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Georgian:wght@400;600;700;800&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <style>
+    html, body, #root { height: 100%; margin: 0; background: #09090b; }
+    body { font-family: 'Noto Sans Georgian', system-ui, sans-serif; }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div style="color:#c2a15a;font-family:sans-serif;padding:24px">იტვირთება…</div>
+  </div>
+
+  <script>
+    // Surface load/compile errors on the page instead of leaving "Loading…" forever.
+    function lbFail(msg) {
+      var root = document.getElementById("root");
+      if (!root || root.dataset.failed) return;
+      root.dataset.failed = "1";
+      root.innerHTML = '<pre style="color:#fca5a5;font-family:monospace;padding:24px;white-space:pre-wrap"></pre>';
+      root.firstChild.textContent = "თამაში ვერ ჩაიტვირთა / Failed to load\n\n" + msg;
+    }
+    window.addEventListener("error", function (e) { lbFail((e.error && e.error.stack) || e.message); });
+    if (!window.React || !window.ReactDOM || !window.Babel)
+      lbFail("CDN scripts (React / Babel) did not load — check your internet connection.");
+  </script>
+
+  <!-- The game is inlined (not fetched) so the page also works when opened
+       straight from disk (file://), where browsers block fetch().
+       Source of truth is LiarsDeckPro.jsx — after editing it run: node build.mjs -->
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useRef, useCallback } = React;
+// BEGIN LiarsDeckPro.jsx
 
 /**
  * მატყუარას ბარი — Liar's Deck · "Noir Bar" edition (lightweight build)
@@ -82,7 +124,7 @@ const CSS = `
 .lb-scroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.08);border-radius:8px}
 `;
 
-export default function LiarsDeckPro() {
+function LiarsDeckPro() {
   const [phase, setPhase] = useState("menu"); // menu|dealing|playing|reveal|roulette|gameover
   const [players, setPlayers] = useState([]);
   const [tableCard, setTableCard] = useState("K");
@@ -605,3 +647,8 @@ function Roulette({ player, name, reason, spinning, result, onPull }) {
     </div>
   );
 }
+// END LiarsDeckPro.jsx
+    ReactDOM.createRoot(document.getElementById("root")).render(<LiarsDeckPro />);
+  </script>
+</body>
+</html>
