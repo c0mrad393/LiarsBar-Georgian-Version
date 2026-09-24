@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { MAX_PLAY } from "../engine.js";
-import { EMOTES, RANKS, T, describe, quipText } from "../i18n.js";
+import { EMOTES, MODE_INFO, RANKS, T, describe, quipText } from "../i18n.js";
 import { sfx, unlockAudio } from "../sfx.js";
 import Roulette from "./Roulette.jsx";
-import { Avatar, Btn, Card, CardBack, Chambers, Confetti, SoundToggle, Starburst, Timer } from "./parts.jsx";
+import { Card, CardBack } from "./cards.jsx";
+import { Avatar, Btn, Chambers, Confetti, SoundToggle, Starburst, Timer } from "./parts.jsx";
 
 const BUBBLE_MS = 2800;
 
@@ -39,9 +40,9 @@ function Opponent({ seat, active, bubble, emotes, holdsPile }) {
         <div className="text-[10px] font-extrabold text-coral">{T.eliminated}</div>
       ) : (
         <>
-          <div className="mt-1 flex h-[26px] items-end justify-center">
+          <div className="mt-1 flex h-[36px] items-end justify-center">
             {Array.from({ length: seat.handCount }).map((_, i) => (
-              <div key={i} className="-mx-[5px] h-[24px] w-[17px] rounded-[4px] border-2 border-ink card-back" style={{ transform: `rotate(${(i - (seat.handCount - 1) / 2) * 9}deg)` }} />
+              <CardBack key={i} size="xs" className="-mx-[6px]" style={{ transform: `rotate(${(i - (seat.handCount - 1) / 2) * 9}deg)` }} />
             ))}
             {seat.handCount === 0 && <span className="text-[10px] font-bold text-ink-soft">{T.outOfCards}</span>}
           </div>
@@ -57,7 +58,10 @@ function Opponent({ seat, active, bubble, emotes, holdsPile }) {
   );
 }
 
-function Hand({ cards, selected, canPick, onToggle, round }) {
+const isWild = (rank) => rank === "J" || rank === "D";
+
+function Hand({ cards, selected, canPick, onToggle, round, tableCard }) {
+  const tc = RANKS[tableCard];
   const n = cards.length;
   return (
     <div className="flex min-h-[132px] items-end justify-center px-2 sm:min-h-[150px]">
@@ -73,9 +77,12 @@ function Hand({ cards, selected, canPick, onToggle, round }) {
             style={{ animationDelay: `${i * 90}ms`, zIndex: on ? 20 : i }}
             aria-pressed={on}>
             <div
-              className={`transition-transform duration-200 ${canPick ? "hover:-translate-y-3" : ""}`}
+              className={`relative transition-transform duration-200 ${canPick ? "hover:-translate-y-3" : ""}`}
               style={{ transform: `translateY(${on ? -30 : Math.abs(off) * 5}px) rotate(${off * 6}deg)` }}>
-              <Card rank={c.rank} size="lg" selected={on} className={canPick ? "" : "saturate-[.6]"} />
+              <Card rank={c.rank} suit={c.suit} size="lg" selected={on} glow={isWild(c.rank) && !on ? (c.rank === "D" ? "#ff5a5f" : "#b57be8") : null} className={canPick ? "" : "saturate-[.6]"} />
+              {isWild(c.rank) && (
+                <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border-2 border-ink bg-sun px-1.5 text-[9px] font-black">= {tc.emoji} {tc.geo}</span>
+              )}
             </div>
           </button>
         );
@@ -84,30 +91,77 @@ function Hand({ cards, selected, canPick, onToggle, round }) {
   );
 }
 
-function RevealCards({ reveal }) {
+function Sparkles() {
+  return Array.from({ length: 8 }).map((_, i) => {
+    const a = (i / 8) * Math.PI * 2;
+    return (
+      <span key={i} className="a-sparkle pointer-events-none absolute left-1/2 top-1/2 text-base"
+        style={{ "--dx": `${Math.cos(a) * 48}px`, "--dy": `${Math.sin(a) * 58}px`, animationDelay: "inherit" }}>✨</span>
+    );
+  });
+}
+
+function RevealCards({ reveal, tableCard }) {
   const n = reveal.cards.length;
+  const tc = RANKS[tableCard];
+  const stamp = reveal.devil
+    ? { text: `😈 ${RANKS.D.geo}!`, bg: "#2a0508", sound: "devil" }
+    : reveal.truthful
+      ? { text: `✅ ${T.truth}`, bg: "#2ec4b6", sound: "truth" }
+      : { text: `❌ ${T.bluff}`, bg: "#ff5a5f", sound: "bluff" };
   return (
     <div className="flex flex-col items-center">
       <div className="flex gap-2">
-        {reveal.cards.map((c, i) => (
-          <div key={i} className="flip-wrap relative">
-            <CardBack size="md" />
-            <div className="a-flip absolute inset-0" style={{ animationDelay: `${1000 + i * 280}ms`, backfaceVisibility: "hidden" }}>
-              <Card rank={c.rank} size="md" />
+        {reveal.cards.map((c, i) => {
+          const wild = isWild(c.rank);
+          const delay = `${1000 + i * 280}ms`;
+          return (
+            <div key={i} className="flip-wrap relative">
+              <CardBack size="md" />
+              <div
+                className={`a-flip absolute inset-0 ${wild && c.rank === "J" ? "a-rainbow" : ""}`}
+                style={{ animationDelay: delay, backfaceVisibility: "hidden" }}
+                onAnimationStart={(e) => { if (wild && e.animationName === "flip") sfx(c.rank === "J" ? "joker" : "liar"); }}>
+                <Card rank={c.rank} suit={c.suit} size="md" glow={c.rank === "D" ? "#ff5a5f" : null} />
+                {wild && (
+                  <div style={{ animationDelay: delay }}>
+                    <Sparkles />
+                    <span className="a-pop absolute -bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border-2 border-ink bg-sun px-1.5 text-[10px] font-black" style={{ animationDelay: delay }}>
+                      = {tc.emoji} {tc.geo}
+                    </span>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
-      <div onAnimationStart={() => sfx(reveal.truthful ? "truth" : "bluff")} className="a-stamp mt-3 rounded-xl border-[3px] border-ink px-4 py-1 font-display text-2xl tracking-wide"
-        style={{ animationDelay: `${1200 + n * 280}ms`, background: reveal.truthful ? "#2ec4b6" : "#ff5a5f", color: "white", textShadow: "2px 2px 0 #2b1d14" }}>
-        {reveal.truthful ? `✅ ${T.truth}` : `❌ ${T.bluff}`}
+      <div onAnimationStart={() => sfx(stamp.sound)} className="a-stamp mt-5 rounded-xl border-[3px] border-ink px-4 py-1 font-display text-2xl tracking-wide"
+        style={{ animationDelay: `${1200 + n * 280}ms`, background: stamp.bg, color: "white", textShadow: "2px 2px 0 #2b1d14" }}>
+        {stamp.text}
+      </div>
+    </div>
+  );
+}
+
+function DevilBurst({ id, seat }) {
+  return (
+    <div key={id} className="a-devil-bg pointer-events-none fixed inset-0 z-[72] flex flex-col items-center justify-center"
+      style={{ background: "radial-gradient(circle at 50% 42%, rgba(214,60,30,.96), rgba(110,8,20,.97) 50%, rgba(20,2,4,.99))" }}>
+      <div className="absolute inset-x-0 bottom-0 flex justify-center gap-1 text-6xl sm:text-7xl">
+        {Array.from({ length: 9 }).map((_, i) => <span key={i} className="a-flicker inline-block" style={{ animationDelay: `${i * 70}ms` }}>🔥</span>)}
+      </div>
+      <div className="a-devil-card"><div className="scale-[1.7] sm:scale-[1.9]"><Card rank="D" size="lg" glow="#ffb02e" /></div></div>
+      <div className="a-pop mt-20 px-4 text-center sm:mt-24" style={{ animationDelay: "0.5s" }}>
+        <div className="font-black text-white" style={{ fontSize: 36, textShadow: "3px 3px 0 #000" }}>{T.devilTitle}</div>
+        <div className="mt-1 text-lg font-extrabold text-sun" style={{ textShadow: "2px 2px 0 #000" }}>{seat?.avatar} {T.devilSub}</div>
       </div>
     </div>
   );
 }
 
 function TableCenter({ view, pileKey, nm }) {
-  if (view.reveal) return <RevealCards reveal={view.reveal} />;
+  if (view.reveal) return <RevealCards reveal={view.reveal} tableCard={view.tableCard} />;
   if (view.pile) {
     const r = RANKS[view.tableCard];
     return (
@@ -181,6 +235,7 @@ export default function Game({ view, act, emotes, sendEmote, canRestart, onAgain
   const [shake, setShake] = useState(null);
   const [flash, setFlash] = useState(0);
   const [burst, setBurst] = useState(null);
+  const [devil, setDevil] = useState(null);
   const [confetti, setConfetti] = useState(0);
   const [showLog, setShowLog] = useState(false);
   const lastSeen = useRef(null);
@@ -216,6 +271,13 @@ export default function Game({ view, act, emotes, sendEmote, canRestart, onAgain
           say(ev.seat, q);
           break;
         case "truth": case "bluff": say(ev.seat, q); break; // sound plays with the reveal stamp
+        case "devil":
+          sfx("devil");
+          setDevil({ id: ev.id, seat: ev.seat });
+          setShake("hard");
+          setTimeout(() => setDevil((d) => (d?.id === ev.id ? null : d)), 2600);
+          say(ev.seat, q);
+          break;
         case "safe": sfx("click"); say(ev.seat, q); break;
         case "dead": sfx("bang"); setFlash(ev.id); setShake("hard"); say(ev.seat, q); break;
         case "win": sfx("win"); setConfetti(ev.id); break;
@@ -277,6 +339,7 @@ export default function Game({ view, act, emotes, sendEmote, canRestart, onAgain
     <div className={`relative min-h-screen overflow-x-hidden ${shake === "hard" ? "a-shake" : shake === "soft" ? "a-nudge" : ""}`}>
       {flash ? <div key={flash} className="a-flash pointer-events-none fixed inset-0 z-[75] bg-white" onAnimationEnd={() => setFlash(0)} /> : null}
       {burst && <LiarBurst burst={burst.id} seat={view.seats[burst.seat]} />}
+      {devil && <DevilBurst id={devil.id} seat={view.seats[devil.seat]} />}
       {confetti ? <Confetti key={confetti} /> : null}
 
       <div className="mx-auto grid min-h-screen max-w-6xl grid-cols-1 gap-4 px-3 pb-4 pt-3 sm:px-5 lg:grid-cols-[1fr_270px]">
@@ -285,6 +348,9 @@ export default function Game({ view, act, emotes, sendEmote, canRestart, onAgain
           <header className="flex items-center justify-between gap-2">
             <button onClick={onLeave} className="comic-sm rounded-full bg-paper px-3 py-1.5 text-xs font-extrabold sm:text-sm">← {T.leave}</button>
             <div className="flex items-center gap-2">
+              {view.opts?.mode === "devil" && (
+                <span className="comic-sm rounded-full bg-[#2a0508] px-2.5 py-1 text-xs font-black text-sun sm:text-sm" title={MODE_INFO.devil.hint}>😈<span className="hidden sm:inline"> {MODE_INFO.devil.name}</span></span>
+              )}
               <span className="comic-sm rounded-full bg-sun px-3 py-1 text-xs font-black sm:text-sm">{T.round} {view.round}</span>
               <button onClick={() => setShowLog(!showLog)} className="comic-sm flex h-10 w-10 items-center justify-center rounded-full bg-paper text-lg lg:hidden" aria-label={T.log}>📜</button>
               <SoundToggle />
@@ -308,7 +374,7 @@ export default function Game({ view, act, emotes, sendEmote, canRestart, onAgain
           {/* table */}
           <div className="felt relative mx-auto mt-5 flex min-h-[210px] w-full max-w-3xl flex-1 flex-col items-center justify-center rounded-[48px] px-3 py-6 sm:min-h-[250px]">
             <div className="absolute left-3 top-3 flex items-center gap-2 rounded-2xl border-[2.5px] border-ink bg-paper py-1 pl-1 pr-3" style={{ boxShadow: "0 3px 0 #2b1d14" }}>
-              <Card key={`${view.round}-${view.tableCard}`} rank={view.tableCard} size="sm" className="a-pop" />
+              <Card key={`${view.round}-${view.tableCard}`} rank={view.tableCard} suit={{ K: "H", Q: "S", A: "S" }[view.tableCard]} size="sm" className="a-pop" />
               <div className="leading-tight">
                 <div className="text-[9px] font-extrabold uppercase tracking-wider text-ink-soft">{T.tableCard}</div>
                 <div className="text-sm font-black" style={{ color: tc.color }}>{tc.geo}</div>
@@ -339,7 +405,7 @@ export default function Game({ view, act, emotes, sendEmote, canRestart, onAgain
 
             {mine.alive ? (
               mine.hand.length ? (
-                <Hand cards={mine.hand} selected={selected} canPick={canPick} onToggle={toggle} round={view.round} />
+                <Hand cards={mine.hand} selected={selected} canPick={canPick} onToggle={toggle} round={view.round} tableCard={view.tableCard} />
               ) : (
                 <div className="flex min-h-[100px] items-center justify-center text-sm font-extrabold text-ink-soft">🫳 {T.outOfCards}</div>
               )
@@ -380,7 +446,7 @@ export default function Game({ view, act, emotes, sendEmote, canRestart, onAgain
             {view.log.map((e) => {
               const text = describe(e, nm);
               if (!text) return null;
-              const tone = { call: "bg-[#ffe1e2]", dead: "bg-[#ffe1e2]", bluff: "bg-[#ffe1e2]", truth: "bg-[#d8f5f1]", safe: "bg-[#fff1c7]", win: "bg-[#fff1c7]", deal: "bg-[#e6effd]" }[e.type] || "bg-cream";
+              const tone = { devil: "bg-[#ffd0d0]", call: "bg-[#ffe1e2]", dead: "bg-[#ffe1e2]", bluff: "bg-[#ffe1e2]", truth: "bg-[#d8f5f1]", safe: "bg-[#fff1c7]", win: "bg-[#fff1c7]", deal: "bg-[#e6effd]" }[e.type] || "bg-cream";
               return (
                 <div key={e.id} className={`a-fade-up rounded-xl px-2.5 py-1.5 text-[12px] font-semibold leading-snug ${tone}`}>
                   {text}

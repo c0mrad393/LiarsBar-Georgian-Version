@@ -53,6 +53,7 @@ export default function Roulette({ view, nm, onPull }) {
   const mine = r.victim === view.me;
   const dead = r.result === "dead";
   const safe = r.result === "safe";
+  const devil = r.reason === "devil";
   const pullsBefore = r.result ? r.chamber : v.pulls;
   const odds = 6 - pullsBefore;
   const ev = r.result && view.log.find((e) => (e.type === "dead" || e.type === "safe") && e.seat === r.victim);
@@ -60,8 +61,8 @@ export default function Roulette({ view, nm, onPull }) {
 
   return (
     <div className="a-fade-up fixed inset-0 z-[60] flex items-center justify-center bg-ink/45 px-4 backdrop-blur-[3px]">
-      <div className={`a-pop comic relative w-full max-w-sm rounded-[2rem] bg-paper px-6 pb-6 pt-5 text-center ${dead ? "a-shake" : ""}`}>
-        <div className="font-display text-sm tracking-widest text-coral">🔫 {T.roulette}</div>
+      <div key={r.victim} className={`a-pop comic relative w-full max-w-sm rounded-[2rem] px-6 pb-6 pt-5 text-center ${dead ? "a-shake" : ""} ${devil ? "bg-[#fff0ee]" : "bg-paper"}`}>
+        <div className={`font-display text-sm tracking-widest ${devil ? "text-[#b3202a]" : "text-coral"}`}>{devil ? `😈 ${T.devilRoulette}` : `🔫 ${T.roulette}`}</div>
 
         <div className="relative mx-auto mt-3 w-fit">
           <div className={`text-6xl ${!r.result ? "a-tremble" : safe ? "a-hop" : ""}`}>
@@ -76,6 +77,11 @@ export default function Roulette({ view, nm, onPull }) {
         </div>
         <h2 className="mt-1 text-xl font-black">{mine ? T.you : v.name} · {T.facesGun}</h2>
         <p className="text-xs font-bold text-ink-soft">{T[r.reason]}</p>
+        {r.queue?.length > 0 && (
+          <div className="mt-2 inline-flex items-center gap-1 rounded-full border-2 border-ink bg-cream px-2.5 py-0.5 text-xs font-extrabold">
+            {T.queue}: {r.queue.map((i) => <span key={i} className="text-base" title={view.seats[i].name}>{view.seats[i].avatar}</span>)}
+          </div>
+        )}
 
         <div className="relative mt-4">
           <Cylinder spinning={r.spinning} result={r.result} pulls={v.pulls} chamber={r.chamber} />

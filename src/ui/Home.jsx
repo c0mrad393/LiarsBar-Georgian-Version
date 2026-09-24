@@ -1,21 +1,45 @@
 import { useState } from "react";
-import { AVATARS, RULES, T } from "../i18n.js";
+import { AVATARS, MODE_INFO, RULES, T } from "../i18n.js";
 import { cleanCode } from "../net.js";
 import { sfx } from "../sfx.js";
-import { Btn, Card, SoundToggle } from "./parts.jsx";
+import { Card } from "./cards.jsx";
+import { Btn, SoundToggle } from "./parts.jsx";
+
+export function ModePicker({ mode, setMode, disabled }) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {Object.entries(MODE_INFO).map(([k, m]) => {
+        const on = mode === k;
+        const dark = k === "devil";
+        return (
+          <button
+            key={k}
+            disabled={disabled}
+            onClick={() => { setMode(k); sfx(dark ? "devil" : "select"); }}
+            aria-pressed={on}
+            className={`rounded-2xl border-[2.5px] border-ink px-3 py-2.5 text-left transition-transform ${on ? "-translate-y-0.5" : "opacity-70 hover:opacity-100"} ${dark ? (on ? "bg-[#2a0508] text-white" : "bg-[#f3dada]") : on ? "bg-sun" : "bg-cream"}`}
+            style={{ boxShadow: on ? "0 4px 0 #2b1d14" : "0 2px 0 #2b1d14" }}>
+            <div className="text-sm font-black"><span className={on ? "a-hop inline-block" : "inline-block"}>{m.emoji}</span> {m.name}</div>
+            <div className={`mt-0.5 text-[10px] font-semibold leading-snug ${dark && on ? "text-white/80" : "text-ink-soft"}`}>{m.hint}</div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export function Logo({ small }) {
   return (
     <div className="flex flex-col items-center text-center">
       {!small && (
         <div className="relative mb-2 h-28 w-48">
-          {["A", "K", "Q"].map((r, i) => (
+          {[["A", "S"], ["J"], ["K", "H"]].map(([r, suit], i) => (
             <div
               key={r}
               className="a-deal absolute left-1/2 top-2"
               style={{ animationDelay: `${i * 120}ms`, marginLeft: -31 + (i - 1) * 34 }}>
               <div style={{ transform: `rotate(${(i - 1) * 16}deg) translateY(${Math.abs(i - 1) * 8}px)` }}>
-                <Card rank={r} size="md" />
+                <Card rank={r} suit={suit} size="md" />
               </div>
             </div>
           ))}
@@ -29,7 +53,7 @@ export function Logo({ small }) {
   );
 }
 
-export default function Home({ profile, setProfile, invite, onSolo, onHost, onJoin, onDropInvite }) {
+export default function Home({ profile, setProfile, mode, setMode, invite, onSolo, onHost, onJoin, onDropInvite }) {
   const [code, setCode] = useState(invite || "");
   const [rules, setRules] = useState(false);
   const setName = (name) => setProfile({ ...profile, name });
@@ -75,6 +99,13 @@ export default function Home({ profile, setProfile, invite, onSolo, onHost, onJo
           })}
         </div>
       </section>
+
+      {!invite && (
+        <section className="a-fade-up mt-5" style={{ animationDelay: "120ms" }}>
+          <div className="mb-2 text-sm font-extrabold">{T.mode}</div>
+          <ModePicker mode={mode} setMode={setMode} />
+        </section>
+      )}
 
       <div className="a-fade-up mt-6 flex flex-col gap-3" style={{ animationDelay: "160ms" }}>
         {invite ? (

@@ -1,14 +1,25 @@
 // Pure game engine. Only the host (or the solo player's own browser) runs it;
 // guests receive a filtered view from `viewFor` and send actions back.
 //
-// Rules: 24 cards (8× K/Q/A), 5 per living player. Each round has a table
-// card. On your turn play 1–3 cards face down claiming they are all the table
-// card, or call "Liar!" on the previous play. The loser of a call faces the
-// revolver (1 bullet in 6 chambers, chamber advances every pull). When nobody
-// after you has cards left, the next living player is forced to call.
+// Rules: 20 cards (6× K/Q/A + 2 specials), 5 per living player. Each round
+// has a table card. On your turn play 1–3 cards face down claiming they are
+// all the table card, or call "Liar!" on the previous play. Jokers count as
+// any card. The loser of a call faces the revolver (1 bullet in 6 chambers,
+// chamber advances every pull). When nobody after you has cards left, the
+// next living player is forced to call.
+//
+// Devil mode swaps one joker for the devil card: it also counts as any card,
+// and when a call reveals it, everyone except the player who played it faces
+// the revolver, one after another.
 
 export const RKEYS = ["K", "Q", "A"];
+export const JOKER = "J";
+export const DEVIL = "D";
+export const WILD = new Set([JOKER, DEVIL]);
+export const MODES = ["classic", "devil"];
 export const HAND = 5;
+const PER_RANK = 6;
+const SUITS = ["S", "H", "D", "C", "H", "S"]; // cosmetic only
 export const MAX_SEATS = 4;
 export const MAX_PLAY = 3;
 
@@ -22,7 +33,7 @@ export const PERSONAS = {
 const AUTOPILOT = { bluff: 0.25, call: 0.3 };
 
 // Quip counts per event type; the UI owns the actual text (src/i18n.js).
-export const QUIP_COUNTS = { play: 10, call: 8, truth: 6, bluff: 6, safe: 8, dead: 8, win: 5 };
+export const QUIP_COUNTS = { play: 10, call: 8, truth: 6, bluff: 6, safe: 8, dead: 8, win: 5, devil: 6 };
 
 const TIMING = {
   deal: 1300,
@@ -48,6 +59,7 @@ const shuffle = (a) => {
 // ---------------------------------------------------------------- helpers ---
 
 const withCards = (s, i) => s.seats[i].alive && s.seats[i].hand.length > 0;
+export const counts = (card, tableCard) => card.rank === tableCard || WILD.has(card.rank);
 
 function nextWhere(s, from, pred) {
   const n = s.seats.length;
@@ -72,6 +84,11 @@ function pushLog(s, ev, quipType) {
   const e = { id: s.uid++, ...ev };
   if (quipType && QUIP_COUNTS[quipType]) e.quip = rnd(QUIP_COUNTS[quipType]);
   s.log = [e, ...s.log].slice(0, 60);
+}
+
+function armPull(s, now) {
+  const v = s.seats[s.roulette.victim];
+  s.deadline = s.opts.pullMs && !isAuto(v) ? now + s.opts.pullMs : null;
 }
 
 function setTurn(s, i, now) {
@@ -101,7 +118,7 @@ export function createGame(seats, opts = {}, now = Date.now()) {
       bullet: rnd(6),
       pulls: 0,
     })),
-    opts: { turnMs: 0, pullMs: 0, ...opts },
+    opts: { turnMs: 0, pullMs: 0, mode: "classic", ...opts },
     phase: "dealing",
     tableCard: "K",
     turn: 0,
@@ -122,7 +139,8 @@ export function createGame(seats, opts = {}, now = Date.now()) {
 function deal(s, starter, now) {
   const deck = [];
   let id = s.uid * 100; // unique across rounds
-  for (const r of RKEYS) for (let k = 0; k < 8; k++) deck.push({ id: id++, rank: r });
+  for (const r of RKEYS) for (let k = 0; k < PER_RANK; k++) deck.push({ id: id++, rank: r, suit: SUITS[k] });
+  deck.push({ id: id++, rank: JOKER }, { id: id++, rank: s.opts.mode === "devil" ? DEVIL : JOKER });
   shuffle(deck);
   for (const seat of s.seats) seat.hand = seat.alive ? deck.splice(0, HAND) : [];
   s.tableCard = RKEYS[rnd(3)];
@@ -183,8 +201,9 @@ export function reduce(state, a) {
       const pile = state.pile;
       if (!pile || pile.by === a.seat) return state;
       const s = clone(state);
-      const truthful = pile.cards.every((c) => c.rank === s.tableCard);
-      s.reveal = { cards: pile.cards, truthful, accuser: a.seat, by: pile.by };
+      const truthful = pile.cards.every((c) => counts(c, s.tableCard));
+      const devil = pile.cards.some((c) => c.rank === DEVIL);
+      s.reveal = { cards: pile.cards, truthful, devil, accuser: a.seat, by: pile.by };
       s.pile = null;
       s.phase = "reveal";
       s.deadline = null;
@@ -195,12 +214,26 @@ export function reduce(state, a) {
     case "toRoulette": {
       if (state.phase !== "reveal" || !state.reveal) return state;
       const s = clone(state);
-      const { truthful, accuser, by } = s.reveal;
-      const victim = truthful ? accuser : by;
-      pushLog(s, { type: truthful ? "truth" : "bluff", seat: by, other: accuser }, truthful ? "truth" : "bluff");
-      s.roulette = { victim, reason: truthful ? "wrongCall" : "caught", spinning: false, result: null };
+      const { truthful, devil, accuser, by } = s.reveal;
+      let victims, reason, starter;
+      if (devil) {
+        // Everyone but the devil's owner, starting with the accuser.
+        victims = [];
+        for (let k = 0; k < s.seats.length; k++) {
+          const i = (accuser + k) % s.seats.length;
+          if (i !== by && s.seats[i].alive) victims.push(i);
+        }
+        reason = "devil";
+        starter = by;
+        pushLog(s, { type: "devil", seat: by, other: accuser }, "devil");
+      } else {
+        victims = [truthful ? accuser : by];
+        reason = truthful ? "wrongCall" : "caught";
+        pushLog(s, { type: truthful ? "truth" : "bluff", seat: by, other: accuser }, truthful ? "truth" : "bluff");
+      }
+      s.roulette = { victim: victims[0], queue: victims.slice(1), reason, starter, spinning: false, result: null };
       s.phase = "roulette";
-      s.deadline = s.opts.pullMs && !isAuto(s.seats[victim]) ? now + s.opts.pullMs : null;
+      armPull(s, now);
       return s;
     }
 
@@ -242,7 +275,14 @@ export function reduce(state, a) {
         if (alive[0]) pushLog(s, { type: "win", seat: alive[0].idx }, "win");
         return s;
       }
-      deal(s, r.result === "dead" ? nextAlive(s, r.victim) : r.victim, now);
+      if (r.queue?.length) {
+        const [victim, ...queue] = r.queue;
+        s.roulette = { ...r, victim, queue, spinning: false, result: null, chamber: undefined };
+        armPull(s, now);
+        return s;
+      }
+      const starter = r.starter ?? (r.result === "dead" ? nextAlive(s, r.victim) : r.victim);
+      deal(s, s.seats[starter].alive ? starter : nextAlive(s, starter), now);
       return s;
     }
 
@@ -271,18 +311,24 @@ export function botDecide(s, i) {
   const pa = me.kind === "bot" ? PERSONAS[me.persona] || AUTOPILOT : AUTOPILOT;
   const pile = s.pile;
   if (mustCall(s)) return { type: "call", seat: i, auto: me.kind !== "bot" };
+  const holdsDevil = me.hand.some((c) => c.rank === DEVIL);
   if (pile && pile.by !== i) {
-    const mine = me.hand.filter((c) => c.rank === s.tableCard).length;
+    // Table cards and wilds I hold are ones the pile can't contain.
+    const mine = me.hand.filter((c) => counts(c, s.tableCard)).length;
     const byLeft = s.seats[pile.by].hand.length;
-    let p = pa.call + (pile.count - 1) * 0.16 + mine * 0.11 + (me.hand.length <= 2 ? 0.12 : 0) + (byLeft === 0 ? 0.1 : 0) + (Math.random() - 0.5) * 0.18;
+    const devilRisk = s.opts.mode === "devil" && !holdsDevil ? 0.07 : 0;
+    let p = pa.call + (pile.count - 1) * 0.16 + mine * 0.1 + (me.hand.length <= 2 ? 0.12 : 0) + (byLeft === 0 ? 0.1 : 0) - devilRisk + (Math.random() - 0.5) * 0.18;
     if (Math.random() < p) return { type: "call", seat: i, auto: me.kind !== "bot" };
   }
-  const match = me.hand.filter((c) => c.rank === s.tableCard);
-  const other = me.hand.filter((c) => c.rank !== s.tableCard);
+  const match = me.hand.filter((c) => counts(c, s.tableCard));
+  const other = me.hand.filter((c) => !counts(c, s.tableCard));
   const bluff = !match.length || Math.random() < pa.bluff;
   let pool = !bluff ? match : other.length ? other : me.hand;
   const n = Math.min(pool.length, 1 + rnd(bluff ? 2 : 3));
   let toPlay = shuffle([...pool]).slice(0, n);
+  // Bait: a bot holding the devil loves to slip it into an honest play.
+  const devil = me.hand.find((c) => c.rank === DEVIL);
+  if (devil && !bluff && !toPlay.includes(devil) && Math.random() < 0.6) toPlay = [devil, ...toPlay].slice(0, MAX_PLAY);
   if (!toPlay.length) toPlay = me.hand.slice(0, 1);
   return { type: "play", seat: i, ids: toPlay.map((c) => c.id), auto: me.kind !== "bot" };
 }

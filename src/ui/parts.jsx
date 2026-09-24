@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { RANKS, T } from "../i18n.js";
+import { T } from "../i18n.js";
 import { isMuted, setMuted, sfx, unlockAudio } from "../sfx.js";
 
 const BTN = {
@@ -20,31 +20,6 @@ export function Btn({ color = "sun", className = "", children, onClick, ...rest 
       {children}
     </button>
   );
-}
-
-const SIZES = {
-  sm: { box: "h-[62px] w-[44px] rounded-lg", letter: "text-xs", emoji: "text-xl", name: "hidden" },
-  md: { box: "h-[88px] w-[62px] rounded-xl", letter: "text-sm", emoji: "text-3xl", name: "text-[8px]" },
-  lg: { box: "h-[104px] w-[72px] rounded-xl sm:h-[118px] sm:w-[82px]", letter: "text-base", emoji: "text-4xl sm:text-[42px]", name: "text-[9px]" },
-};
-
-export function Card({ rank, size = "md", selected, className = "", style }) {
-  const r = RANKS[rank] || RANKS.K;
-  const s = SIZES[size];
-  return (
-    <div
-      className={`relative flex select-none flex-col items-center justify-between overflow-hidden border-[2.5px] border-ink bg-paper p-1 ${s.box} ${className}`}
-      style={{ boxShadow: selected ? `0 0 0 4px ${r.color}, 0 8px 0 #2b1d14` : "0 3px 0 #2b1d14", ...style }}>
-      <div className="absolute inset-x-0 top-0 h-1/3" style={{ background: r.soft }} />
-      <span className={`relative self-start pl-0.5 font-display leading-none ${s.letter}`} style={{ color: r.color }}>{rank}</span>
-      <span className={`relative leading-none ${s.emoji}`}>{r.emoji}</span>
-      <span className={`relative font-bold leading-none ${s.name}`} style={{ color: r.color }}>{r.geo}</span>
-    </div>
-  );
-}
-
-export function CardBack({ size = "sm", className = "", style }) {
-  return <div className={`card-back border-[2.5px] border-ink ${SIZES[size].box} ${className}`} style={{ boxShadow: "0 3px 0 #2b1d14", ...style }} />;
 }
 
 export function Avatar({ emoji, size = 56, active, dead, className = "" }) {

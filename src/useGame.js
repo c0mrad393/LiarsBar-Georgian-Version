@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { createGame, reduce, schedule, viewFor, MAX_SEATS, PERSONAS } from "./engine.js";
+import { createGame, reduce, schedule, viewFor, MAX_SEATS, MODES, PERSONAS } from "./engine.js";
 import { hostRoom, joinRoom, clientId } from "./net.js";
 import { later } from "./hostTimer.js";
 import { AVATARS, EMOTES } from "./i18n.js";
@@ -60,13 +60,13 @@ function useEmotes() {
 
 // ------------------------------------------------------------------- solo ---
 
-export function useSolo(profile) {
+export function useSolo(profile, mode) {
   const { state, dispatch, reset } = useEngine();
   const [emotes, pushEmote] = useEmotes();
 
   const again = useCallback(() => {
-    reset(createGame([{ name: profile.name, avatar: profile.avatar, kind: "human" }, ...bots(3)]));
-  }, [profile.name, profile.avatar, reset]);
+    reset(createGame([{ name: profile.name, avatar: profile.avatar, kind: "human" }, ...bots(3)], { mode }));
+  }, [profile.name, profile.avatar, mode, reset]);
 
   useEffect(() => { again(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -82,12 +82,14 @@ export function useSolo(profile) {
 
 // ------------------------------------------------------------------- host ---
 
-export function useHost(profile) {
+export function useHost(profile, initialMode = "classic") {
   const { state, stateRef, dispatch, reset } = useEngine();
   const [status, setStatus] = useState("creating"); // creating | lobby | game | error
   const [error, setError] = useState(null);
   const [code, setCode] = useState(null);
   const [botFill, setBotFill] = useState(true);
+  const [mode, setModeRaw] = useState(initialMode);
+  const setMode = useCallback((m) => { if (MODES.includes(m)) setModeRaw(m); }, []);
   const [lobby, setLobby] = useState([{ clientId: "host", name: profile.name, avatar: profile.avatar, connected: true }]);
   const [emotes, pushEmote] = useEmotes();
 
@@ -104,6 +106,7 @@ export function useHost(profile) {
     t: "lobby",
     code: codeRef.current,
     botFill: botFillRef.current,
+    mode: modeRef.current,
     max: MAX_SEATS,
     seats: lobbyRef.current.filter((p) => p.connected).map((p) => ({ name: p.name, avatar: p.avatar, host: p.clientId === "host", you: p.clientId === cid })),
   });
@@ -111,6 +114,8 @@ export function useHost(profile) {
   codeRef.current = code;
   const botFillRef = useRef(botFill);
   botFillRef.current = botFill;
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
 
   const sendView = (cid, conn) => {
     const s = stateRef.current;
@@ -121,7 +126,7 @@ export function useHost(profile) {
   // Keep guests in sync.
   useEffect(() => {
     if (status === "lobby") conns.current.forEach((c, cid) => send(c, lobbyMsg(cid)));
-  }, [status, lobby, botFill, code]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [status, lobby, botFill, mode, code]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (state) conns.current.forEach((c, cid) => sendView(cid, c));
   }, [state]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -213,7 +218,7 @@ export function useHost(profile) {
       setStatus("lobby");
       return;
     }
-    reset(createGame(seats, ONLINE_OPTS));
+    reset(createGame(seats, { ...ONLINE_OPTS, mode: modeRef.current }));
     setStatus("game");
   }, [reset]);
 
@@ -232,9 +237,10 @@ export function useHost(profile) {
     error,
     code,
     view,
-    lobby: { code, botFill, max: MAX_SEATS, seats: connected.map((p) => ({ name: p.name, avatar: p.avatar, host: p.clientId === "host", you: p.clientId === "host" })) },
+    lobby: { code, botFill, mode, max: MAX_SEATS, seats: connected.map((p) => ({ name: p.name, avatar: p.avatar, host: p.clientId === "host", you: p.clientId === "host" })) },
     botFill,
     setBotFill,
+    setMode,
     canStart: connected.length + (botFill ? MAX_SEATS - connected.length : 0) >= 2,
     start,
     again: start,

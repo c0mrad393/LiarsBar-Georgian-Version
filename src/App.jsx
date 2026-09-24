@@ -38,14 +38,15 @@ function Notice({ emoji = "🍺", title, children }) {
   );
 }
 
-function SoloScreen({ profile, onLeave }) {
-  const g = useSolo(profile);
+function SoloScreen({ profile, mode, onLeave }) {
+  const g = useSolo(profile, mode);
   if (!g.view) return null;
   return <Game view={g.view} act={g.act} emotes={g.emotes} sendEmote={g.sendEmote} canRestart onAgain={g.again} onLeave={onLeave} />;
 }
 
-function HostScreen({ profile, onLeave }) {
-  const h = useHost(profile);
+function HostScreen({ profile, mode, setMode, onLeave }) {
+  const h = useHost(profile, mode);
+  const pickMode = (m) => { h.setMode(m); setMode(m); };
   const leave = () => { if (h.status !== "game" || window.confirm("თამაში ყველასთვის დასრულდება. გავიდე?")) onLeave(); };
   if (h.status === "creating") return <Notice emoji="🔨" title={T.creating} />;
   if (h.status === "error")
@@ -55,7 +56,7 @@ function HostScreen({ profile, onLeave }) {
       </Notice>
     );
   if (h.status === "lobby" || !h.view)
-    return <Lobby lobby={h.lobby} isHost setBotFill={h.setBotFill} canStart={h.canStart} onStart={h.start} onLeave={onLeave} />;
+    return <Lobby lobby={h.lobby} isHost setBotFill={h.setBotFill} setMode={pickMode} canStart={h.canStart} onStart={h.start} onLeave={onLeave} />;
   return <Game view={h.view} act={h.act} emotes={h.emotes} sendEmote={h.sendEmote} canRestart onAgain={h.again} onLeave={leave} onToLobby={h.toLobby} />;
 }
 
@@ -78,6 +79,12 @@ export default function App() {
   const [invite, setInvite] = useState(roomFromUrl);
   const [screen, setScreen] = useState({ name: "home" });
   const [attempt, setAttempt] = useState(0);
+  const [mode, setMode] = useState(() => {
+    try { return localStorage.getItem("lb-mode") === "devil" ? "devil" : "classic"; } catch { return "classic"; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("lb-mode", mode); } catch { /* private mode */ }
+  }, [mode]);
 
   useEffect(() => {
     try { localStorage.setItem("lb-profile", JSON.stringify(profile)); } catch { /* private mode */ }
@@ -86,8 +93,8 @@ export default function App() {
   const clean = { name: cleanName(profile.name), avatar: cleanAvatar(profile.avatar) };
   const home = () => { setScreen({ name: "home" }); setInvite(""); setRoomInUrl(null); };
 
-  if (screen.name === "solo") return <SoloScreen profile={clean} onLeave={home} />;
-  if (screen.name === "host") return <HostScreen profile={clean} onLeave={home} />;
+  if (screen.name === "solo") return <SoloScreen profile={clean} mode={mode} onLeave={home} />;
+  if (screen.name === "host") return <HostScreen profile={clean} mode={mode} setMode={setMode} onLeave={home} />;
   if (screen.name === "guest")
     return <GuestScreen key={`${screen.code}-${attempt}`} code={screen.code} profile={clean} onLeave={home} onRetry={() => setAttempt((a) => a + 1)} />;
 
@@ -95,6 +102,8 @@ export default function App() {
     <Home
       profile={profile}
       setProfile={setProfile}
+      mode={mode}
+      setMode={setMode}
       invite={invite}
       onSolo={() => setScreen({ name: "solo" })}
       onHost={() => setScreen({ name: "host" })}

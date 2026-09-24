@@ -79,6 +79,12 @@ const SOUNDS = {
     hiss(c, { dur: 0.7, vol: 0.9, type: "lowpass", freq: 1200 });
     tone(c, { type: "sine", f0: 120, f1: 35, dur: 0.5, vol: 0.7 });
   },
+  devil: (c) => {
+    // low rumble + a descending "mwa-ha-ha"
+    tone(c, { type: "sawtooth", f0: 70, f1: 45, dur: 1.4, vol: 0.18 });
+    [0, 0.22, 0.44, 0.7].forEach((at, i) => tone(c, { type: "sawtooth", f0: 260 - i * 25, f1: 190 - i * 25, at: 0.25 + at, dur: 0.17, vol: 0.12 }));
+  },
+  joker: (c) => [1047, 1319, 1568, 2093, 1568, 2093].forEach((f, i) => tone(c, { type: "sine", f0: f, at: i * 0.06, dur: 0.14, vol: 0.08 })),
   pop: (c) => tone(c, { type: "sine", f0: 500, f1: 1100, dur: 0.08, vol: 0.12 }),
   win: (c) => [523, 659, 784, 1047, 784, 1047].forEach((f, i) => tone(c, { type: "triangle", f0: f, at: i * 0.11, dur: 0.22, vol: 0.13 })),
   join: (c) => { tone(c, { type: "sine", f0: 660, dur: 0.09, vol: 0.12 }); tone(c, { type: "sine", f0: 990, at: 0.09, dur: 0.12, vol: 0.12 }); },

@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { PERSONAS } from "../engine.js";
-import { T } from "../i18n.js";
+import { MODE_INFO, T } from "../i18n.js";
 import { inviteLink } from "../net.js";
 import { sfx } from "../sfx.js";
-import { Logo } from "./Home.jsx";
+import { Logo, ModePicker } from "./Home.jsx";
 import { Btn, SoundToggle } from "./parts.jsx";
 
 const BOT_FACES = Object.values(PERSONAS);
 
-export default function Lobby({ lobby, isHost, setBotFill, canStart, onStart, onLeave }) {
+export default function Lobby({ lobby, isHost, setBotFill, setMode, canStart, onStart, onLeave }) {
   const [copied, setCopied] = useState(false);
   const link = lobby.code ? inviteLink(lobby.code) : "";
   const seats = lobby.seats;
@@ -62,6 +62,15 @@ export default function Lobby({ lobby, isHost, setBotFill, canStart, onStart, on
           </>
         )}
       </section>
+
+      {isHost ? (
+        <div className="mt-5"><ModePicker mode={lobby.mode} setMode={setMode} /></div>
+      ) : (
+        <div className={`a-pop mt-5 rounded-2xl border-[2.5px] border-ink px-4 py-2.5 text-center ${lobby.mode === "devil" ? "bg-[#2a0508] text-white" : "bg-paper"}`} style={{ boxShadow: "0 3px 0 #2b1d14" }}>
+          <div className="text-sm font-black">{MODE_INFO[lobby.mode || "classic"].emoji} {MODE_INFO[lobby.mode || "classic"].name}</div>
+          <div className="text-[11px] font-semibold opacity-80">{MODE_INFO[lobby.mode || "classic"].hint}</div>
+        </div>
+      )}
 
       <section className="mt-5 grid grid-cols-2 gap-3">
         {Array.from({ length: lobby.max }).map((_, i) => {
