@@ -65,12 +65,25 @@ log("ok  create + join, host flag, devil mode");
 guest.send({ t: "mode", v: "classic" });
 await sleep(300);
 if (host.lobby.mode !== "devil") fail("guest changed the mode");
-host.send({ t: "botFill", v: true });
+host.send({ t: "bots", v: 4 });
 host.send({ t: "start" });
 await until(() => host.view && guest.view, "game start");
-if (host.view.seats.length !== 4) fail("bots did not fill seats");
+if (host.view.seats.length !== 6) fail(`expected 2 humans + 4 bots, got ${host.view.seats.length} seats`);
 if (host.view.opts.mode !== "devil") fail("game not in devil mode");
-log("ok  host-only settings, start with bots");
+log("ok  host-only settings, 6-seat table with 4 bots");
+
+// throws and chat reach everyone; bad targets are ignored
+guest.send({ t: "throw", to: 0, item: "🍅" });
+await until(() => host.msgs.some((m) => m.t === "fx" && m.fx.kind === "throw" && m.fx.to === 0), "throw fx");
+host.send({ t: "say", i: 2 });
+await until(() => guest.msgs.some((m) => m.t === "fx" && m.fx.kind === "say" && m.fx.i === 2), "say fx");
+await sleep(1300); // throws and chat share one rate limit
+const before = host.msgs.length;
+host.send({ t: "throw", to: 99, item: "🍅" });
+host.send({ t: "throw", to: 1, item: "💣" });
+await sleep(400);
+if (host.msgs.slice(before).some((m) => m.t === "fx" && m.fx.kind === "throw" && m.fx.from === 0)) fail("invalid throw accepted");
+log("ok  throw + quick chat, invalid throws rejected");
 
 // 4. latecomer is refused mid-game
 const late = client("Late", "late-1");

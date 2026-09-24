@@ -1,291 +1,133 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useWakeLock } from "../device.js";
 import { MAX_PLAY } from "../engine.js";
-import { EMOTES, MODE_INFO, RANKS, T, describe, quipText } from "../i18n.js";
+import { EMOTES, MODE_INFO, PHRASES, RANKS, T, describe, quipText } from "../i18n.js";
 import { sfx, unlockAudio } from "../sfx.js";
+import { Card } from "./cards.jsx";
+import Character, { seatColor } from "./Character.jsx";
+import Hand from "./Hand.jsx";
+import { DevilBurst, GameOver, LiarBurst, RevealCards } from "./overlays.jsx";
+import { Btn, Chambers, Confetti, SoundToggle, Timer } from "./parts.jsx";
 import Roulette from "./Roulette.jsx";
-import { Card, CardBack } from "./cards.jsx";
-import { Avatar, Btn, Chambers, Confetti, SoundToggle, Starburst, Timer } from "./parts.jsx";
+import Table, { Bubble, Emotes } from "./Table.jsx";
 
 const BUBBLE_MS = 2800;
 
-function Emotes({ list }) {
-  return list.map((e) => (
-    <span
-      key={e.id}
-      className="a-float-up pointer-events-none absolute bottom-6 z-30 text-3xl"
-      style={{ left: `${20 + e.x * 50}%`, "--r": `${(e.x - 0.5) * 50}deg` }}>
-      {e.e}
-    </span>
-  ));
+/** Mood of each character right now: moments (from events) beat the phase. */
+function moodOf(view, i, moments) {
+  const s = view.seats[i];
+  if (!s.alive) return { state: "dead" };
+  const m = moments[i];
+  if (m && m.until > Date.now()) return m;
+  if (view.phase === "gameover" && view.winner === i) return { state: "win" };
+  if (view.phase === "roulette" && view.roulette?.victim === i && !view.roulette.result) return { state: "nervous" };
+  if (view.phase === "playing" && view.turn === i) return { state: "turn" };
+  return { state: "idle" };
 }
 
-function Bubble({ text, down }) {
-  if (!text) return null;
+function Log({ view, nm }) {
   return (
-    <div className={`speech a-pop absolute left-1/2 z-40 w-max max-w-[150px] -translate-x-1/2 rounded-2xl px-2.5 py-1.5 text-center text-[11px] font-extrabold leading-snug sm:max-w-[190px] sm:text-xs ${down ? "down top-full mt-3" : "bottom-full mb-3"}`}>
-      {text}
-    </div>
-  );
-}
-
-function Opponent({ seat, active, bubble, emotes, holdsPile }) {
-  const dead = !seat.alive;
-  return (
-    <div className="relative flex w-[96px] flex-col items-center sm:w-[120px]">
-      {active && <div className="a-arrow absolute -top-7 left-1/2 text-2xl">👇</div>}
-      <Emotes list={emotes} />
-      <Avatar emoji={seat.avatar} size={56} active={active} dead={dead} />
-      <div className={`mt-1 max-w-full truncate text-sm font-black ${dead ? "text-ink-soft line-through" : ""}`}>{seat.name}</div>
-      {dead ? (
-        <div className="text-[10px] font-extrabold text-coral">{T.eliminated}</div>
-      ) : (
-        <>
-          <div className="mt-1 flex h-[36px] items-end justify-center">
-            {Array.from({ length: seat.handCount }).map((_, i) => (
-              <CardBack key={i} size="xs" className="-mx-[6px]" style={{ transform: `rotate(${(i - (seat.handCount - 1) / 2) * 9}deg)` }} />
-            ))}
-            {seat.handCount === 0 && <span className="text-[10px] font-bold text-ink-soft">{T.outOfCards}</span>}
-          </div>
-          <div className="mt-1.5"><Chambers pulls={seat.pulls} small /></div>
-        </>
-      )}
-      {!seat.connected && seat.kind === "human" && (
-        <div className="mt-1 rounded-full border-2 border-ink bg-cream px-1.5 text-[9px] font-black">📴 {T.offline}</div>
-      )}
-      {holdsPile && !dead && <div className="absolute -right-1 top-0 rotate-12 text-lg">🤫</div>}
-      <Bubble text={bubble} down />
-    </div>
-  );
-}
-
-const isWild = (rank) => rank === "J" || rank === "D";
-
-function Hand({ cards, selected, canPick, onToggle, round, tableCard }) {
-  const tc = RANKS[tableCard];
-  const n = cards.length;
-  return (
-    <div className="flex min-h-[132px] items-end justify-center px-2 sm:min-h-[150px]">
-      {cards.map((c, i) => {
-        const on = selected.includes(c.id);
-        const off = i - (n - 1) / 2;
+    <div className="no-scrollbar flex-1 space-y-1.5 overflow-y-auto pr-1">
+      {view.log.map((e) => {
+        const text = describe(e, nm);
+        if (!text) return null;
+        const tone = { devil: "bg-[#ffd0d0]", call: "bg-[#ffe1e2]", dead: "bg-[#ffe1e2]", bluff: "bg-[#ffe1e2]", truth: "bg-[#d8f5f1]", safe: "bg-[#fff1c7]", win: "bg-[#fff1c7]", deal: "bg-[#e6effd]" }[e.type] || "bg-cream";
         return (
-          <button
-            key={`${round}-${c.id}`}
-            onClick={() => onToggle(c.id)}
-            disabled={!canPick}
-            className="a-deal -mx-1.5 sm:-mx-1"
-            style={{ animationDelay: `${i * 90}ms`, zIndex: on ? 20 : i }}
-            aria-pressed={on}>
-            <div
-              className={`relative transition-transform duration-200 ${canPick ? "hover:-translate-y-3" : ""}`}
-              style={{ transform: `translateY(${on ? -30 : Math.abs(off) * 5}px) rotate(${off * 6}deg)` }}>
-              <Card rank={c.rank} suit={c.suit} size="lg" selected={on} glow={isWild(c.rank) && !on ? (c.rank === "D" ? "#ff5a5f" : "#b57be8") : null} className={canPick ? "" : "saturate-[.6]"} />
-              {isWild(c.rank) && (
-                <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border-2 border-ink bg-sun px-1.5 text-[9px] font-black">= {tc.emoji} {tc.geo}</span>
-              )}
-            </div>
-          </button>
+          <div key={e.id} className={`a-fade-up rounded-xl px-2.5 py-1.5 text-[12px] font-semibold leading-snug ${tone}`}>
+            {text}
+            {quipText(e) && <div className="text-[11px] font-bold italic text-ink-soft">„{quipText(e)}“</div>}
+          </div>
         );
       })}
     </div>
   );
 }
 
-function Sparkles() {
-  return Array.from({ length: 8 }).map((_, i) => {
-    const a = (i / 8) * Math.PI * 2;
-    return (
-      <span key={i} className="a-sparkle pointer-events-none absolute left-1/2 top-1/2 text-base"
-        style={{ "--dx": `${Math.cos(a) * 48}px`, "--dy": `${Math.sin(a) * 58}px`, animationDelay: "inherit" }}>✨</span>
-    );
-  });
-}
-
-function RevealCards({ reveal, tableCard }) {
-  const n = reveal.cards.length;
-  const tc = RANKS[tableCard];
-  const stamp = reveal.devil
-    ? { text: `😈 ${RANKS.D.geo}!`, bg: "#2a0508", sound: "devil" }
-    : reveal.truthful
-      ? { text: `✅ ${T.truth}`, bg: "#2ec4b6", sound: "truth" }
-      : { text: `❌ ${T.bluff}`, bg: "#ff5a5f", sound: "bluff" };
-  return (
-    <div className="flex flex-col items-center">
-      <div className="flex gap-2">
-        {reveal.cards.map((c, i) => {
-          const wild = isWild(c.rank);
-          const delay = `${1000 + i * 280}ms`;
-          return (
-            <div key={i} className="flip-wrap relative">
-              <CardBack size="md" />
-              <div
-                className={`a-flip absolute inset-0 ${wild && c.rank === "J" ? "a-rainbow" : ""}`}
-                style={{ animationDelay: delay, backfaceVisibility: "hidden" }}
-                onAnimationStart={(e) => { if (wild && e.animationName === "flip") sfx(c.rank === "J" ? "joker" : "liar"); }}>
-                <Card rank={c.rank} suit={c.suit} size="md" glow={c.rank === "D" ? "#ff5a5f" : null} />
-                {wild && (
-                  <div style={{ animationDelay: delay }}>
-                    <Sparkles />
-                    <span className="a-pop absolute -bottom-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border-2 border-ink bg-sun px-1.5 text-[10px] font-black" style={{ animationDelay: delay }}>
-                      = {tc.emoji} {tc.geo}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-      <div onAnimationStart={() => sfx(stamp.sound)} className="a-stamp mt-5 rounded-xl border-[3px] border-ink px-4 py-1 font-display text-2xl tracking-wide"
-        style={{ animationDelay: `${1200 + n * 280}ms`, background: stamp.bg, color: "white", textShadow: "2px 2px 0 #2b1d14" }}>
-        {stamp.text}
-      </div>
-    </div>
-  );
-}
-
-function DevilBurst({ id, seat }) {
-  return (
-    <div key={id} className="a-devil-bg pointer-events-none fixed inset-0 z-[72] flex flex-col items-center justify-center"
-      style={{ background: "radial-gradient(circle at 50% 42%, rgba(214,60,30,.96), rgba(110,8,20,.97) 50%, rgba(20,2,4,.99))" }}>
-      <div className="absolute inset-x-0 bottom-0 flex justify-center gap-1 text-6xl sm:text-7xl">
-        {Array.from({ length: 9 }).map((_, i) => <span key={i} className="a-flicker inline-block" style={{ animationDelay: `${i * 70}ms` }}>🔥</span>)}
-      </div>
-      <div className="a-devil-card"><div className="scale-[1.7] sm:scale-[1.9]"><Card rank="D" size="lg" glow="#ffb02e" /></div></div>
-      <div className="a-pop mt-20 px-4 text-center sm:mt-24" style={{ animationDelay: "0.5s" }}>
-        <div className="font-black text-white" style={{ fontSize: 36, textShadow: "3px 3px 0 #000" }}>{T.devilTitle}</div>
-        <div className="mt-1 text-lg font-extrabold text-sun" style={{ textShadow: "2px 2px 0 #000" }}>{seat?.avatar} {T.devilSub}</div>
-      </div>
-    </div>
-  );
-}
-
-function TableCenter({ view, pileKey, nm }) {
-  if (view.reveal) return <RevealCards reveal={view.reveal} tableCard={view.tableCard} />;
-  if (view.pile) {
-    const r = RANKS[view.tableCard];
-    return (
-      <div className="flex flex-col items-center">
-        <div className="relative flex h-[92px] items-center justify-center">
-          {Array.from({ length: view.pile.count }).map((_, i) => (
-            <div key={`${pileKey}-${i}`} className="a-drop -mx-3" style={{ "--r": `${(i - 1) * 12 + ((pileKey * 7) % 9) - 4}deg`, animationDelay: `${i * 90}ms` }}>
-              <CardBack size="md" />
-            </div>
-          ))}
-        </div>
-        <div className="a-pop mt-2 rounded-full border-[2.5px] border-ink bg-paper px-3 py-1 text-center text-xs font-extrabold sm:text-sm">
-          {nm(view.pile.by)} {T.claims} <span style={{ color: r.color }}>{view.pile.count}× {r.emoji} {r.geo}</span>
-        </div>
-      </div>
-    );
-  }
-  if (view.phase === "dealing") return <div className="a-hop font-display text-2xl text-white" style={{ textShadow: "2px 2px 0 #2b1d14" }}>🃏 {T.round} {view.round}!</div>;
-  return <div className="text-sm font-extrabold text-white/80">{T.tableClear}</div>;
-}
-
-function LiarBurst({ burst, seat }) {
-  return (
-    <div key={burst} className="pointer-events-none fixed inset-0 z-[70] flex items-center justify-center">
-      <div className="a-burst relative flex h-[330px] w-[330px] items-center justify-center sm:h-[420px] sm:w-[420px]">
-        <Starburst fill="#ff5a5f" points={16} className="absolute inset-0 h-full w-full" />
-        <div className="relative text-center">
-          <div className="text-5xl">{seat?.avatar}</div>
-          <div className="font-black text-white" style={{ fontSize: 40, textShadow: "3px 3px 0 #2b1d14" }}>{T.liar}</div>
-          <div className="font-display text-3xl text-sun" style={{ textShadow: "2px 2px 0 #2b1d14" }}>{T.liarEn}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function GameOver({ view, nm, canRestart, onAgain, onLeave, onToLobby }) {
-  const w = view.winner != null ? view.seats[view.winner] : null;
-  const iWon = view.winner === view.me;
-  const ev = view.log.find((e) => e.type === "win");
-  const quip = ev && quipText(ev);
-  return (
-    <div className="a-fade-up fixed inset-0 z-[80] flex items-center justify-center bg-ink/45 px-4 backdrop-blur-[3px]">
-      <div className="a-pop comic w-full max-w-sm rounded-[2rem] bg-paper p-7 text-center">
-        <div className="relative mx-auto w-fit">
-          <div className="absolute -top-7 left-1/2 -translate-x-1/2"><div className="a-hop text-4xl">👑</div></div>
-          <div className="a-bob pt-4 text-7xl">{w ? w.avatar : "🍺"}</div>
-        </div>
-        <h2 className="mt-2 text-2xl font-black">{iWon ? T.youWin : w ? `${nm(view.winner)} ${T.wins}` : "…"}</h2>
-        {quip && <div className="speech mx-auto mt-4 w-fit rounded-2xl px-3 py-1.5 text-sm font-extrabold">„{quip}“</div>}
-        <p className="mt-4 text-sm font-bold text-ink-soft">{iWon ? T.winSub : T.loseSub}</p>
-        <div className="mt-6 flex flex-col gap-2">
-          {canRestart ? (
-            <Btn color="sun" onClick={onAgain} className="py-3.5 text-lg">🔁 {T.again}</Btn>
-          ) : (
-            <div className="rounded-2xl border-[3px] border-dashed border-ink/40 px-4 py-3 text-sm font-extrabold">{T.waitRematch}</div>
-          )}
-          {onToLobby && <Btn color="mint" onClick={onToLobby} className="py-2.5 text-sm">👥 {T.lobby}</Btn>}
-          <Btn color="paper" onClick={onLeave} className="py-2.5 text-sm">🏠 {T.menu}</Btn>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default function Game({ view, act, emotes, sendEmote, canRestart, onAgain, onLeave, onToLobby }) {
+export default function Game({ view, act, fx, emote, throwAt, say, canRestart, onAgain, onLeave, onToLobby }) {
   const me = view.me;
   const mine = view.seats[me];
   const [selected, setSelected] = useState([]);
   const [bubbles, setBubbles] = useState({});
+  const [moments, setMoments] = useState({});
   const [shake, setShake] = useState(null);
   const [flash, setFlash] = useState(0);
   const [burst, setBurst] = useState(null);
   const [devil, setDevil] = useState(null);
   const [confetti, setConfetti] = useState(0);
-  const [showLog, setShowLog] = useState(false);
+  const [sheet, setSheet] = useState(null); // emote | chat | log
+  const [, tick] = useState(0);
   const lastSeen = useRef(null);
-  const lastEmote = useRef(0);
+  const seenFx = useRef(new Set());
+  useWakeLock(view.phase !== "gameover");
 
   const nm = useCallback((i) => (i === me ? `${view.seats[i]?.name} (${T.you})` : view.seats[i]?.name ?? "?"), [me, view.seats]);
 
-  const say = useCallback((seat, text) => {
+  const speak = useCallback((seat, text) => {
     if (!text) return;
     const id = Math.random();
     setBubbles((b) => ({ ...b, [seat]: { text, id } }));
     setTimeout(() => setBubbles((b) => (b[seat]?.id === id ? { ...b, [seat]: null } : b)), BUBBLE_MS);
   }, []);
+  const moment = useCallback((seat, state, ms, point = null) => {
+    setMoments((m) => ({ ...m, [seat]: { state, point, until: Date.now() + ms } }));
+    setTimeout(() => tick((x) => x + 1), ms + 20);
+  }, []);
 
-  // Turn engine events into sound, bubbles and effects.
+  // Engine events → sound, bubbles, moods, effects.
   useEffect(() => {
     const log = view.log;
     if (!log.length) return;
-    if (lastSeen.current != null && log[0].id < lastSeen.current) lastSeen.current = log.length <= 3 ? 0 : log[0].id; // new game, or a restored snapshot
-    if (lastSeen.current == null) lastSeen.current = log.length <= 3 ? 0 : log[0].id; // joined mid-game: skip history
+    if (lastSeen.current != null && log[0].id < lastSeen.current) lastSeen.current = log.length <= 3 ? 0 : log[0].id;
+    if (lastSeen.current == null) lastSeen.current = log.length <= 3 ? 0 : log[0].id;
     const fresh = log.filter((e) => e.id > lastSeen.current).reverse();
     lastSeen.current = log[0].id;
     for (const ev of fresh) {
       const q = quipText(ev);
       switch (ev.type) {
         case "deal": sfx("deal"); break;
-        case "play": sfx("card"); say(ev.seat, q); break;
+        case "play": sfx("card"); if (q) { speak(ev.seat, q); moment(ev.seat, "talk", 1400); } break;
         case "call":
           sfx("liar");
           setBurst({ id: ev.id, seat: ev.seat });
           setShake("soft");
           setTimeout(() => setBurst((b) => (b?.id === ev.id ? null : b)), 1250);
-          say(ev.seat, q);
+          speak(ev.seat, q);
+          moment(ev.seat, "talk", 2600, ev.other);
           break;
-        case "truth": case "bluff": say(ev.seat, q); break; // sound plays with the reveal stamp
+        case "truth": speak(ev.seat, q); moment(ev.seat, "happy", 2400); break;
+        case "bluff": speak(ev.seat, q); moment(ev.seat, "sad", 3200); break;
         case "devil":
           sfx("devil");
           setDevil({ id: ev.id, seat: ev.seat });
           setShake("hard");
           setTimeout(() => setDevil((d) => (d?.id === ev.id ? null : d)), 2600);
-          say(ev.seat, q);
+          speak(ev.seat, q);
+          moment(ev.seat, "win", 3000);
           break;
-        case "safe": sfx("click"); say(ev.seat, q); break;
-        case "dead": sfx("bang"); setFlash(ev.id); setShake("hard"); say(ev.seat, q); break;
+        case "safe": sfx("click"); speak(ev.seat, q); moment(ev.seat, "happy", 2200); break;
+        case "dead": sfx("bang"); setFlash(ev.id); setShake("hard"); speak(ev.seat, q); break;
         case "win": sfx("win"); setConfetti(ev.id); break;
         case "left": case "back": sfx("join"); break;
         default:
       }
     }
-  }, [view.log, say]);
+  }, [view.log, speak, moment]);
+
+  // Table effects: whoosh + splat for throws, a little bob for chat lines.
+  useEffect(() => {
+    for (const f of fx) {
+      if (seenFx.current.has(f.id)) continue;
+      seenFx.current.add(f.id);
+      if (f.kind === "throw") {
+        sfx("whoosh");
+        setTimeout(() => sfx(f.item === "💐" ? "joker" : "splat"), 650);
+      } else if (f.kind === "say") {
+        moment(f.seat, "talk", 1300);
+      } else if (f.kind === "emote") {
+        sfx("pop");
+      }
+    }
+  }, [fx, moment]);
 
   useEffect(() => {
     if (!shake) return;
@@ -297,7 +139,6 @@ export default function Game({ view, act, emotes, sendEmote, canRestart, onAgain
   useEffect(() => { if (myTurn) sfx("turn"); }, [myTurn]);
   useEffect(() => { if (view.roulette?.spinning) sfx("spin"); }, [view.roulette?.spinning]);
 
-  // Drop selections that are no longer valid.
   const handKey = (mine.hand || []).map((c) => c.id).join(",");
   useEffect(() => {
     if (!myTurn) setSelected([]);
@@ -312,22 +153,19 @@ export default function Game({ view, act, emotes, sendEmote, canRestart, onAgain
     sfx("select");
     setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : s.length >= MAX_PLAY ? s : [...s, id]));
   };
-  const play = () => { if (canPick && selected.length) { act({ type: "play", ids: selected }); setSelected([]); } };
-  const call = () => { if (canCall) act({ type: "call" }); };
-  const emote = (e) => {
-    const now = Date.now();
-    if (now - lastEmote.current < 600) return;
-    lastEmote.current = now;
-    unlockAudio();
-    sfx("pop");
-    sendEmote(e);
+  const play = (ids = selected) => {
+    const pick = ids.slice(0, MAX_PLAY);
+    if (canPick && pick.length) { act({ type: "play", ids: pick }); setSelected([]); }
   };
+  const call = () => { if (canCall) act({ type: "call" }); };
 
-  const n = view.seats.length;
-  const others = Array.from({ length: n - 1 }, (_, k) => view.seats[(me + 1 + k) % n]);
-  const pileKey = view.log.find((e) => e.type === "play")?.id ?? 0;
+  const states = {};
+  for (const s of view.seats) states[s.idx] = moodOf(view, s.idx, moments);
+  const myMood = states[me];
   const tc = RANKS[view.tableCard];
-  const emotesFor = (i) => emotes.filter((e) => e.seat === i);
+  const pileKey = view.log.find((e) => e.type === "play")?.id ?? 0;
+  const myHit = [...fx].reverse().find((f) => f.kind === "throw" && f.to === me);
+  const mySay = [...fx].reverse().find((f) => f.kind === "say" && f.seat === me);
 
   let status;
   if (!mine.alive) status = T.youDead;
@@ -335,126 +173,141 @@ export default function Game({ view, act, emotes, sendEmote, canRestart, onAgain
   else if (view.phase === "playing") status = `${T.waitingFor} ${view.seats[view.turn]?.name}`;
   else status = "…";
 
+  const center = view.reveal ? (
+    <RevealCards reveal={view.reveal} tableCard={view.tableCard} />
+  ) : view.phase === "dealing" ? (
+    <div className="a-pop font-display text-3xl text-white" style={{ textShadow: "2px 3px 0 #2b1d14" }}>🃏 {T.round} {view.round}!</div>
+  ) : null;
+
   return (
-    <div className={`relative min-h-screen overflow-x-hidden ${shake === "hard" ? "a-shake" : shake === "soft" ? "a-nudge" : ""}`}>
+    <div className={`relative flex min-h-[100dvh] flex-col overflow-x-hidden ${shake === "hard" ? "a-shake" : shake === "soft" ? "a-nudge" : ""}`}>
       {flash ? <div key={flash} className="a-flash pointer-events-none fixed inset-0 z-[75] bg-white" onAnimationEnd={() => setFlash(0)} /> : null}
       {burst && <LiarBurst burst={burst.id} seat={view.seats[burst.seat]} />}
       {devil && <DevilBurst id={devil.id} seat={view.seats[devil.seat]} />}
       {confetti ? <Confetti key={confetti} /> : null}
 
-      <div className="mx-auto grid min-h-screen max-w-6xl grid-cols-1 gap-4 px-3 pb-4 pt-3 sm:px-5 lg:grid-cols-[1fr_270px]">
+      <div className="mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-4 px-2 sm:px-4 lg:grid-cols-[1fr_270px]">
         <div className="flex min-w-0 flex-col">
           {/* top bar */}
-          <header className="flex items-center justify-between gap-2">
-            <button onClick={onLeave} className="comic-sm rounded-full bg-paper px-3 py-1.5 text-xs font-extrabold sm:text-sm">← {T.leave}</button>
-            <div className="flex items-center gap-2">
+          <header className="safe-t flex items-center justify-between gap-1.5 pb-1">
+            <button onClick={onLeave} className="comic-sm flex h-10 items-center rounded-full bg-paper px-3 text-sm font-extrabold" aria-label={T.leave}>
+              ←<span className="ml-1 hidden sm:inline">{T.leave}</span>
+            </button>
+            <div className="comic-sm flex items-center gap-1.5 rounded-full bg-paper py-0.5 pl-0.5 pr-3">
+              <Card key={`${view.round}-${view.tableCard}`} rank={view.tableCard} suit={{ K: "H", Q: "D", A: "S" }[view.tableCard]} size="xs" className="a-pop" />
+              <div className="leading-none">
+                <div className="text-[8px] font-extrabold uppercase tracking-wider text-ink-soft">{T.tableCard}</div>
+                <div className="text-sm font-black" style={{ color: tc.color }}>{tc.emoji} {tc.geo}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
               {view.opts?.mode === "devil" && (
-                <span className="comic-sm rounded-full bg-[#2a0508] px-2.5 py-1 text-xs font-black text-sun sm:text-sm" title={MODE_INFO.devil.hint}>😈<span className="hidden sm:inline"> {MODE_INFO.devil.name}</span></span>
+                <span className="comic-sm flex h-10 items-center rounded-full bg-[#2a0508] px-2.5 text-sm font-black text-sun" title={MODE_INFO.devil.hint}>😈</span>
               )}
-              <span className="comic-sm rounded-full bg-sun px-3 py-1 text-xs font-black sm:text-sm">{T.round} {view.round}</span>
-              <button onClick={() => setShowLog(!showLog)} className="comic-sm flex h-10 w-10 items-center justify-center rounded-full bg-paper text-lg lg:hidden" aria-label={T.log}>📜</button>
+              <span className="comic-sm flex h-10 items-center rounded-full bg-sun px-2.5 text-xs font-black sm:text-sm" title={T.round}>#{view.round}</span>
               <SoundToggle />
             </div>
           </header>
 
-          {/* opponents */}
-          <div className="mt-9 flex items-start justify-center gap-1 sm:gap-8">
-            {others.map((s) => (
-              <Opponent
-                key={s.idx}
-                seat={s}
-                active={view.phase === "playing" && view.turn === s.idx}
-                bubble={bubbles[s.idx]?.text}
-                emotes={emotesFor(s.idx)}
-                holdsPile={view.pile?.by === s.idx}
-              />
-            ))}
-          </div>
-
           {/* table */}
-          <div className="felt relative mx-auto mt-5 flex min-h-[210px] w-full max-w-3xl flex-1 flex-col items-center justify-center rounded-[48px] px-3 py-6 sm:min-h-[250px]">
-            <div className="absolute left-3 top-3 flex items-center gap-2 rounded-2xl border-[2.5px] border-ink bg-paper py-1 pl-1 pr-3" style={{ boxShadow: "0 3px 0 #2b1d14" }}>
-              <Card key={`${view.round}-${view.tableCard}`} rank={view.tableCard} suit={{ K: "H", Q: "S", A: "S" }[view.tableCard]} size="sm" className="a-pop" />
-              <div className="leading-tight">
-                <div className="text-[9px] font-extrabold uppercase tracking-wider text-ink-soft">{T.tableCard}</div>
-                <div className="text-sm font-black" style={{ color: tc.color }}>{tc.geo}</div>
-              </div>
-            </div>
-            <div className="mt-10 sm:mt-6">
-              <TableCenter view={view} pileKey={pileKey} nm={nm} />
-            </div>
-          </div>
+          <Table
+            view={view}
+            states={states}
+            bubbles={Object.fromEntries(Object.entries(bubbles).map(([k, v]) => [k, v?.text]))}
+            fx={fx}
+            center={center}
+            pileKey={pileKey}
+            onThrow={(to, item) => { unlockAudio(); throwAt(to, item); }}
+            className="min-h-[270px] flex-1 sm:min-h-[340px] lg:max-h-[520px]"
+          />
 
           {/* me */}
-          <div className="relative mt-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="safe-b relative mt-2">
+            <div className="flex items-center justify-between gap-2">
               <div className="relative flex items-center gap-2">
-                <Emotes list={emotesFor(me)} />
-                <Avatar emoji={mine.avatar} size={44} active={myTurn} dead={!mine.alive} />
+                <div className="relative">
+                  <Emotes list={fx.filter((f) => f.kind === "emote" && f.seat === me)} />
+                  <Character avatar={mine.avatar} looks={mine.looks} color={seatColor(me)} size={54} state={myMood.state} hit={myHit?.item} hitKey={myHit?.id} hitDelay={650}
+                    point={myMood.point != null ? -60 : null} />
+                  <Bubble text={bubbles[me]?.text || (mySay && PHRASES[mySay.i])} />
+                </div>
                 <div>
-                  <div className="text-sm font-black">{mine.name}</div>
+                  <div className="max-w-[110px] truncate text-sm font-black">{mine.name}</div>
                   <Chambers pulls={mine.pulls} dead={!mine.alive} small />
                 </div>
-                <Bubble text={bubbles[me]?.text} />
               </div>
-              <div className={`flex items-center gap-2 rounded-full border-[2.5px] border-ink px-3 py-1 text-xs font-black sm:text-sm ${myTurn ? (view.mustCall ? "a-hop bg-coral text-white" : "a-hop bg-sun") : "bg-paper"}`}>
-                {status}
+              <div className={`flex items-center gap-1.5 rounded-full border-[2.5px] border-ink px-3 py-1 text-xs font-black sm:text-sm ${myTurn ? (view.mustCall ? "a-hop bg-coral text-white" : "a-hop bg-sun") : "bg-paper"}`}>
+                <span className="max-w-[150px] truncate sm:max-w-none">{status}</span>
                 {myTurn && <Timer deadline={view.deadline} offset={view.clockOffset} />}
               </div>
             </div>
 
             {mine.alive ? (
               mine.hand.length ? (
-                <Hand cards={mine.hand} selected={selected} canPick={canPick} onToggle={toggle} round={view.round} tableCard={view.tableCard} />
+                <Hand cards={mine.hand} selected={selected} canPick={canPick} onToggle={toggle} onPlay={play} round={view.round} tableCard={view.tableCard} />
               ) : (
-                <div className="flex min-h-[100px] items-center justify-center text-sm font-extrabold text-ink-soft">🫳 {T.outOfCards}</div>
+                <div className="flex min-h-[90px] items-center justify-center text-sm font-extrabold text-ink-soft">🫳 {T.outOfCards}</div>
               )
             ) : (
-              <div className="flex min-h-[100px] items-center justify-center text-sm font-extrabold text-ink-soft"><span className="a-bob mr-2 inline-block text-3xl">👻</span></div>
+              <div className="flex min-h-[70px] items-center justify-center text-sm font-extrabold text-ink-soft">👻</div>
             )}
 
             {mine.alive && (
-              <div className="mt-3 flex items-stretch justify-center gap-3">
-                <Btn color="coral" onClick={call} disabled={!canCall} className={`flex-1 py-3.5 sm:flex-none sm:px-8 ${canCall && view.mustCall ? "a-hop" : ""}`}>
+              <div className="mt-2 flex items-stretch justify-center gap-3">
+                <Btn color="coral" onClick={call} disabled={!canCall} className={`flex-1 py-3 sm:flex-none sm:px-8 ${canCall && view.mustCall ? "a-hop" : ""}`}>
                   <span className="block text-lg leading-none">🤥 {T.liar}</span>
                   <span className="block font-display text-xs tracking-wider opacity-80">{T.liarEn}</span>
                 </Btn>
-                <Btn color="sun" onClick={play} disabled={!canPick || !selected.length} className="flex-1 py-3.5 sm:flex-none sm:px-8">
+                <Btn color="sun" onClick={() => play()} disabled={!canPick || !selected.length} className="flex-1 py-3 sm:flex-none sm:px-8">
                   <span className="block text-lg leading-none">🃏 {T.play}{selected.length ? ` ×${selected.length}` : ""}</span>
-                  <span className="block text-[11px] font-bold opacity-70">{canPick ? `${selected.length ? `${selected.length}× ${tc.emoji} ${tc.geo}` : T.pickCards}` : " "}</span>
+                  <span className="block text-[11px] font-bold opacity-70">{canPick ? (selected.length ? `${selected.length}× ${tc.emoji} ${tc.geo} · ☝️` : T.pickCards) : " "}</span>
                 </Btn>
               </div>
             )}
 
-            <div className="mt-4 flex flex-wrap justify-center gap-1 sm:gap-1.5">
-              {EMOTES.map((e) => (
-                <button key={e} onClick={() => emote(e)} className="comic-sm flex h-9 w-9 items-center justify-center rounded-full bg-paper text-lg transition-transform hover:-translate-y-0.5 active:scale-90 sm:h-10 sm:w-10 sm:text-xl" aria-label={e}>
-                  {e}
+            {/* toolbar */}
+            <div className="relative mt-3 flex items-center justify-center gap-2 pb-1">
+              {[["emote", "😀"], ["chat", "💬"], ["log", "📜"]].map(([k, icon]) => (
+                <button key={k} onClick={() => setSheet(sheet === k ? null : k)}
+                  className={`comic-sm flex h-11 w-11 items-center justify-center rounded-full text-xl transition-transform active:scale-90 ${sheet === k ? "bg-sun" : "bg-paper"} ${k === "log" ? "lg:hidden" : ""}`}
+                  aria-label={k === "emote" ? "emoji" : k === "chat" ? T.chat : T.log} aria-expanded={sheet === k}>
+                  {icon}
                 </button>
               ))}
+              <span className="max-w-[120px] text-[10px] font-bold leading-tight text-ink-soft">🍅 {T.throwHint}</span>
+              {sheet === "emote" && (
+                <div className="a-sheet comic absolute bottom-14 left-1/2 z-50 grid -translate-x-1/2 grid-cols-4 gap-1.5 rounded-3xl bg-paper p-2.5">
+                  {EMOTES.map((e) => (
+                    <button key={e} onClick={() => { unlockAudio(); emote(e); setSheet(null); }} className="flex h-12 w-12 items-center justify-center rounded-2xl text-2xl transition-transform hover:bg-cream active:scale-90" aria-label={e}>{e}</button>
+                  ))}
+                </div>
+              )}
+              {sheet === "chat" && (
+                <div className="a-sheet comic absolute bottom-14 left-1/2 z-50 grid w-[min(92vw,360px)] -translate-x-1/2 grid-cols-2 gap-1.5 rounded-3xl bg-paper p-2.5">
+                  {PHRASES.map((p, i) => (
+                    <button key={i} onClick={() => { unlockAudio(); say(i); setSheet(null); }} className="rounded-2xl border-2 border-ink bg-cream px-2 py-2 text-left text-xs font-extrabold transition-transform active:scale-95">{p}</button>
+                  ))}
+                </div>
+              )}
+              {sheet === "log" && (
+                <div className="a-sheet comic fixed inset-x-2 bottom-2 z-[55] flex max-h-[60dvh] flex-col rounded-3xl bg-paper p-3 lg:hidden">
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-sm font-black">📜 {T.log}</span>
+                    <button onClick={() => setSheet(null)} className="rounded-full border-2 border-ink px-2 text-sm font-black" aria-label="close">✕</button>
+                  </div>
+                  <Log view={view} nm={nm} />
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* log */}
-        <aside className={`${showLog ? "flex" : "hidden"} comic max-h-72 flex-col rounded-3xl bg-paper p-3 lg:flex lg:max-h-[calc(100vh-24px)] lg:self-start lg:sticky lg:top-3`}>
+        <aside className="comic hidden max-h-[calc(100dvh-24px)] flex-col self-start rounded-3xl bg-paper p-3 lg:sticky lg:top-3 lg:mt-3 lg:flex">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-sm font-black">📜 {T.log}</span>
             <span className="rounded-full border-2 border-ink bg-sun px-2 text-[11px] font-black">{T.round} {view.round}</span>
           </div>
-          <div className="no-scrollbar flex-1 space-y-1.5 overflow-y-auto pr-1">
-            {view.log.map((e) => {
-              const text = describe(e, nm);
-              if (!text) return null;
-              const tone = { devil: "bg-[#ffd0d0]", call: "bg-[#ffe1e2]", dead: "bg-[#ffe1e2]", bluff: "bg-[#ffe1e2]", truth: "bg-[#d8f5f1]", safe: "bg-[#fff1c7]", win: "bg-[#fff1c7]", deal: "bg-[#e6effd]" }[e.type] || "bg-cream";
-              return (
-                <div key={e.id} className={`a-fade-up rounded-xl px-2.5 py-1.5 text-[12px] font-semibold leading-snug ${tone}`}>
-                  {text}
-                  {quipText(e) && <div className="text-[11px] font-bold italic text-ink-soft">„{quipText(e)}“</div>}
-                </div>
-              );
-            })}
-          </div>
+          <Log view={view} nm={nm} />
         </aside>
       </div>
 

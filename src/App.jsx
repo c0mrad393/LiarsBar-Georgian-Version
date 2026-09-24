@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AVATARS, T } from "./i18n.js";
+import { requestTilt } from "./device.js";
 import { makeCode, useOnline } from "./online.js";
 import { cleanAvatar, cleanCode, cleanName } from "./shared.js";
 import { useSolo } from "./useGame.js";
@@ -39,10 +40,10 @@ function Notice({ emoji = "🍺", title, children }) {
   );
 }
 
-function SoloScreen({ profile, mode, onLeave }) {
-  const g = useSolo(profile, mode);
+function SoloScreen({ profile, mode, bots, onLeave }) {
+  const g = useSolo(profile, mode, bots);
   if (!g.view) return null;
-  return <Game view={g.view} act={g.act} emotes={g.emotes} sendEmote={g.sendEmote} canRestart onAgain={g.again} onLeave={onLeave} />;
+  return <Game view={g.view} act={g.act} fx={g.fx} emote={g.emote} throwAt={g.throwAt} say={g.say} canRestart onAgain={g.again} onLeave={onLeave} />;
 }
 
 function OnlineScreen({ code, create, profile, mode, setMode, onLeave, onRetry }) {
@@ -68,7 +69,7 @@ function OnlineScreen({ code, create, profile, mode, setMode, onLeave, onRetry }
       <>
         {banner}
         {o.lobby ? (
-          <Lobby lobby={o.lobby} isHost={o.isHost} setBotFill={(v) => o.ctl("botFill", v)} setMode={pickMode} canStart onStart={() => o.ctl("start")} onLeave={onLeave} />
+          <Lobby lobby={o.lobby} isHost={o.isHost} setBots={(v) => o.ctl("bots", v)} setMode={pickMode} onStart={() => o.ctl("start")} onLeave={onLeave} />
         ) : (
           <Notice emoji="📡" title={T.connecting} />
         )}
@@ -80,8 +81,10 @@ function OnlineScreen({ code, create, profile, mode, setMode, onLeave, onRetry }
       <Game
         view={o.view}
         act={o.act}
-        emotes={o.emotes}
-        sendEmote={o.sendEmote}
+        fx={o.fx}
+        emote={o.emote}
+        throwAt={o.throwAt}
+        say={o.say}
         canRestart={o.isHost}
         onAgain={() => o.ctl("again")}
         onLeave={leave}
@@ -102,6 +105,12 @@ export default function App() {
   useEffect(() => {
     try { localStorage.setItem("lb-mode", mode); } catch { /* private mode */ }
   }, [mode]);
+  const [soloBots, setSoloBots] = useState(() => {
+    try { return Math.min(5, Math.max(1, Number(localStorage.getItem("lb-bots")) || 3)); } catch { return 3; }
+  });
+  useEffect(() => {
+    try { localStorage.setItem("lb-bots", String(soloBots)); } catch { /* private mode */ }
+  }, [soloBots]);
 
   useEffect(() => {
     try { localStorage.setItem("lb-profile", JSON.stringify(profile)); } catch { /* private mode */ }
@@ -110,7 +119,7 @@ export default function App() {
   const clean = { name: cleanName(profile.name), avatar: cleanAvatar(profile.avatar) };
   const home = () => { setScreen({ name: "home" }); setInvite(""); setRoomInUrl(null); };
 
-  if (screen.name === "solo") return <SoloScreen profile={clean} mode={mode} onLeave={home} />;
+  if (screen.name === "solo") return <SoloScreen profile={clean} mode={mode} bots={soloBots} onLeave={home} />;
   if (screen.name === "online")
     return (
       <OnlineScreen
@@ -131,10 +140,12 @@ export default function App() {
       setProfile={setProfile}
       mode={mode}
       setMode={setMode}
+      soloBots={soloBots}
+      setSoloBots={setSoloBots}
       invite={invite}
-      onSolo={() => setScreen({ name: "solo" })}
-      onHost={() => { const code = makeCode(); setRoomInUrl(code); setAttempt(0); setScreen({ name: "online", code, create: true }); }}
-      onJoin={(code) => { setRoomInUrl(code); setAttempt(0); setScreen({ name: "online", code, create: false }); }}
+      onSolo={() => { requestTilt(); setScreen({ name: "solo" }); }}
+      onHost={() => { requestTilt(); const code = makeCode(); setRoomInUrl(code); setAttempt(0); setScreen({ name: "online", code, create: true }); }}
+      onJoin={(code) => { requestTilt(); setRoomInUrl(code); setAttempt(0); setScreen({ name: "online", code, create: false }); }}
       onDropInvite={home}
     />
   );

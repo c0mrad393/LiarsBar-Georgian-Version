@@ -3,10 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 // (Online games run the same engine on the room server, see server/worker.js.)
 import { createGame, reduce, schedule, viewFor } from "./engine.js";
 import { later } from "./hostTimer.js";
-import { EMOTES } from "./i18n.js";
-import { bots } from "./shared.js";
-
-const EMOTE_TTL = 2600;
+import { useFx } from "./fx.js";
+import { botFx, botThrowBack, bots } from "./shared.js";
 
 /** Runs the engine: holds full state, applies actions, fires scheduled host actions. */
 function useEngine() {
@@ -40,35 +38,47 @@ function useEngine() {
   return { state, stateRef: ref, dispatch, reset };
 }
 
-function useEmotes() {
-  const [emotes, setEmotes] = useState([]);
-  const push = useCallback((seat, e) => {
-    if (!EMOTES.includes(e)) return;
-    const id = Math.random().toString(36).slice(2);
-    setEmotes((l) => [...l.slice(-12), { id, seat, e, x: Math.random() }]);
-    setTimeout(() => setEmotes((l) => l.filter((x) => x.id !== id)), EMOTE_TTL);
-  }, []);
-  return [emotes, push];
-}
-
 // ------------------------------------------------------------------- solo ---
 
-export function useSolo(profile, mode) {
-  const { state, dispatch, reset } = useEngine();
-  const [emotes, pushEmote] = useEmotes();
+export function useSolo(profile, mode, botCount = 3) {
+  const { state, stateRef, dispatch, reset } = useEngine();
+  const [fx, pushFx] = useFx();
 
   const again = useCallback(() => {
-    reset(createGame([{ name: profile.name, avatar: profile.avatar, kind: "human" }, ...bots(3)], { mode }));
-  }, [profile.name, profile.avatar, mode, reset]);
+    reset(createGame([{ name: profile.name, avatar: profile.avatar, kind: "human" }, ...bots(botCount)], { mode }));
+  }, [profile.name, profile.avatar, mode, botCount, reset]);
 
   useEffect(() => { again(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Bots react to what happens at the table, and throw back when hit.
+  const later = useCallback((list) => {
+    for (const { delay, fx: f } of list) setTimeout(() => stateRef.current && pushFx(f), delay);
+  }, [pushFx, stateRef]);
+  const seen = useRef(0);
+  useEffect(() => {
+    if (!state) return;
+    if (state.log[0].id < seen.current) seen.current = 0;
+    for (const ev of state.log) {
+      if (ev.id <= seen.current) break;
+      later(botFx(state, ev));
+    }
+    seen.current = state.log[0].id;
+  }, [state, later]);
+
+  const throwAt = useCallback((to, item) => {
+    const f = { kind: "throw", from: 0, to, item };
+    pushFx(f);
+    if (stateRef.current) later(botThrowBack(stateRef.current, f));
+  }, [pushFx, later, stateRef]);
 
   const view = useMemo(() => state && viewFor(state, 0), [state]);
   return {
     view,
     act: useCallback((a) => dispatch({ ...a, seat: 0 }), [dispatch]),
-    emotes,
-    sendEmote: useCallback((e) => pushEmote(0, e), [pushEmote]),
+    fx,
+    emote: useCallback((e) => pushFx({ kind: "emote", seat: 0, e }), [pushFx]),
+    throwAt,
+    say: useCallback((i) => pushFx({ kind: "say", seat: 0, i }), [pushFx]),
     again,
   };
 }

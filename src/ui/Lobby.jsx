@@ -4,15 +4,16 @@ import { MODE_INFO, T } from "../i18n.js";
 import { inviteLink } from "../online.js";
 import { sfx } from "../sfx.js";
 import { Logo, ModePicker } from "./Home.jsx";
-import { Btn, SoundToggle } from "./parts.jsx";
+import { BOT_LOOKS, BOT_ORDER } from "../shared.js";
+import Character, { seatColor } from "./Character.jsx";
+import { Btn, SoundToggle, Stepper } from "./parts.jsx";
 
-const BOT_FACES = Object.values(PERSONAS);
-
-export default function Lobby({ lobby, isHost, setBotFill, setMode, canStart, onStart, onLeave }) {
+export default function Lobby({ lobby, isHost, setBots, setMode, onStart, onLeave }) {
   const [copied, setCopied] = useState(false);
   const link = lobby.code ? inviteLink(lobby.code) : "";
   const seats = lobby.seats;
-  const ready = canStart && (lobby.botFill || seats.length >= 2);
+  const botCount = Math.min(lobby.bots ?? 0, lobby.max - seats.length);
+  const ready = seats.length + botCount >= 2;
 
   // Little fanfare when someone walks in.
   const prev = useRef(seats.length);
@@ -38,7 +39,6 @@ export default function Lobby({ lobby, isHost, setBotFill, setMode, canStart, on
   };
   const share = () => navigator.share?.({ title: T.title, text: "მოდი, ვითამაშოთ მატყუარას ბარი! 🍻", url: link }).catch(() => {});
 
-  let bot = 0;
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-xl flex-col px-4 pb-10 pt-4">
       <div className="flex items-center justify-between">
@@ -73,34 +73,35 @@ export default function Lobby({ lobby, isHost, setBotFill, setMode, canStart, on
         </div>
       )}
 
-      <section className="mt-5 grid grid-cols-2 gap-3">
+      <section className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
         {Array.from({ length: lobby.max }).map((_, i) => {
           const p = seats[i];
           if (p)
             return (
-              <div key={`p${i}`} className="a-pop comic flex flex-col items-center rounded-3xl bg-paper p-4" style={{ animationDelay: `${i * 60}ms` }}>
-                <div className="a-hop text-5xl" style={{ animationDelay: `${i * 150}ms` }}>{p.avatar}</div>
-                <div className="mt-1 max-w-full truncate text-base font-extrabold">{p.name}</div>
-                <div className="mt-1 flex gap-1">
-                  {p.host && <span className="rounded-full border-2 border-ink bg-coral px-2 text-[10px] font-black text-white">{T.hostTag}</span>}
-                  {p.you && <span className="rounded-full border-2 border-ink bg-mint px-2 text-[10px] font-black text-white">{T.you}</span>}
+              <div key={`p${i}`} className="a-pop comic flex flex-col items-center rounded-3xl bg-paper px-1 pb-2 pt-3" style={{ animationDelay: `${i * 60}ms` }}>
+                <Character avatar={p.avatar} color={seatColor(i)} size={52} state={i % 2 ? "idle" : "turn"} />
+                <div className="mt-1 max-w-full truncate text-sm font-extrabold">{p.name}</div>
+                <div className="mt-0.5 flex gap-1">
+                  {p.host && <span className="rounded-full border-2 border-ink bg-coral px-1.5 text-[9px] font-black text-white">{T.hostTag}</span>}
+                  {p.you && <span className="rounded-full border-2 border-ink bg-mint px-1.5 text-[9px] font-black text-white">{T.you}</span>}
                 </div>
               </div>
             );
-          if (lobby.botFill) {
-            const b = BOT_FACES[bot++];
+          const b = i - seats.length;
+          if (b < botCount) {
+            const k = BOT_ORDER[b];
             return (
-              <div key={`b${i}`} className="flex flex-col items-center rounded-3xl border-[3px] border-dashed border-ink/40 bg-paper/60 p-4">
-                <div className="text-5xl opacity-70">{b.avatar}</div>
-                <div className="mt-1 text-base font-extrabold text-ink-soft">{b.name} 🤖</div>
-                <div className="text-[10px] font-bold text-ink-soft">{b.desc}</div>
+              <div key={`b${i}`} className="flex flex-col items-center rounded-3xl border-[3px] border-dashed border-ink/40 bg-paper/60 px-1 pb-2 pt-3">
+                <div className="opacity-80"><Character avatar={PERSONAS[k].avatar} looks={BOT_LOOKS[k]} color={seatColor(i)} size={52} /></div>
+                <div className="mt-1 text-sm font-extrabold text-ink-soft">{PERSONAS[k].name} 🤖</div>
+                <div className="text-[9px] font-bold text-ink-soft">{PERSONAS[k].desc}</div>
               </div>
             );
           }
           return (
-            <div key={`e${i}`} className="flex flex-col items-center justify-center rounded-3xl border-[3px] border-dashed border-ink/30 p-4 text-ink-soft">
-              <div className="a-wiggle text-4xl opacity-50">🪑</div>
-              <div className="mt-1 text-xs font-bold">{T.emptySeat}</div>
+            <div key={`e${i}`} className="flex flex-col items-center justify-center rounded-3xl border-[3px] border-dashed border-ink/25 p-3 text-ink-soft">
+              <div className="a-wiggle text-3xl opacity-50">🪑</div>
+              <div className="mt-1 text-[10px] font-bold">{T.emptySeat}</div>
             </div>
           );
         })}
@@ -110,10 +111,10 @@ export default function Lobby({ lobby, isHost, setBotFill, setMode, canStart, on
 
       {isHost ? (
         <div className="mt-5 flex flex-col gap-3">
-          <label className="comic-sm flex cursor-pointer items-center justify-between rounded-2xl bg-paper px-4 py-3 font-extrabold">
-            <span>🤖 {T.botFill}</span>
-            <input type="checkbox" checked={lobby.botFill} onChange={(e) => setBotFill(e.target.checked)} className="h-6 w-6 accent-[#2ec4b6]" />
-          </label>
+          <div className="comic-sm flex items-center justify-between rounded-2xl bg-paper px-4 py-2.5 font-extrabold">
+            <span>🤖 {T.bots}</span>
+            <Stepper value={botCount} min={0} max={lobby.max - seats.length} onChange={setBots} label={T.bots} />
+          </div>
           <Btn color="coral" disabled={!ready} onClick={onStart} className="py-4 text-xl">🔥 {T.start}</Btn>
           {!ready && <p className="text-center text-sm font-bold text-coral">{T.needTwo}</p>}
           <p className="text-center text-xs font-semibold text-ink-soft">💡 {T.keepOpen}</p>

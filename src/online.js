@@ -2,14 +2,13 @@
 // One hook for everyone: the room decides who is host; the socket reconnects
 // on its own and the server hands the seat back by clientId.
 import { useCallback, useEffect, useRef, useState } from "react";
-import { EMOTES } from "./shared.js";
+import { useFx } from "./fx.js";
 
 const SERVER = (import.meta.env.VITE_SERVER_URL || (import.meta.env.DEV ? "http://localhost:8787" : "")).replace(/^http/, "ws").replace(/\/$/, "");
 export const onlineAvailable = !!SERVER;
 
 const ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
 const PING_MS = 25000;
-const EMOTE_TTL = 2600;
 const MAX_RETRIES = 8;
 
 export const makeCode = () => Array.from({ length: 6 }, () => ALPHABET[(Math.random() * ALPHABET.length) | 0]).join("");
@@ -38,21 +37,10 @@ export function clientId() {
   return cachedId;
 }
 
-function useEmotes() {
-  const [emotes, setEmotes] = useState([]);
-  const push = useCallback((seat, e) => {
-    if (!EMOTES.includes(e)) return;
-    const id = Math.random().toString(36).slice(2);
-    setEmotes((l) => [...l.slice(-12), { id, seat, e, x: Math.random() }]);
-    setTimeout(() => setEmotes((l) => l.filter((x) => x.id !== id)), EMOTE_TTL);
-  }, []);
-  return [emotes, push];
-}
-
 /**
  * @param code    room code
  * @param create  true for the player opening the room
- * @returns { status: connecting|lobby|game|reconnecting|error, error, code, lobby, view, isHost, act, sendEmote, emotes, ctl }
+ * @returns { status: connecting|lobby|game|reconnecting|error, error, code, lobby, view, isHost, act, fx, emote, throwAt, say, ctl }
  */
 export function useOnline({ code: initialCode, create, profile, mode, onCode }) {
   const [status, setStatus] = useState("connecting");
@@ -61,7 +49,7 @@ export function useOnline({ code: initialCode, create, profile, mode, onCode }) 
   const [lobby, setLobby] = useState(null);
   const [view, setView] = useState(null);
   const [isHost, setIsHost] = useState(false);
-  const [emotes, pushEmote] = useEmotes();
+  const [fx, pushFx] = useFx();
   const wsRef = useRef(null);
 
   useEffect(() => {
@@ -101,8 +89,8 @@ export function useOnline({ code: initialCode, create, profile, mode, onCode }) 
           setView({ ...m.view, clockOffset: Date.now() - m.hostNow });
           setIsHost(m.host);
           setStatus("game");
-        } else if (m.t === "emote") {
-          pushEmote(m.seat, m.e);
+        } else if (m.t === "fx" && m.fx) {
+          pushFx(m.fx);
         } else if (m.t === "reject") {
           if (m.reason === "codeTaken" && creating) {
             // Someone already sits at this code: pick another and try again.
@@ -164,9 +152,11 @@ export function useOnline({ code: initialCode, create, profile, mode, onCode }) 
     lobby,
     view,
     isHost,
-    emotes,
+    fx,
     act: useCallback((a) => send({ t: "act", a: { type: a.type, ids: a.ids } }), [send]),
-    sendEmote: useCallback((e) => send({ t: "emote", e }), [send]),
+    emote: useCallback((e) => send({ t: "emote", e }), [send]),
+    throwAt: useCallback((to, item) => send({ t: "throw", to, item }), [send]),
+    say: useCallback((i) => send({ t: "say", i }), [send]),
     ctl: useCallback((t, v) => send({ t, v }), [send]),
   };
 }

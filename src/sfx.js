@@ -1,5 +1,6 @@
 // Tiny synthesized sound effects (Web Audio, no files). Created lazily on the
 // first user gesture so browsers' autoplay policy is satisfied.
+import { buzz } from "./device.js";
 let ctx = null;
 let muted = (() => {
   try { return localStorage.getItem("lb-muted") === "1"; } catch { return false; }
@@ -85,6 +86,9 @@ const SOUNDS = {
     [0, 0.22, 0.44, 0.7].forEach((at, i) => tone(c, { type: "sawtooth", f0: 260 - i * 25, f1: 190 - i * 25, at: 0.25 + at, dur: 0.17, vol: 0.12 }));
   },
   joker: (c) => [1047, 1319, 1568, 2093, 1568, 2093].forEach((f, i) => tone(c, { type: "sine", f0: f, at: i * 0.06, dur: 0.14, vol: 0.08 })),
+  heart: (c) => { tone(c, { type: "sine", f0: 70, f1: 45, dur: 0.12, vol: 0.5 }); tone(c, { type: "sine", f0: 65, f1: 40, at: 0.16, dur: 0.1, vol: 0.35 }); },
+  whoosh: (c) => hiss(c, { dur: 0.35, vol: 0.12, type: "bandpass", freq: 900 }),
+  splat: (c) => { hiss(c, { dur: 0.18, vol: 0.4, type: "lowpass", freq: 700 }); tone(c, { type: "sine", f0: 220, f1: 60, dur: 0.15, vol: 0.25 }); },
   pop: (c) => tone(c, { type: "sine", f0: 500, f1: 1100, dur: 0.08, vol: 0.12 }),
   win: (c) => [523, 659, 784, 1047, 784, 1047].forEach((f, i) => tone(c, { type: "triangle", f0: f, at: i * 0.11, dur: 0.22, vol: 0.13 })),
   join: (c) => { tone(c, { type: "sine", f0: 660, dur: 0.09, vol: 0.12 }); tone(c, { type: "sine", f0: 990, at: 0.09, dur: 0.12, vol: 0.12 }); },
@@ -92,6 +96,7 @@ const SOUNDS = {
 
 export function sfx(name) {
   if (muted) return;
+  buzz(name);
   const c = ac();
   if (!c || !SOUNDS[name]) return;
   try { SOUNDS[name](c); } catch { /* audio is best-effort */ }

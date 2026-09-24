@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AVATARS, MODE_INFO, RULES, T } from "../i18n.js";
 import { cleanCode } from "../shared.js";
 import { sfx } from "../sfx.js";
 import { Card } from "./cards.jsx";
-import { Btn, SoundToggle } from "./parts.jsx";
+import { Btn, SoundToggle, Stepper } from "./parts.jsx";
 
 export function ModePicker({ mode, setMode, disabled }) {
   return (
@@ -53,9 +53,16 @@ export function Logo({ small }) {
   );
 }
 
-export default function Home({ profile, setProfile, mode, setMode, invite, onSolo, onHost, onJoin, onDropInvite }) {
+export default function Home({ profile, setProfile, mode, setMode, soloBots, setSoloBots, invite, onSolo, onHost, onJoin, onDropInvite }) {
   const [code, setCode] = useState(invite || "");
   const [rules, setRules] = useState(false);
+  // Android/Chrome offers "install" (fullscreen app on the home screen) via this event.
+  const [installEv, setInstallEv] = useState(null);
+  useEffect(() => {
+    const h = (e) => { e.preventDefault(); setInstallEv(e); };
+    window.addEventListener("beforeinstallprompt", h);
+    return () => window.removeEventListener("beforeinstallprompt", h);
+  }, []);
   const setName = (name) => setProfile({ ...profile, name });
   const ready = profile.name.trim().length > 0;
 
@@ -115,10 +122,16 @@ export default function Home({ profile, setProfile, mode, setMode, invite, onSol
           </>
         ) : (
           <>
-            <Btn color="sun" disabled={!ready} onClick={onSolo} className="flex items-center gap-3 py-4 text-left">
-              <span className="text-3xl">🤖</span>
-              <span><span className="block text-lg">{T.solo}</span><span className="block text-xs font-semibold opacity-70">{T.soloHint}</span></span>
-            </Btn>
+            <div className="flex items-stretch gap-2">
+              <Btn color="sun" disabled={!ready} onClick={onSolo} className="flex flex-1 items-center gap-3 py-4 text-left">
+                <span className="text-3xl">🤖</span>
+                <span><span className="block text-lg">{T.solo}</span><span className="block text-xs font-semibold opacity-70">{soloBots + 1} {T.players}</span></span>
+              </Btn>
+              <div className="comic-sm flex flex-col items-center justify-center rounded-2xl bg-paper px-2">
+                <span className="text-[10px] font-extrabold text-ink-soft">{T.bots}</span>
+                <Stepper value={soloBots} min={1} max={5} onChange={setSoloBots} label={T.bots} />
+              </div>
+            </div>
             <Btn color="coral" disabled={!ready} onClick={onHost} className="flex items-center gap-3 py-4 text-left">
               <span className="text-3xl">🎉</span>
               <span><span className="block text-lg">{T.host}</span><span className="block text-xs font-semibold opacity-85">{T.hostHint}</span></span>
@@ -138,6 +151,10 @@ export default function Home({ profile, setProfile, mode, setMode, invite, onSol
           </>
         )}
       </div>
+
+      {installEv && (
+        <Btn color="mint" onClick={() => { installEv.prompt(); setInstallEv(null); }} className="mt-6 self-center px-5 py-2.5 text-sm">{T.install}</Btn>
+      )}
 
       <button onClick={() => setRules(!rules)} className="mt-8 self-center text-sm font-extrabold text-ink-soft underline decoration-wavy decoration-2 underline-offset-4">
         📖 {T.rules}

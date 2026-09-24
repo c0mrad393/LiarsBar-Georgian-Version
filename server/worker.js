@@ -8,10 +8,11 @@
 // ROOM_TTL with nobody connected.
 import { DurableObject } from "cloudflare:workers";
 import { createGame, reduce, schedule, viewFor } from "../src/engine.js";
-import { CODE_RE, EMOTES, GUEST_ACTIONS, MAX_SEATS, MODES, ONLINE_OPTS, bots, cleanAvatar, cleanName } from "../src/shared.js";
+import { CODE_RE, EMOTES, FX_GAP, GUEST_ACTIONS, MAX_SEATS, MODES, ONLINE_OPTS, PHRASES, THROWABLES, botFx, botThrowBack, bots, cleanAvatar, cleanName } from "../src/shared.js";
 
 const ROOM_TTL = 60 * 60 * 1000;
 const EMOTE_GAP = 500;
+const DEFAULT_BOTS = 3;
 const OPEN = 1;
 
 export default {
@@ -28,7 +29,7 @@ export default {
 export class Room extends DurableObject {
   constructor(ctx, env) {
     super(ctx, env);
-    this.meta = null; // { code, hostCid, botFill, mode, lobby: [{ cid, name, avatar }] }
+    this.meta = null; // { code, hostCid, bots, mode, lobby: [{ cid, name, avatar }] }
     this.game = null;
     this.timer = null;
     this.lastEmote = new Map();
@@ -68,7 +69,7 @@ export class Room extends DurableObject {
     return {
       t: "lobby",
       code: m.code,
-      botFill: m.botFill,
+      bots: m.bots ?? DEFAULT_BOTS,
       mode: m.mode,
       max: MAX_SEATS,
       youHost: m.hostCid === cid,
@@ -102,15 +103,30 @@ export class Room extends DurableObject {
 
   dispatch(a) {
     if (!this.game) return false;
-    const next = reduce(this.game, { ...a, now: Date.now() });
-    if (next === this.game) return false;
+    const prev = this.game;
+    const next = reduce(prev, { ...a, now: Date.now() });
+    if (next === prev) return false;
     this.game = next;
+    const seen = prev.log[0]?.id ?? 0;
+    for (const ev of next.log) {
+      if (ev.id <= seen) break;
+      this.later(botFx(next, ev));
+    }
     // Snapshot at round starts and at the end; everything else stays in memory.
     const t = next.log[0]?.type;
     if (t === "deal" || t === "start" || next.phase === "gameover") this.saveGame();
     this.broadcastState();
     this.arm();
     return true;
+  }
+
+  /** Throws, reactions and chat lines, sent to everyone at the table. */
+  fx(fx) {
+    for (const ws of this.sockets()) this.send(ws, { t: "fx", fx });
+    if (fx.kind === "throw" && this.game) this.later(botThrowBack(this.game, fx));
+  }
+  later(list) {
+    for (const { delay, fx } of list) setTimeout(() => this.game && this.fx(fx), delay);
   }
 
   /** Schedule the engine's next automatic step (bots, reveals, AFK timeouts). */
@@ -132,7 +148,7 @@ export class Room extends DurableObject {
     const roster = this.meta.lobby.filter((p) => this.connected(p.cid));
     this.meta.lobby = roster;
     const seats = roster.map((p) => ({ name: p.name, avatar: p.avatar, kind: "human", clientId: p.cid }));
-    if (this.meta.botFill) seats.push(...bots(MAX_SEATS - seats.length));
+    seats.push(...bots(Math.min(this.meta.bots ?? DEFAULT_BOTS, MAX_SEATS - seats.length)));
     this.game = seats.length >= 2 ? createGame(seats, { ...ONLINE_OPTS, mode: this.meta.mode }) : null;
     this.saveMeta();
     this.saveGame();
@@ -161,7 +177,7 @@ export class Room extends DurableObject {
     if (create) {
       if (this.meta && this.sockets().length) reject = "codeTaken";
       else {
-        this.meta = { code, hostCid: null, botFill: true, mode: MODES.includes(url.searchParams.get("mode")) ? url.searchParams.get("mode") : "classic", lobby: [] };
+        this.meta = { code, hostCid: null, bots: DEFAULT_BOTS, mode: MODES.includes(url.searchParams.get("mode")) ? url.searchParams.get("mode") : "classic", lobby: [] };
         this.game = null;
         await this.ctx.storage.deleteAll();
         await this.saveMeta();
@@ -200,12 +216,20 @@ export class Room extends DurableObject {
           if (seat >= 0) this.dispatch({ type: m.a.type, ids: Array.isArray(m.a.ids) ? m.a.ids.slice(0, 3) : undefined, seat });
         }
         break;
-      case "emote": {
+      case "emote":
+      case "throw":
+      case "say": {
         const seat = this.seatOf(cid);
         const now = Date.now();
-        if (seat < 0 || !EMOTES.includes(m.e) || now - (this.lastEmote.get(cid) || 0) < EMOTE_GAP) break;
-        this.lastEmote.set(cid, now);
-        for (const s of this.sockets()) this.send(s, { t: "emote", seat, e: m.e });
+        const key = `${cid}:${m.t === "emote" ? "e" : "x"}`;
+        if (seat < 0 || now - (this.lastEmote.get(key) || 0) < (m.t === "emote" ? EMOTE_GAP : FX_GAP)) break;
+        let fx = null;
+        if (m.t === "emote" && EMOTES.includes(m.e)) fx = { kind: "emote", seat, e: m.e };
+        if (m.t === "say" && Number.isInteger(m.i) && m.i >= 0 && m.i < PHRASES.length) fx = { kind: "say", seat, i: m.i };
+        if (m.t === "throw" && THROWABLES.includes(m.item) && Number.isInteger(m.to) && m.to !== seat && this.game.seats[m.to]) fx = { kind: "throw", from: seat, to: m.to, item: m.item };
+        if (!fx) break;
+        this.lastEmote.set(key, now);
+        this.fx(fx);
         break;
       }
       case "start":
@@ -215,8 +239,8 @@ export class Room extends DurableObject {
       case "toLobby":
         if (isHost) this.toLobby();
         break;
-      case "botFill":
-        if (isHost && !this.game) { this.meta.botFill = !!m.v; this.saveMeta(); this.broadcastLobby(); }
+      case "bots":
+        if (isHost && !this.game && Number.isInteger(m.v) && m.v >= 0 && m.v < MAX_SEATS) { this.meta.bots = m.v; this.saveMeta(); this.broadcastLobby(); }
         break;
       case "mode":
         if (isHost && !this.game && MODES.includes(m.v)) { this.meta.mode = m.v; this.saveMeta(); this.broadcastLobby(); }

@@ -3,15 +3,15 @@
 import { createGame, reduce, schedule, viewFor, MAX_SEATS } from "../src/engine.js";
 
 const GAMES = Number(process.argv[2] || 3000);
-const personas = ["pig", "fox", "bull", "cat"];
+const personas = ["pig", "fox", "bull", "cat", "bear", "pig"];
 let rounds = 0, steps = 0, calls = 0, maxRounds = 0, devils = 0, multiDeaths = 0;
-const wins = [0, 0, 0, 0];
+const wins = [0, 0, 0, 0, 0, 0];
 
 function check(s) {
   const alive = s.seats.filter((p) => p.alive);
   if (alive.length < 1) throw new Error("everyone dead");
   const cards = s.seats.reduce((n, p) => n + p.hand.length, 0) + (s.pile?.count || 0);
-  if (cards > 20) throw new Error("card duplication");
+  if (cards > (s.seats.length > 4 ? 32 : 20)) throw new Error("card duplication");
   const ids = s.seats.flatMap((p) => p.hand.map((c) => c.id));
   if (new Set(ids).size !== ids.length) throw new Error("duplicate card id");
   if (s.seats.some((p) => p.hand.some((c) => c.rank === "D")) && s.opts.mode !== "devil") throw new Error("devil card in classic mode");

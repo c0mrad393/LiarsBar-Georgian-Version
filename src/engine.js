@@ -1,7 +1,8 @@
 // Pure game engine. Only the host (or the solo player's own browser) runs it;
 // guests receive a filtered view from `viewFor` and send actions back.
 //
-// Rules: 20 cards (6× K/Q/A + 2 specials), 5 per living player. Each round
+// Rules: 20 cards (6× K/Q/A + 2 specials; 32 cards with 10 each for 5–6
+// players), 5 per living player. Each round
 // has a table card. On your turn play 1–3 cards face down claiming they are
 // all the table card, or call "Liar!" on the previous play. Jokers count as
 // any card. The loser of a call faces the revolver (1 bullet in 6 chambers,
@@ -18,9 +19,10 @@ export const DEVIL = "D";
 export const WILD = new Set([JOKER, DEVIL]);
 export const MODES = ["classic", "devil"];
 export const HAND = 5;
-const PER_RANK = 6;
-const SUITS = ["S", "H", "D", "C", "H", "S"]; // cosmetic only
-export const MAX_SEATS = 4;
+const SUITS = ["S", "H", "D", "C"]; // cosmetic only
+/** Cards of each rank: enough for everyone to get a full hand. */
+export const perRank = (players) => (players > 4 ? 10 : 6);
+export const MAX_SEATS = 6;
 export const MAX_PLAY = 3;
 
 export const PERSONAS = {
@@ -28,6 +30,7 @@ export const PERSONAS = {
   fox: { name: "ფოქსი", avatar: "🦊", bluff: 0.3, call: 0.55, desc: "ეშმაკი" },
   bull: { name: "ტოარი", avatar: "🐂", bluff: 0.12, call: 0.24, desc: "ფრთხილი" },
   cat: { name: "მურკა", avatar: "🐱", bluff: 0.38, call: 0.42, desc: "ცბიერი" },
+  bear: { name: "ბერა", avatar: "🐻", bluff: 0.22, call: 0.46, desc: "მოუთმენელი" },
 };
 // Stand-in brain for a human who dropped offline mid-game.
 const AUTOPILOT = { bluff: 0.25, call: 0.3 };
@@ -111,6 +114,7 @@ export function createGame(seats, opts = {}, now = Date.now()) {
       avatar: p.avatar,
       kind: p.kind,
       persona: p.persona || null,
+      looks: p.looks || null, // cosmetic accessories: { hat, eyes, ... }
       clientId: p.clientId || null,
       connected: true,
       alive: true,
@@ -139,7 +143,8 @@ export function createGame(seats, opts = {}, now = Date.now()) {
 function deal(s, starter, now) {
   const deck = [];
   let id = s.uid * 100; // unique across rounds
-  for (const r of RKEYS) for (let k = 0; k < PER_RANK; k++) deck.push({ id: id++, rank: r, suit: SUITS[k] });
+  const n = perRank(s.seats.length);
+  for (const r of RKEYS) for (let k = 0; k < n; k++) deck.push({ id: id++, rank: r, suit: SUITS[k % SUITS.length] });
   deck.push({ id: id++, rank: JOKER }, { id: id++, rank: s.opts.mode === "devil" ? DEVIL : JOKER });
   shuffle(deck);
   for (const seat of s.seats) seat.hand = seat.alive ? deck.splice(0, HAND) : [];
@@ -401,6 +406,7 @@ export function viewFor(s, me) {
       idx: p.idx,
       name: p.name,
       avatar: p.avatar,
+      looks: p.looks,
       kind: p.kind,
       connected: p.connected,
       alive: p.alive,

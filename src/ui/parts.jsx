@@ -147,3 +147,15 @@ export function Confetti({ count = 90 }) {
     </div>
   );
 }
+
+/** − n + control. */
+export function Stepper({ value, min, max, onChange, label }) {
+  const btn = "flex h-9 w-9 items-center justify-center rounded-full border-[2.5px] border-ink bg-paper text-lg font-black transition-transform active:scale-90 disabled:opacity-30";
+  return (
+    <div className="flex items-center gap-2" role="group" aria-label={label}>
+      <button className={btn} disabled={value <= min} onClick={() => { onChange(value - 1); sfx("select"); }} aria-label="−">−</button>
+      <span className="min-w-[1.5ch] text-center text-xl font-black tabular-nums">{value}</span>
+      <button className={btn} disabled={value >= max} onClick={() => { onChange(value + 1); sfx("select"); }} aria-label="+">+</button>
+    </div>
+  );
+}

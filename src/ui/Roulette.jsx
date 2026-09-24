@@ -1,6 +1,70 @@
 import { useEffect, useRef, useState } from "react";
 import { T, quipText } from "../i18n.js";
-import { Btn, Starburst, Timer } from "./parts.jsx";
+import { sfx, unlockAudio } from "../sfx.js";
+import Character, { seatColor } from "./Character.jsx";
+import { Starburst, Timer } from "./parts.jsx";
+
+const HOLD_MS = 1300;
+
+/** Press and hold to squeeze the trigger; letting go early backs out. */
+function HoldToPull({ onPull }) {
+  const [p, setP] = useState(0);
+  const [hint, setHint] = useState(false);
+  const run = useRef(null);
+
+  const stop = (done) => {
+    if (!run.current) return;
+    cancelAnimationFrame(run.current.raf);
+    clearTimeout(run.current.beat);
+    const early = !done && Date.now() - run.current.t0 < 250;
+    run.current = null;
+    if (!done) { setP(0); if (early) setHint(true); }
+  };
+  const start = (e) => {
+    e.preventDefault();
+    if (run.current) return;
+    unlockAudio();
+    setHint(false);
+    const t0 = Date.now();
+    run.current = { t0 };
+    const beat = () => {
+      if (!run.current) return;
+      sfx("heart");
+      const k = Math.min(1, (Date.now() - t0) / HOLD_MS);
+      run.current.beat = setTimeout(beat, 520 - 300 * k);
+    };
+    beat();
+    const step = () => {
+      if (!run.current) return;
+      const k = Math.min(1, (Date.now() - t0) / HOLD_MS);
+      setP(k);
+      if (k >= 1) { stop(true); onPull(); return; }
+      run.current.raf = requestAnimationFrame(step);
+    };
+    run.current.raf = requestAnimationFrame(step);
+  };
+  useEffect(() => () => stop(false), []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <>
+      <div className="vignette fixed inset-0 z-[61]" style={{ opacity: p * 0.75 }} />
+      <button
+        onPointerDown={start}
+        onPointerUp={() => stop(false)}
+        onPointerLeave={() => stop(false)}
+        onPointerCancel={() => stop(false)}
+        onKeyDown={(e) => { if ((e.key === " " || e.key === "Enter") && !e.repeat) start(e); }}
+        onKeyUp={() => stop(false)}
+        onContextMenu={(e) => e.preventDefault()}
+        className={`btn relative z-[62] w-full select-none overflow-hidden rounded-2xl bg-coral py-4 text-lg text-white ${p ? "a-heartbeat" : "a-hop"}`}
+        style={{ WebkitTouchCallout: "none" }}>
+        <span className="absolute inset-y-0 left-0 bg-[#b3202a]" style={{ width: `${p * 100}%` }} />
+        <span className="relative">{p ? `${T.pull} ${Math.round(p * 100)}%` : T.pull}</span>
+      </button>
+      <div className={`relative z-[62] text-xs font-extrabold ${hint ? "a-wiggle text-coral" : "text-ink-soft"}`}>{T.holdToPull}</div>
+    </>
+  );
+}
 
 function Cylinder({ spinning, result, pulls, chamber }) {
   // Accumulate rotation so each spin keeps turning the same way; land the
@@ -17,12 +81,14 @@ function Cylinder({ spinning, result, pulls, chamber }) {
   const to = deg + land;
   const cx = 100, cy = 100;
   return (
-    <div className="relative mx-auto h-44 w-44">
+    <div className="relative mx-auto h-44 w-44" style={{ perspective: 500 }}>
+      <div className="absolute inset-x-4 -bottom-3 h-6 rounded-[50%] bg-ink/25 blur-md" />
       <div className="absolute left-1/2 top-[-6px] z-10 h-0 w-0 -translate-x-1/2" style={{ borderLeft: "11px solid transparent", borderRight: "11px solid transparent", borderTop: `16px solid ${result === "dead" ? "#ff5a5f" : "#2b1d14"}` }} />
+      <div className="h-full w-full" style={{ transform: "rotateX(38deg)", transformStyle: "preserve-3d" }}>
       <div
         key={deg}
         className={spinning ? "a-cylinder h-full w-full" : "h-full w-full"}
-        style={{ "--to": `${to}deg`, transform: spinning ? undefined : `rotate(${to}deg)` }}>
+        style={{ "--to": `${to}deg`, transform: spinning ? undefined : `rotate(${to}deg)`, filter: "drop-shadow(0 6px 0 #6b5646)" }}>
         <svg viewBox="0 0 200 200" className="h-full w-full">
           <circle cx={cx} cy={cy} r="94" fill="#c9c3bb" stroke="#2b1d14" strokeWidth="5" />
           <circle cx={cx} cy={cy} r="80" fill="#dcd6ce" stroke="#2b1d14" strokeWidth="2" strokeDasharray="6 7" />
@@ -42,6 +108,7 @@ function Cylinder({ spinning, result, pulls, chamber }) {
           <circle cx={cx} cy={cy} r="20" fill="#ffc83d" stroke="#2b1d14" strokeWidth="4" />
           <circle cx={cx} cy={cy} r="6" fill="#2b1d14" />
         </svg>
+      </div>
       </div>
     </div>
   );
@@ -64,16 +131,8 @@ export default function Roulette({ view, nm, onPull }) {
       <div key={r.victim} className={`a-pop comic relative w-full max-w-sm rounded-[2rem] px-6 pb-6 pt-5 text-center ${dead ? "a-shake" : ""} ${devil ? "bg-[#fff0ee]" : "bg-paper"}`}>
         <div className={`font-display text-sm tracking-widest ${devil ? "text-[#b3202a]" : "text-coral"}`}>{devil ? `😈 ${T.devilRoulette}` : `🔫 ${T.roulette}`}</div>
 
-        <div className="relative mx-auto mt-3 w-fit">
-          <div className={`text-6xl ${!r.result ? "a-tremble" : safe ? "a-hop" : ""}`}>
-            <span className={dead ? "a-ghost inline-block" : "inline-block"}>{dead ? "👻" : v.avatar}</span>
-          </div>
-          {!r.result && (
-            <>
-              <span className="a-sweat absolute -right-3 top-0 text-xl" style={{ "--dx": "14px" }}>💦</span>
-              <span className="a-sweat absolute -left-3 top-2 text-lg" style={{ "--dx": "-12px", animationDelay: "0.4s" }}>💧</span>
-            </>
-          )}
+        <div className="relative mx-auto mt-3 flex w-fit justify-center">
+          <Character avatar={v.avatar} looks={v.looks} color={seatColor(r.victim)} size={86} state={dead ? "dead" : safe ? "happy" : "nervous"} />
         </div>
         <h2 className="mt-1 text-xl font-black">{mine ? T.you : v.name} · {T.facesGun}</h2>
         <p className="text-xs font-bold text-ink-soft">{T[r.reason]}</p>
@@ -109,8 +168,8 @@ export default function Roulette({ view, nm, onPull }) {
             </div>
           ) : mine && !r.spinning ? (
             <div className="flex flex-col items-center gap-2">
-              <Btn color="coral" onClick={onPull} className="a-hop w-full py-4 text-lg">{T.pull}</Btn>
-              <Timer deadline={view.deadline} offset={view.clockOffset} />
+              <HoldToPull onPull={onPull} />
+              <Timer deadline={view.deadline} offset={view.clockOffset} className="relative z-[62]" />
             </div>
           ) : (
             <div className="rounded-2xl border-[3px] border-dashed border-ink/40 px-4 py-3 font-extrabold">
