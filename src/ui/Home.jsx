@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AVATARS, MODE_INFO, RULES, T } from "../i18n.js";
-import { cleanCode } from "../net.js";
+import { cleanCode } from "../shared.js";
 import { sfx } from "../sfx.js";
 import { Card } from "./cards.jsx";
 import { Btn, SoundToggle } from "./parts.jsx";

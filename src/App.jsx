@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { AVATARS, T } from "./i18n.js";
-import { cleanCode } from "./net.js";
-import { cleanAvatar, cleanName, useGuest, useHost, useSolo } from "./useGame.js";
+import { makeCode, useOnline } from "./online.js";
+import { cleanAvatar, cleanCode, cleanName } from "./shared.js";
+import { useSolo } from "./useGame.js";
 import Game from "./ui/Game.jsx";
 import Home, { Logo } from "./ui/Home.jsx";
 import Lobby from "./ui/Lobby.jsx";
@@ -44,34 +45,50 @@ function SoloScreen({ profile, mode, onLeave }) {
   return <Game view={g.view} act={g.act} emotes={g.emotes} sendEmote={g.sendEmote} canRestart onAgain={g.again} onLeave={onLeave} />;
 }
 
-function HostScreen({ profile, mode, setMode, onLeave }) {
-  const h = useHost(profile, mode);
-  const pickMode = (m) => { h.setMode(m); setMode(m); };
-  const leave = () => { if (h.status !== "game" || window.confirm("თამაში ყველასთვის დასრულდება. გავიდე?")) onLeave(); };
-  if (h.status === "creating") return <Notice emoji="🔨" title={T.creating} />;
-  if (h.status === "error")
-    return (
-      <Notice emoji="😵" title={T[h.error] || T.netError}>
-        <Btn color="paper" onClick={onLeave}>{T.back}</Btn>
-      </Notice>
-    );
-  if (h.status === "lobby" || !h.view)
-    return <Lobby lobby={h.lobby} isHost setBotFill={h.setBotFill} setMode={pickMode} canStart={h.canStart} onStart={h.start} onLeave={onLeave} />;
-  return <Game view={h.view} act={h.act} emotes={h.emotes} sendEmote={h.sendEmote} canRestart onAgain={h.again} onLeave={leave} onToLobby={h.toLobby} />;
-}
+function OnlineScreen({ code, create, profile, mode, setMode, onLeave, onRetry }) {
+  const o = useOnline({ code, create, profile, mode, onCode: setRoomInUrl });
+  const pickMode = (m) => { o.ctl("mode", m); setMode(m); };
+  const leave = () => { if (o.status !== "game" || o.view?.phase === "gameover" || window.confirm(T.leaveGameConfirm)) onLeave(); };
 
-function GuestScreen({ code, profile, onLeave, onRetry }) {
-  const g = useGuest(code, profile);
-  if (g.status === "connecting") return <Notice emoji="📡" title={T.connecting} />;
-  if (g.status === "error" || g.status === "closed")
+  if (o.status === "connecting") return <Notice emoji="📡" title={create ? T.creating : T.connecting} />;
+  if (o.status === "error")
     return (
-      <Notice emoji={g.status === "closed" ? "😢" : "😵"} title={g.status === "closed" ? T.hostLeft : T[g.error] || T.netError}>
-        {g.error !== "roomFull" && g.error !== "alreadyStarted" && <Btn color="sun" onClick={onRetry}>🔄 თავიდან ცდა</Btn>}
+      <Notice emoji="😵" title={T[o.error] || T.netError}>
+        {!["roomFull", "alreadyStarted", "roomMissing"].includes(o.error) && <Btn color="sun" onClick={onRetry}>🔄 {T.retry}</Btn>}
         <Btn color="paper" onClick={onLeave}>🏠 {T.menu}</Btn>
       </Notice>
     );
-  if (g.status === "lobby" || !g.view) return <Lobby lobby={g.lobby} onLeave={onLeave} />;
-  return <Game view={g.view} act={g.act} emotes={g.emotes} sendEmote={g.sendEmote} canRestart={false} onLeave={onLeave} />;
+  const banner = o.status === "reconnecting" && (
+    <div className="a-pop fixed left-1/2 top-3 z-[95] -translate-x-1/2 rounded-full border-[2.5px] border-ink bg-sun px-4 py-1.5 text-sm font-black" style={{ boxShadow: "0 3px 0 #2b1d14" }}>
+      <span className="a-wiggle inline-block">📡</span> {T.reconnecting}
+    </div>
+  );
+  if (!o.view)
+    return (
+      <>
+        {banner}
+        {o.lobby ? (
+          <Lobby lobby={o.lobby} isHost={o.isHost} setBotFill={(v) => o.ctl("botFill", v)} setMode={pickMode} canStart onStart={() => o.ctl("start")} onLeave={onLeave} />
+        ) : (
+          <Notice emoji="📡" title={T.connecting} />
+        )}
+      </>
+    );
+  return (
+    <>
+      {banner}
+      <Game
+        view={o.view}
+        act={o.act}
+        emotes={o.emotes}
+        sendEmote={o.sendEmote}
+        canRestart={o.isHost}
+        onAgain={() => o.ctl("again")}
+        onLeave={leave}
+        onToLobby={o.isHost ? () => o.ctl("toLobby") : undefined}
+      />
+    </>
+  );
 }
 
 export default function App() {
@@ -94,9 +111,19 @@ export default function App() {
   const home = () => { setScreen({ name: "home" }); setInvite(""); setRoomInUrl(null); };
 
   if (screen.name === "solo") return <SoloScreen profile={clean} mode={mode} onLeave={home} />;
-  if (screen.name === "host") return <HostScreen profile={clean} mode={mode} setMode={setMode} onLeave={home} />;
-  if (screen.name === "guest")
-    return <GuestScreen key={`${screen.code}-${attempt}`} code={screen.code} profile={clean} onLeave={home} onRetry={() => setAttempt((a) => a + 1)} />;
+  if (screen.name === "online")
+    return (
+      <OnlineScreen
+        key={`${screen.code}-${attempt}`}
+        code={screen.code}
+        create={screen.create && attempt === 0}
+        profile={clean}
+        mode={mode}
+        setMode={setMode}
+        onLeave={home}
+        onRetry={() => setAttempt((a) => a + 1)}
+      />
+    );
 
   return (
     <Home
@@ -106,8 +133,8 @@ export default function App() {
       setMode={setMode}
       invite={invite}
       onSolo={() => setScreen({ name: "solo" })}
-      onHost={() => setScreen({ name: "host" })}
-      onJoin={(code) => { setRoomInUrl(code); setScreen({ name: "guest", code }); }}
+      onHost={() => { const code = makeCode(); setRoomInUrl(code); setAttempt(0); setScreen({ name: "online", code, create: true }); }}
+      onJoin={(code) => { setRoomInUrl(code); setAttempt(0); setScreen({ name: "online", code, create: false }); }}
       onDropInvite={home}
     />
   );

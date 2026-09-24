@@ -254,7 +254,7 @@ export default function Game({ view, act, emotes, sendEmote, canRestart, onAgain
   useEffect(() => {
     const log = view.log;
     if (!log.length) return;
-    if (lastSeen.current != null && log[0].id < lastSeen.current) lastSeen.current = 0; // new game
+    if (lastSeen.current != null && log[0].id < lastSeen.current) lastSeen.current = log.length <= 3 ? 0 : log[0].id; // new game, or a restored snapshot
     if (lastSeen.current == null) lastSeen.current = log.length <= 3 ? 0 : log[0].id; // joined mid-game: skip history
     const fresh = log.filter((e) => e.id > lastSeen.current).reverse();
     lastSeen.current = log[0].id;

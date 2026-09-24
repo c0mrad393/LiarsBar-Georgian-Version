@@ -7,5 +7,6 @@ import { viteSingleFile } from "vite-plugin-singlefile";
 export default defineConfig({
   base: "./",
   plugins: [react(), tailwindcss(), viteSingleFile()],
-  server: { port: 5178 },
+  // server/.wrangler holds the local room server's database; don't reload the page on its writes.
+  server: { port: 5178, watch: { ignored: ["**/.wrangler/**", "**/server/**"] } },
 });

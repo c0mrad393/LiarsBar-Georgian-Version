@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { PERSONAS } from "../engine.js";
 import { MODE_INFO, T } from "../i18n.js";
-import { inviteLink } from "../net.js";
+import { inviteLink } from "../online.js";
 import { sfx } from "../sfx.js";
 import { Logo, ModePicker } from "./Home.jsx";
 import { Btn, SoundToggle } from "./parts.jsx";
@@ -12,6 +12,7 @@ export default function Lobby({ lobby, isHost, setBotFill, setMode, canStart, on
   const [copied, setCopied] = useState(false);
   const link = lobby.code ? inviteLink(lobby.code) : "";
   const seats = lobby.seats;
+  const ready = canStart && (lobby.botFill || seats.length >= 2);
 
   // Little fanfare when someone walks in.
   const prev = useRef(seats.length);
@@ -113,8 +114,8 @@ export default function Lobby({ lobby, isHost, setBotFill, setMode, canStart, on
             <span>🤖 {T.botFill}</span>
             <input type="checkbox" checked={lobby.botFill} onChange={(e) => setBotFill(e.target.checked)} className="h-6 w-6 accent-[#2ec4b6]" />
           </label>
-          <Btn color="coral" disabled={!canStart} onClick={onStart} className="py-4 text-xl">🔥 {T.start}</Btn>
-          {!canStart && <p className="text-center text-sm font-bold text-coral">{T.needTwo}</p>}
+          <Btn color="coral" disabled={!ready} onClick={onStart} className="py-4 text-xl">🔥 {T.start}</Btn>
+          {!ready && <p className="text-center text-sm font-bold text-coral">{T.needTwo}</p>}
           <p className="text-center text-xs font-semibold text-ink-soft">💡 {T.keepOpen}</p>
         </div>
       ) : (

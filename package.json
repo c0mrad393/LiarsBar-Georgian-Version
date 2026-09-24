@@ -7,10 +7,11 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "sim": "node scripts/simulate.mjs"
+    "sim": "node scripts/simulate.mjs",
+    "server": "wrangler dev --config server/wrangler.jsonc --port 8787",
+    "online-test": "node scripts/online-test.mjs"
   },
   "dependencies": {
-    "peerjs": "^1.5.5",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },
@@ -19,6 +20,7 @@
     "@vitejs/plugin-react": "^6.1.1",
     "tailwindcss": "^4.3.3",
     "vite": "^8.3.0",
-    "vite-plugin-singlefile": "^2.3.3"
+    "vite-plugin-singlefile": "^2.3.3",
+    "wrangler": "^4.138.0"
   }
 }
