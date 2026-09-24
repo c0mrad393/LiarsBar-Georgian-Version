@@ -4,6 +4,7 @@ import { cleanCode } from "../shared.js";
 import { sfx } from "../sfx.js";
 import { Card } from "./cards.jsx";
 import { Btn, SoundToggle, Stepper } from "./parts.jsx";
+import { CoinChip, Leaderboard, ProfileSheet } from "./Profile.jsx";
 
 export function ModePicker({ mode, setMode, disabled }) {
   return (
@@ -53,7 +54,8 @@ export function Logo({ small }) {
   );
 }
 
-export default function Home({ profile, setProfile, mode, setMode, soloBots, setSoloBots, invite, onSolo, onHost, onJoin, onDropInvite }) {
+export default function Home({ profile, setProfile, account, mode, setMode, soloBots, setSoloBots, invite, onSolo, onHost, onJoin, onDropInvite }) {
+  const [panel, setPanel] = useState(null); // profile | board
   const [code, setCode] = useState(invite || "");
   const [rules, setRules] = useState(false);
   // Android/Chrome offers "install" (fullscreen app on the home screen) via this event.
@@ -68,7 +70,15 @@ export default function Home({ profile, setProfile, mode, setMode, soloBots, set
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-xl flex-col px-4 pb-10 pt-4">
-      <div className="flex justify-end"><SoundToggle /></div>
+      <div className="flex items-center justify-between gap-2">
+        <CoinChip coins={account.me?.coins ?? (account.error ? "—" : 0)} onClick={() => setPanel("profile")} className={account.me?.dailyReady ? "a-hop" : ""} />
+        <div className="flex items-center gap-2">
+          <button onClick={() => setPanel("board")} className="comic-sm flex h-10 items-center gap-1 rounded-full bg-paper px-3 text-sm font-black" aria-label={T.leaderboard}>🏆<span className="hidden sm:inline">{T.leaderboard}</span></button>
+          <SoundToggle />
+        </div>
+      </div>
+      {panel === "profile" && <ProfileSheet account={account} profile={profile} setProfile={setProfile} onClose={() => setPanel(null)} />}
+      {panel === "board" && <Leaderboard onClose={() => setPanel(null)} />}
       <div className="a-fade-up mt-2"><Logo /></div>
 
       {invite && (

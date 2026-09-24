@@ -8,17 +8,60 @@
 // ROOM_TTL with nobody connected.
 import { DurableObject } from "cloudflare:workers";
 import { createGame, reduce, schedule, viewFor } from "../src/engine.js";
-import { CODE_RE, EMOTES, FX_GAP, GUEST_ACTIONS, MAX_SEATS, MODES, ONLINE_OPTS, PHRASES, THROWABLES, botFx, botThrowBack, bots, cleanAvatar, cleanName } from "../src/shared.js";
+import { REWARD } from "./ledger.js";
+import { CODE_RE, EMOTES, FX_GAP, KEY_RE, normKey, GUEST_ACTIONS, MAX_SEATS, MODES, ONLINE_OPTS, PHRASES, THROWABLES, botFx, botThrowBack, bots, cleanAvatar, cleanName } from "../src/shared.js";
+
+export { Ledger } from "./ledger.js";
 
 const ROOM_TTL = 60 * 60 * 1000;
 const EMOTE_GAP = 500;
 const DEFAULT_BOTS = 3;
 const OPEN = 1;
 
+/** Account id: the secret key's SHA-256 (hex, truncated). */
+async function acctId(key) {
+  const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`liarsbar:${key}`));
+  return [...new Uint8Array(d)].slice(0, 16).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Max-Age": "86400",
+};
+const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...CORS, "Content-Type": "application/json; charset=utf-8" } });
+
+/** Profiles, daily bonus and leaderboards. Every call is a POST with a JSON body. */
+async function api(req, env, path) {
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
+  if (req.method !== "POST") return json({ error: "method" }, 405);
+  let body;
+  try { body = JSON.parse((await req.text()).slice(0, 2048)); } catch { return json({ error: "json" }, 400); }
+  const ledger = env.LEDGER.get(env.LEDGER.idFromName("global"));
+  const key = normKey(body.key);
+  const id = KEY_RE.test(key) ? await acctId(key) : null;
+
+  if (path === "leaderboard") return json(await ledger.board(body.period === "all" ? "all" : "week", id));
+  if (!id) return json({ error: "key" }, 400);
+  if (path === "profile") return json({ profile: await ledger.upsert(id, cleanName(body.name), cleanAvatar(body.avatar)) });
+  if (path === "restore") {
+    const profile = await ledger.profile(id);
+    return profile ? json({ profile }) : json({ error: "unknown" }, 404);
+  }
+  if (path === "daily") {
+    const r = await ledger.daily(id);
+    return r ? json(r) : json({ error: "unknown" }, 404);
+  }
+  return json({ error: "path" }, 404);
+}
+
 export default {
   async fetch(req, env) {
     const url = new URL(req.url);
     if (url.pathname === "/" || url.pathname === "/health") return new Response("liarsbar ok\n");
+    const a = url.pathname.match(/^\/api\/([a-z]+)$/);
+    if (a) return api(req, env, a[1]);
     const m = url.pathname.match(/^\/room\/([^/]+)$/);
     if (!m || !CODE_RE.test(m[1])) return new Response("not found\n", { status: 404 });
     if (req.headers.get("Upgrade") !== "websocket") return new Response("expected a websocket\n", { status: 426 });
@@ -37,6 +80,7 @@ export class Room extends DurableObject {
     ctx.blockConcurrencyWhile(async () => {
       this.meta = (await ctx.storage.get("meta")) || null;
       this.game = (await ctx.storage.get("game")) || null;
+      this.tally = (await ctx.storage.get("tally")) || {};
     });
   }
 
@@ -61,7 +105,7 @@ export class Room extends DurableObject {
     return this.ctx.storage.put("meta", this.meta);
   }
   saveGame() {
-    return this.game ? this.ctx.storage.put("game", this.game) : this.ctx.storage.delete("game");
+    return this.game ? this.ctx.storage.put({ game: this.game, tally: this.tally || {} }) : this.ctx.storage.delete(["game", "tally"]);
   }
 
   lobbyMsg(cid) {
@@ -111,13 +155,73 @@ export class Room extends DurableObject {
     for (const ev of next.log) {
       if (ev.id <= seen) break;
       this.later(botFx(next, ev));
+      this.count(ev);
     }
+    if (next.phase === "gameover" && prev.phase !== "gameover") this.finish(next).catch((err) => console.error("finish", err));
     // Snapshot at round starts and at the end; everything else stays in memory.
     const t = next.log[0]?.type;
     if (t === "deal" || t === "start" || next.phase === "gameover") this.saveGame();
     this.broadcastState();
     this.arm();
     return true;
+  }
+
+  /** Per-game stats the log can't hold (it keeps only the last 60 events). */
+  count(ev) {
+    const t = (this.tally ||= {});
+    const bump = (seat, k) => { (t[seat] ||= { safe: 0, catches: 0, devil: 0 })[k]++; };
+    if (ev.type === "safe") bump(ev.seat, "safe");
+    if (ev.type === "bluff") bump(ev.other, "catches"); // the accuser caught a bluff
+    if (ev.type === "devil") bump(ev.seat, "devil");
+  }
+
+  /** Pay out coins for a finished game (only with 2+ different real players). */
+  async finish(game) {
+    const acctOf = (cid) => this.meta.lobby.find((p) => p.cid === cid)?.acct || null;
+    const seen = new Set();
+    const results = [];
+    const bySeat = {};
+    for (const s of game.seats) {
+      if (s.kind !== "human") continue;
+      const id = acctOf(s.clientId);
+      if (!id || seen.has(id)) continue; // same account in two seats counts once
+      seen.add(id);
+      const t = this.tally?.[s.idx] || { safe: 0, catches: 0, devil: 0 };
+      const win = game.winner === s.idx;
+      const parts = {
+        seat: s.connected ? REWARD.seat : 0,
+        win: win ? REWARD.win : 0,
+        safe: t.safe * REWARD.safe,
+        catch: t.catches * REWARD.catch,
+        devil: t.devil * REWARD.devil,
+      };
+      const amount = Object.values(parts).reduce((a, b) => a + b, 0);
+      results.push({ id, name: s.name, avatar: s.avatar, amount, win, safe: t.safe, catches: t.catches });
+      bySeat[s.idx] = { id, parts, amount };
+    }
+    // Rooms whose code starts with "zz" are for automated tests: no coins, no leaderboard.
+    const eligible = results.length >= 2 && !this.meta.code.startsWith("zz");
+    let paid = null;
+    if (eligible) {
+      try {
+        paid = await this.env.LEDGER.get(this.env.LEDGER.idFromName("global")).award(this.meta.gameId, results);
+      } catch (err) {
+        console.error("award failed", err);
+      }
+    }
+    this.rewards = {
+      eligible,
+      list: Object.entries(bySeat).map(([seat, r]) => ({ seat: Number(seat), got: paid?.[r.id]?.got ?? 0, parts: r.parts })),
+      paid: paid || {},
+    };
+    for (const ws of this.sockets()) this.sendRewards(ws, this.cidOf(ws));
+  }
+
+  sendRewards(ws, cid) {
+    if (!cid || !this.rewards || this.game?.phase !== "gameover") return;
+    const acct = this.meta.lobby.find((p) => p.cid === cid)?.acct;
+    const { eligible, list, paid } = this.rewards;
+    this.send(ws, { t: "rewards", eligible, list, you: (acct && paid[acct]) || null });
   }
 
   /** Throws, reactions and chat lines, sent to everyone at the table. */
@@ -150,6 +254,9 @@ export class Room extends DurableObject {
     const seats = roster.map((p) => ({ name: p.name, avatar: p.avatar, kind: "human", clientId: p.cid }));
     seats.push(...bots(Math.min(this.meta.bots ?? DEFAULT_BOTS, MAX_SEATS - seats.length)));
     this.game = seats.length >= 2 ? createGame(seats, { ...ONLINE_OPTS, mode: this.meta.mode }) : null;
+    this.meta.gameId = `${this.meta.code}-${Date.now()}`;
+    this.tally = {};
+    this.rewards = null;
     this.saveMeta();
     this.saveGame();
     this.sync();
@@ -204,7 +311,10 @@ export class Room extends DurableObject {
     try { m = JSON.parse(raw); } catch { return; }
     if (!m || typeof m !== "object") return;
 
-    if (m.t === "hello") return this.hello(ws, m);
+    if (m.t === "hello") {
+      const key = normKey(m.key);
+      return this.hello(ws, m, KEY_RE.test(key) ? await acctId(key) : null);
+    }
 
     const cid = this.cidOf(ws);
     if (!cid) return;
@@ -249,7 +359,7 @@ export class Room extends DurableObject {
     }
   }
 
-  hello(ws, m) {
+  hello(ws, m, acct) {
     const cid = String(m.clientId || "").slice(0, 40);
     if (!cid || this.cidOf(ws)) return;
     const name = cleanName(m.name);
@@ -261,10 +371,13 @@ export class Room extends DurableObject {
     if (!known) {
       if (this.game && this.game.phase !== "gameover") return refuse("alreadyStarted");
       if (meta.lobby.filter((p) => this.connected(p.cid)).length >= MAX_SEATS) return refuse("roomFull");
-      meta.lobby.push({ cid, name, avatar });
-    } else if (!this.game) {
-      known.name = name;
-      known.avatar = avatar;
+      meta.lobby.push({ cid, name, avatar, acct });
+    } else {
+      if (acct) known.acct = acct;
+      if (!this.game) {
+        known.name = name;
+        known.avatar = avatar;
+      }
     }
 
     ws.serializeAttachment({ cid });
@@ -277,6 +390,7 @@ export class Room extends DurableObject {
       const seat = this.seatOf(cid);
       if (seat < 0) this.send(ws, this.lobbyMsg(cid)); // joined after game over: waits for the rematch
       if (seat < 0 || !this.dispatch({ type: "presence", seat, connected: true })) this.broadcastState(); // host flag may have moved
+      this.sendRewards(ws, cid);
       this.arm();
     } else {
       this.broadcastLobby();

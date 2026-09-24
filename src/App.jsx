@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AVATARS, T } from "./i18n.js";
+import { useAccount } from "./account.js";
 import { requestTilt } from "./device.js";
 import { makeCode, useOnline } from "./online.js";
 import { cleanAvatar, cleanCode, cleanName } from "./shared.js";
@@ -43,7 +44,7 @@ function Notice({ emoji = "🍺", title, children }) {
 function SoloScreen({ profile, mode, bots, onLeave }) {
   const g = useSolo(profile, mode, bots);
   if (!g.view) return null;
-  return <Game view={g.view} act={g.act} fx={g.fx} emote={g.emote} throwAt={g.throwAt} say={g.say} canRestart onAgain={g.again} onLeave={onLeave} />;
+  return <Game view={g.view} act={g.act} fx={g.fx} emote={g.emote} throwAt={g.throwAt} say={g.say} solo canRestart onAgain={g.again} onLeave={onLeave} />;
 }
 
 function OnlineScreen({ code, create, profile, mode, setMode, onLeave, onRetry }) {
@@ -82,6 +83,7 @@ function OnlineScreen({ code, create, profile, mode, setMode, onLeave, onRetry }
         view={o.view}
         act={o.act}
         fx={o.fx}
+        rewards={o.rewards}
         emote={o.emote}
         throwAt={o.throwAt}
         say={o.say}
@@ -96,6 +98,7 @@ function OnlineScreen({ code, create, profile, mode, setMode, onLeave, onRetry }
 
 export default function App() {
   const [profile, setProfile] = useState(loadProfile);
+  const account = useAccount(profile);
   const [invite, setInvite] = useState(roomFromUrl);
   const [screen, setScreen] = useState({ name: "home" });
   const [attempt, setAttempt] = useState(0);
@@ -117,7 +120,7 @@ export default function App() {
   }, [profile]);
 
   const clean = { name: cleanName(profile.name), avatar: cleanAvatar(profile.avatar) };
-  const home = () => { setScreen({ name: "home" }); setInvite(""); setRoomInUrl(null); };
+  const home = () => { setScreen({ name: "home" }); setInvite(""); setRoomInUrl(null); account.refresh(); };
 
   if (screen.name === "solo") return <SoloScreen profile={clean} mode={mode} bots={soloBots} onLeave={home} />;
   if (screen.name === "online")
@@ -138,6 +141,7 @@ export default function App() {
     <Home
       profile={profile}
       setProfile={setProfile}
+      account={account}
       mode={mode}
       setMode={setMode}
       soloBots={soloBots}

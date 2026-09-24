@@ -2,21 +2,33 @@
 //   npx wrangler dev --config server/wrangler.jsonc   (in another terminal)
 //   node scripts/online-test.mjs [ws://127.0.0.1:8787]
 const SERVER = (process.argv[2] || "ws://127.0.0.1:8787").replace(/\/$/, "");
-const code = "t" + Math.random().toString(36).slice(2, 8);
+// Against a real server, use a "zz" test room: the game is identical but pays no
+// coins, so test players never reach the public leaderboard.
+const LOCAL = /\/\/(127\.0\.0\.1|localhost)[:/]/.test(SERVER);
+const code = (LOCAL ? "t" : "zz") + Math.random().toString(36).slice(2, 8);
 const log = (...a) => console.log(new Date().toISOString().slice(11, 19), ...a);
 const fail = (msg) => { console.error("FAIL:", msg); process.exit(1); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const HTTP = SERVER.replace(/^ws/, "http");
+const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+const newKey = () => Array.from({ length: 20 }, () => ALPHA[(Math.random() * ALPHA.length) | 0]).join("");
+const KEYS = { "host-1": newKey(), "guest-1": newKey() };
+async function api(path, body) {
+  const r = await fetch(`${HTTP}/api/${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  return { status: r.status, body: await r.json() };
+}
 
 function client(name, cid, { create = false, room = code } = {}) {
   const c = { name, cid, msgs: [], lobby: null, view: null, host: false, reject: null, closed: false };
   c.ws = new WebSocket(`${SERVER}/room/${room}${create ? "?create=1&mode=devil" : ""}`);
-  c.ws.onopen = () => c.ws.send(JSON.stringify({ t: "hello", clientId: cid, name, avatar: "🐸" }));
+  c.ws.onopen = () => c.ws.send(JSON.stringify({ t: "hello", clientId: cid, key: KEYS[cid], name, avatar: "🐸" }));
   c.ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
     c.msgs.push(m);
     if (m.t === "lobby") { c.lobby = m; c.view = null; c.host = m.youHost; }
     if (m.t === "state") { c.view = m.view; c.host = m.host; }
     if (m.t === "reject") c.reject = m.reason;
+    if (m.t === "rewards") c.rewards = m;
   };
   c.ws.onclose = () => { c.closed = true; };
   c.send = (m) => c.ws.readyState === 1 && c.ws.send(JSON.stringify(m));
@@ -108,6 +120,44 @@ while (host.view.phase !== "gameover") {
   await sleep(250);
   if (Date.now() - t0 > 10 * 60 * 1000) fail("game did not finish in 10 minutes");
 }
+await until(() => host.rewards && guest.rewards, "rewards after game over", 10000);
+if (!LOCAL) {
+  if (host.rewards.eligible || host.rewards.you) fail("test room paid coins");
+  log("ok  test room: rewards computed, nothing paid");
+} else {
+if (!host.rewards.eligible) fail("2 humans but rewards not eligible");
+for (const c of [host, guest]) {
+  if (!c.rewards.you || c.rewards.you.got < 10) fail(`${c.name} got no coins: ${JSON.stringify(c.rewards)}`);
+  const mine = c.rewards.list.find((r) => r.seat === c.view.me);
+  const sum = Object.values(mine.parts).reduce((a, b) => a + b, 0);
+  if (sum !== c.rewards.you.got) fail(`${c.name} breakdown ${sum} ≠ paid ${c.rewards.you.got}`);
+}
+log(`ok  coins paid: host +${host.rewards.you.got}, guest +${guest.rewards.you.got}`);
+
+// ledger API
+const prof = await api("restore", { key: KEYS["host-1"] });
+if (prof.status !== 200 || prof.body.profile.coins !== host.rewards.you.coins || prof.body.profile.games !== 1) fail(`restore: ${JSON.stringify(prof)}`);
+if ((await api("restore", { key: newKey() })).status !== 404) fail("unknown key should 404");
+if ((await api("restore", { key: "bad" })).status !== 400) fail("malformed key should 400");
+const d1 = await api("daily", { key: KEYS["guest-1"] });
+const d2 = await api("daily", { key: KEYS["guest-1"] });
+if (!d1.body.ok || d1.body.got !== 25 || d2.body.ok !== false) fail(`daily bonus: ${JSON.stringify([d1.body, d2.body])}`);
+const board = await api("leaderboard", { key: KEYS["host-1"], period: "week" });
+const all = await api("leaderboard", { period: "all" });
+if (!board.body.me || !board.body.top.some((r) => r.me)) fail(`week board lacks host: ${JSON.stringify(board.body).slice(0, 300)}`);
+if (!all.body.top.length || all.body.top.some((r) => "id" in r)) fail("all-time board empty or leaks ids");
+if ((await api("profile", { key: KEYS["guest-1"], name: "Renamed", avatar: "🦄" })).body.profile?.name !== "Renamed") fail("rename");
+log(`ok  ledger API: restore, 404/400, daily once, leaderboard (host #${board.body.me.rank} this week), rename`);
+}
+{
+  // Safe on a real server too: fresh keys, nothing earned, so nothing on the boards.
+  if ((await api("restore", { key: newKey() })).status !== 404) fail("unknown key should 404");
+  if ((await api("restore", { key: "bad" })).status !== 400) fail("malformed key should 400");
+  const b = await api("leaderboard", { period: "all" });
+  if (b.status !== 200 || !Array.isArray(b.body.top) || b.body.top.some((r) => "id" in r)) fail("leaderboard shape");
+  log("ok  ledger API reachable, errors and board shape");
+}
+
 const types = new Set(host.view.log.map((e) => e.type));
 log(`ok  game finished in ${Math.round((Date.now() - t0) / 1000)}s, round ${host.view.round}, winner seat ${host.view.winner}, events: ${[...types].join(",")}`);
 

@@ -12,7 +12,11 @@ export default function Lobby({ lobby, isHost, setBots, setMode, onStart, onLeav
   const [copied, setCopied] = useState(false);
   const link = lobby.code ? inviteLink(lobby.code) : "";
   const seats = lobby.seats;
-  const botCount = Math.min(lobby.bots ?? 0, lobby.max - seats.length);
+  // Optimistic: quick taps shouldn't wait for the server's echo.
+  const [bots, setBotsLocal] = useState(lobby.bots ?? 0);
+  useEffect(() => setBotsLocal(lobby.bots ?? 0), [lobby.bots]);
+  const changeBots = (v) => { setBotsLocal(v); setBots(v); };
+  const botCount = Math.min(bots, lobby.max - seats.length);
   const ready = seats.length + botCount >= 2;
 
   // Little fanfare when someone walks in.
@@ -113,7 +117,7 @@ export default function Lobby({ lobby, isHost, setBots, setMode, onStart, onLeav
         <div className="mt-5 flex flex-col gap-3">
           <div className="comic-sm flex items-center justify-between rounded-2xl bg-paper px-4 py-2.5 font-extrabold">
             <span>🤖 {T.bots}</span>
-            <Stepper value={botCount} min={0} max={lobby.max - seats.length} onChange={setBots} label={T.bots} />
+            <Stepper value={botCount} min={0} max={lobby.max - seats.length} onChange={changeBots} label={T.bots} />
           </div>
           <Btn color="coral" disabled={!ready} onClick={onStart} className="py-4 text-xl">🔥 {T.start}</Btn>
           {!ready && <p className="text-center text-sm font-bold text-coral">{T.needTwo}</p>}

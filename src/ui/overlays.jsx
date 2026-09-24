@@ -3,7 +3,58 @@ import { RANKS, T, quipText } from "../i18n.js";
 import { sfx } from "../sfx.js";
 import { Card, CardBack } from "./cards.jsx";
 import Character, { seatColor } from "./Character.jsx";
+import { useEffect, useState } from "react";
 import { Btn, Confetti, Starburst } from "./parts.jsx";
+
+/** Counts up to `to` for a little slot-machine feel. */
+function useCountUp(to, ms = 900) {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    if (!to) { setN(0); return; }
+    const t0 = performance.now();
+    let raf;
+    const step = (t) => {
+      const k = Math.min(1, (t - t0) / ms);
+      setN(Math.round(to * (1 - (1 - k) ** 3)));
+      if (k < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, [to, ms]);
+  return n;
+}
+
+const PART_LABEL = { seat: "rewardSeat", win: "rewardWin", safe: "rewardSafe", catch: "rewardCatch", devil: "rewardDevil" };
+
+function Rewards({ view, rewards, solo }) {
+  const mine = rewards?.list.find((r) => r.seat === view.me);
+  const got = rewards?.you?.got ?? 0;
+  const shown = useCountUp(got);
+  useEffect(() => { if (got) setTimeout(() => sfx("win"), 250); }, [got]);
+  if (solo) return <p className="mt-4 rounded-2xl bg-cream px-3 py-2 text-xs font-bold text-ink-soft">{T.coinsSolo}</p>;
+  if (!rewards) return <p className="mt-4 text-2xl"><span className="a-wiggle inline-block">🪙</span></p>;
+  if (!rewards.eligible) return <p className="mt-4 rounded-2xl bg-cream px-3 py-2 text-xs font-bold text-ink-soft">{T.coinsNeedTwo}</p>;
+  return (
+    <div className="a-pop mt-4 rounded-2xl border-[2.5px] border-ink bg-sun px-3 py-3">
+      <div className="text-3xl font-black tabular-nums">+{shown} <span className="a-bob inline-block">🪙</span></div>
+      {mine && (
+        <div className="mt-1.5 flex flex-wrap justify-center gap-1">
+          {Object.entries(mine.parts).filter(([, v]) => v > 0).map(([k, v]) => (
+            <span key={k} className="rounded-full border-2 border-ink bg-paper px-2 text-[11px] font-black">{T[PART_LABEL[k]]} +{v}</span>
+          ))}
+        </div>
+      )}
+      {rewards.you && <div className="mt-1.5 text-xs font-bold">{T.balance}: 🪙 {rewards.you.coins}{rewards.you.capped ? ` · ${T.coinsCapped}` : ""}</div>}
+      {rewards.list.length > 1 && (
+        <div className="mt-2 flex flex-wrap justify-center gap-1.5 border-t-2 border-dashed border-ink/30 pt-2">
+          {rewards.list.filter((r) => r.seat !== view.me).map((r) => (
+            <span key={r.seat} className="text-[11px] font-black">{view.seats[r.seat]?.avatar} +{r.got}</span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export const isWild = (rank) => rank === "J" || rank === "D";
 
@@ -91,7 +142,7 @@ export function LiarBurst({ burst, seat }) {
   );
 }
 
-export function GameOver({ view, nm, canRestart, onAgain, onLeave, onToLobby }) {
+export function GameOver({ view, nm, rewards, solo, canRestart, onAgain, onLeave, onToLobby }) {
   const w = view.winner != null ? view.seats[view.winner] : null;
   const iWon = view.winner === view.me;
   const ev = view.log.find((e) => e.type === "win");
@@ -109,6 +160,7 @@ export function GameOver({ view, nm, canRestart, onAgain, onLeave, onToLobby }) 
         <h2 className="mt-2 text-2xl font-black">{iWon ? T.youWin : w ? `${nm(view.winner)} ${T.wins}` : "…"}</h2>
         {quip && <div className="speech mx-auto mt-4 w-fit rounded-2xl px-3 py-1.5 text-sm font-extrabold">„{quip}“</div>}
         <p className="mt-4 text-sm font-bold text-ink-soft">{iWon ? T.winSub : T.loseSub}</p>
+        <Rewards view={view} rewards={rewards} solo={solo} />
         <div className="mt-6 flex flex-col gap-2">
           {canRestart ? (
             <Btn color="sun" onClick={onAgain} className="py-3.5 text-lg">🔁 {T.again}</Btn>

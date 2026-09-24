@@ -2,9 +2,11 @@
 // One hook for everyone: the room decides who is host; the socket reconnects
 // on its own and the server hands the seat back by clientId.
 import { useCallback, useEffect, useRef, useState } from "react";
+import { accountKey } from "./account.js";
+import { SERVER_HTTP } from "./config.js";
 import { useFx } from "./fx.js";
 
-const SERVER = (import.meta.env.VITE_SERVER_URL || (import.meta.env.DEV ? "http://localhost:8787" : "")).replace(/^http/, "ws").replace(/\/$/, "");
+const SERVER = SERVER_HTTP.replace(/^http/, "ws");
 export const onlineAvailable = !!SERVER;
 
 const ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
@@ -49,6 +51,7 @@ export function useOnline({ code: initialCode, create, profile, mode, onCode }) 
   const [lobby, setLobby] = useState(null);
   const [view, setView] = useState(null);
   const [isHost, setIsHost] = useState(false);
+  const [rewards, setRewards] = useState(null);
   const [fx, pushFx] = useFx();
   const wsRef = useRef(null);
 
@@ -70,7 +73,7 @@ export function useOnline({ code: initialCode, create, profile, mode, onCode }) 
       ws.onopen = () => {
         retries = 0;
         everOpen = true;
-        ws.send(JSON.stringify({ t: "hello", clientId: clientId(), name: profile.name, avatar: profile.avatar }));
+        ws.send(JSON.stringify({ t: "hello", clientId: clientId(), key: accountKey(), name: profile.name, avatar: profile.avatar }));
         clearInterval(ping);
         ping = setInterval(() => ws.readyState === 1 && ws.send("ping"), PING_MS);
       };
@@ -87,8 +90,11 @@ export function useOnline({ code: initialCode, create, profile, mode, onCode }) 
         } else if (m.t === "state") {
           creating = false;
           setView({ ...m.view, clockOffset: Date.now() - m.hostNow });
+          if (m.view.phase !== "gameover") setRewards(null);
           setIsHost(m.host);
           setStatus("game");
+        } else if (m.t === "rewards") {
+          setRewards(m);
         } else if (m.t === "fx" && m.fx) {
           pushFx(m.fx);
         } else if (m.t === "reject") {
@@ -152,6 +158,7 @@ export function useOnline({ code: initialCode, create, profile, mode, onCode }) 
     lobby,
     view,
     isHost,
+    rewards,
     fx,
     act: useCallback((a) => send({ t: "act", a: { type: a.type, ids: a.ids } }), [send]),
     emote: useCallback((e) => send({ t: "emote", e }), [send]),

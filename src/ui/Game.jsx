@@ -43,7 +43,7 @@ function Log({ view, nm }) {
   );
 }
 
-export default function Game({ view, act, fx, emote, throwAt, say, canRestart, onAgain, onLeave, onToLobby }) {
+export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo, canRestart, onAgain, onLeave, onToLobby }) {
   const me = view.me;
   const mine = view.seats[me];
   const [selected, setSelected] = useState([]);
@@ -312,7 +312,7 @@ export default function Game({ view, act, fx, emote, throwAt, say, canRestart, o
       </div>
 
       {view.phase === "roulette" && view.roulette && <Roulette view={view} nm={nm} onPull={() => act({ type: "pull" })} />}
-      {view.phase === "gameover" && <GameOver view={view} nm={nm} canRestart={canRestart} onAgain={onAgain} onLeave={onLeave} onToLobby={onToLobby} />}
+      {view.phase === "gameover" && <GameOver view={view} nm={nm} rewards={rewards} solo={solo} canRestart={canRestart} onAgain={onAgain} onLeave={onLeave} onToLobby={onToLobby} />}
     </div>
   );
 }
