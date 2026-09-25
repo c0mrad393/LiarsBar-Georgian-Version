@@ -9,7 +9,8 @@
 import { DurableObject } from "cloudflare:workers";
 import { createGame, reduce, schedule, viewFor } from "../src/engine.js";
 import { REWARD } from "./ledger.js";
-import { CODE_RE, EMOTES, FX_GAP, KEY_RE, normKey, GUEST_ACTIONS, MAX_SEATS, MODES, ONLINE_OPTS, PHRASES, THROWABLES, botFx, botThrowBack, bots, cleanAvatar, cleanName } from "../src/shared.js";
+import { ALL_THROWS, FREE_AVATARS, FREE_THROWS, ITEMS, owns } from "../src/shop.js";
+import { CODE_RE, EMOTES, FX_GAP, KEY_RE, normKey, GUEST_ACTIONS, MAX_SEATS, MODES, ONLINE_OPTS, PHRASES, botFx, botThrowBack, bots, cleanAvatar, cleanName } from "../src/shared.js";
 
 export { Ledger } from "./ledger.js";
 
@@ -22,6 +23,15 @@ const OPEN = 1;
 async function acctId(key) {
   const d = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`liarsbar:${key}`));
   return [...new Uint8Array(d)].slice(0, 16).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Constant-time string compare (both sides hashed so lengths don't leak). */
+async function sameSecret(a, b) {
+  const h = async (x) => new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(x)));
+  const [x, y] = await Promise.all([h(a), h(b)]);
+  let d = 0;
+  for (let i = 0; i < x.length; i++) d |= x[i] ^ y[i];
+  return d === 0;
 }
 
 const CORS = {
@@ -48,6 +58,28 @@ async function api(req, env, path) {
   if (path === "restore") {
     const profile = await ledger.profile(id);
     return profile ? json({ profile }) : json({ error: "unknown" }, 404);
+  }
+  if (path === "buy") {
+    const r = await ledger.buy(id, String(body.item || ""));
+    return json(r, r.error === "unknown" ? 404 : 200);
+  }
+  if (path === "equip") {
+    const profile = await ledger.equip(id, body.looks, typeof body.avatar === "string" ? body.avatar : null);
+    return profile ? json({ profile }) : json({ error: "unknown" }, 404);
+  }
+  if (path === "admin") {
+    // The owner's coin tap: needs the ADMIN_TOKEN secret (set in GitHub Actions secrets).
+    const secret = env.ADMIN_TOKEN || "";
+    if (secret.length < 8) return json({ error: "disabled" }, 404);
+    if (await ledger.adminLocked()) return json({ error: "locked" }, 429);
+    if (!(await sameSecret(String(body.token || ""), secret))) {
+      await ledger.adminFail();
+      return json({ error: "denied" }, 403);
+    }
+    const amount = Math.floor(Number(body.amount));
+    if (!(amount > 0 && amount <= 1_000_000)) return json({ error: "amount" }, 400);
+    const profile = await ledger.grant(id, amount);
+    return profile ? json({ profile, got: amount }) : json({ error: "unknown" }, 404);
   }
   if (path === "daily") {
     const r = await ledger.daily(id);
@@ -119,7 +151,7 @@ export class Room extends DurableObject {
       youHost: m.hostCid === cid,
       seats: m.lobby
         .filter((p) => this.connected(p.cid))
-        .map((p) => ({ name: p.name, avatar: p.avatar, host: p.cid === m.hostCid, you: p.cid === cid })),
+        .map((p) => ({ name: p.name, avatar: p.avatar, looks: p.looks || {}, host: p.cid === m.hostCid, you: p.cid === cid })),
     };
   }
   broadcastLobby() {
@@ -251,7 +283,7 @@ export class Room extends DurableObject {
     if (this.game && this.game.phase !== "gameover") return;
     const roster = this.meta.lobby.filter((p) => this.connected(p.cid));
     this.meta.lobby = roster;
-    const seats = roster.map((p) => ({ name: p.name, avatar: p.avatar, kind: "human", clientId: p.cid }));
+    const seats = roster.map((p) => ({ name: p.name, avatar: p.avatar, looks: p.looks || {}, kind: "human", clientId: p.cid }));
     seats.push(...bots(Math.min(this.meta.bots ?? DEFAULT_BOTS, MAX_SEATS - seats.length)));
     this.game = seats.length >= 2 ? createGame(seats, { ...ONLINE_OPTS, mode: this.meta.mode }) : null;
     this.meta.gameId = `${this.meta.code}-${Date.now()}`;
@@ -313,7 +345,12 @@ export class Room extends DurableObject {
 
     if (m.t === "hello") {
       const key = normKey(m.key);
-      return this.hello(ws, m, KEY_RE.test(key) ? await acctId(key) : null);
+      const acct = KEY_RE.test(key) ? await acctId(key) : null;
+      let gear = null;
+      if (acct) {
+        try { gear = await this.env.LEDGER.get(this.env.LEDGER.idFromName("global")).gear(acct); } catch { /* ledger down: play plain */ }
+      }
+      return this.hello(ws, m, acct, gear);
     }
 
     const cid = this.cidOf(ws);
@@ -336,7 +373,8 @@ export class Room extends DurableObject {
         let fx = null;
         if (m.t === "emote" && EMOTES.includes(m.e)) fx = { kind: "emote", seat, e: m.e };
         if (m.t === "say" && Number.isInteger(m.i) && m.i >= 0 && m.i < PHRASES.length) fx = { kind: "say", seat, i: m.i };
-        if (m.t === "throw" && THROWABLES.includes(m.item) && Number.isInteger(m.to) && m.to !== seat && this.game.seats[m.to]) fx = { kind: "throw", from: seat, to: m.to, item: m.item };
+        const mayThrow = (this.meta.lobby.find((p) => p.cid === cid)?.throws || FREE_THROWS).includes(m.item);
+        if (m.t === "throw" && ALL_THROWS.includes(m.item) && mayThrow && Number.isInteger(m.to) && m.to !== seat && this.game.seats[m.to]) fx = { kind: "throw", from: seat, to: m.to, item: m.item };
         if (!fx) break;
         this.lastEmote.set(key, now);
         this.fx(fx);
@@ -359,11 +397,15 @@ export class Room extends DurableObject {
     }
   }
 
-  hello(ws, m, acct) {
+  hello(ws, m, acct, gear) {
     const cid = String(m.clientId || "").slice(0, 40);
     if (!cid || this.cidOf(ws)) return;
     const name = cleanName(m.name);
-    const avatar = cleanAvatar(m.avatar);
+    // Heads and gear are what the ledger says this player owns, nothing else.
+    const owned = gear?.owned || [];
+    const avatar = owns(owned, cleanAvatar(m.avatar)) ? cleanAvatar(m.avatar) : gear?.avatar || FREE_AVATARS[0];
+    const looks = gear?.looks || {};
+    const throws = [...FREE_THROWS, ...owned.filter((id) => ITEMS[id]?.cat === "throw")];
     const meta = this.meta;
     const known = meta.lobby.find((p) => p.cid === cid);
     const refuse = (reason) => { this.send(ws, { t: "reject", reason }); ws.close(4000, reason); };
@@ -371,12 +413,14 @@ export class Room extends DurableObject {
     if (!known) {
       if (this.game && this.game.phase !== "gameover") return refuse("alreadyStarted");
       if (meta.lobby.filter((p) => this.connected(p.cid)).length >= MAX_SEATS) return refuse("roomFull");
-      meta.lobby.push({ cid, name, avatar, acct });
+      meta.lobby.push({ cid, name, avatar, acct, looks, throws });
     } else {
       if (acct) known.acct = acct;
+      known.throws = throws;
       if (!this.game) {
         known.name = name;
         known.avatar = avatar;
+        known.looks = looks;
       }
     }
 

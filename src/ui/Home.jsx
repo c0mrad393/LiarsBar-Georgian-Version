@@ -5,6 +5,9 @@ import { sfx } from "../sfx.js";
 import { Card } from "./cards.jsx";
 import { Btn, SoundToggle, Stepper } from "./parts.jsx";
 import { CoinChip, Leaderboard, ProfileSheet } from "./Profile.jsx";
+import Shop from "./Shop.jsx";
+import Character, { seatColor } from "./Character.jsx";
+import { ALL_AVATARS, ITEMS } from "../shop.js";
 
 export function ModePicker({ mode, setMode, disabled }) {
   return (
@@ -55,7 +58,10 @@ export function Logo({ small }) {
 }
 
 export default function Home({ profile, setProfile, account, mode, setMode, soloBots, setSoloBots, invite, onSolo, onHost, onJoin, onDropInvite }) {
-  const [panel, setPanel] = useState(null); // profile | board
+  const [panel, setPanel] = useState(null); // profile | board | shop
+  const [shopCat, setShopCat] = useState("hat");
+  const openShop = (cat = "hat") => { setShopCat(cat); setPanel("shop"); };
+  const myHeads = [...AVATARS, ...(account.me?.owned || []).filter((id) => ITEMS[id]?.cat === "head")];
   const [code, setCode] = useState(invite || "");
   const [rules, setRules] = useState(false);
   // Android/Chrome offers "install" (fullscreen app on the home screen) via this event.
@@ -73,12 +79,14 @@ export default function Home({ profile, setProfile, account, mode, setMode, solo
       <div className="flex items-center justify-between gap-2">
         <CoinChip coins={account.me?.coins ?? (account.error ? "—" : 0)} onClick={() => setPanel("profile")} className={account.me?.dailyReady ? "a-hop" : ""} />
         <div className="flex items-center gap-2">
+          <button onClick={() => openShop()} className="comic-sm a-hop flex h-10 items-center gap-1 rounded-full bg-coral px-3 text-sm font-black text-white" aria-label={T.shop}>🛍️<span className="hidden sm:inline">{T.shop}</span></button>
           <button onClick={() => setPanel("board")} className="comic-sm flex h-10 items-center gap-1 rounded-full bg-paper px-3 text-sm font-black" aria-label={T.leaderboard}>🏆<span className="hidden sm:inline">{T.leaderboard}</span></button>
           <SoundToggle />
         </div>
       </div>
       {panel === "profile" && <ProfileSheet account={account} profile={profile} setProfile={setProfile} onClose={() => setPanel(null)} />}
       {panel === "board" && <Leaderboard onClose={() => setPanel(null)} />}
+      {panel === "shop" && <Shop account={account} profile={profile} setProfile={setProfile} startCat={shopCat} onClose={() => setPanel(null)} />}
       <div className="a-fade-up mt-2"><Logo /></div>
 
       {invite && (
@@ -99,9 +107,14 @@ export default function Home({ profile, setProfile, account, mode, setMode, solo
           placeholder={T.namePh}
           className="mt-1.5 w-full rounded-2xl border-[3px] border-ink bg-cream px-4 py-3 text-lg font-bold outline-none focus:bg-white"
         />
-        <div className="mt-4 text-sm font-extrabold">{T.pickAvatar}</div>
+        <div className="mt-4 flex items-end justify-between">
+          <div className="text-sm font-extrabold">{T.pickAvatar}</div>
+          <button onClick={() => openShop("hat")} className="relative -mb-1 -mt-8 rounded-2xl px-1 pt-1 transition-transform active:scale-95" aria-label={T.shop}>
+            <Character avatar={profile.avatar} looks={account.me?.looks} color={seatColor(0)} size={58} />
+          </button>
+        </div>
         <div className="mt-2 grid grid-cols-6 gap-2">
-          {AVATARS.map((a) => {
+          {myHeads.map((a) => {
             const on = a === profile.avatar;
             return (
               <button
@@ -114,6 +127,9 @@ export default function Home({ profile, setProfile, account, mode, setMode, solo
               </button>
             );
           })}
+          <button onClick={() => openShop("head")} className="flex aspect-square flex-col items-center justify-center rounded-2xl border-[2.5px] border-dashed border-ink bg-paper text-[10px] font-black leading-tight" aria-label={T.moreAvatars}>
+            <span className="text-xl">🛍️</span>+{ALL_AVATARS.length - myHeads.length}
+          </button>
         </div>
       </section>
 

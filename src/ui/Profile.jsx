@@ -53,7 +53,23 @@ export function ProfileSheet({ account, profile, setProfile, onClose }) {
   const [code, setCode] = useState("");
   const [msg, setMsg] = useState(null);
   const [rain, setRain] = useState(0);
+  // Seven taps on the big coin open the owner's panel (useless without the password).
+  const [taps, setTaps] = useState(0);
+  const [adminPass, setAdminPass] = useState("");
+  const [adminAmount, setAdminAmount] = useState("1000");
+  const [adminMsg, setAdminMsg] = useState(null);
   const key = accountKey();
+  const grant = async () => {
+    try {
+      const r = await account.adminGrant(adminPass, Number(adminAmount));
+      setAdminMsg(`${T.adminDone}: +${r.got} 🪙`);
+      sfx("win");
+      setRain(Date.now());
+    } catch (e) {
+      setAdminMsg(e.message === "locked" ? T.adminLocked : e.message === "disabled" ? T.adminDisabled : T.adminDenied);
+      sfx("bluff");
+    }
+  };
 
   const daily = async () => {
     try {
@@ -85,13 +101,30 @@ export function ProfileSheet({ account, profile, setProfile, onClose }) {
     <Modal title={`👤 ${T.profile}`} onClose={onClose}>
       {rain ? <CoinRain key={rain} /> : null}
       <div className="flex items-center gap-4">
-        <Character avatar={profile.avatar} color={seatColor(0)} size={76} state={me?.dailyReady ? "happy" : "idle"} />
+        <Character avatar={profile.avatar} looks={me?.looks} color={seatColor(0)} size={76} state={me?.dailyReady ? "happy" : "idle"} />
         <div className="min-w-0">
           <div className="truncate text-xl font-black">{profile.name || "…"}</div>
-          <div className="mt-1 flex items-center gap-1.5 text-2xl font-black"><span className="a-bob inline-block">🪙</span><span className="tabular-nums">{me?.coins ?? 0}</span></div>
+          <div className="mt-1 flex items-center gap-1.5 text-2xl font-black">
+            <span className="a-bob inline-block select-none" onClick={() => setTaps((n) => n + 1)}>🪙</span>
+            <span className="tabular-nums">{me?.coins ?? 0}</span>
+          </div>
           {me && <div className="text-xs font-bold text-ink-soft">{T.thisWeek}: {me.weekCoins} 🪙 · {me.weekWins} 🏆</div>}
         </div>
       </div>
+
+      {taps >= 7 && (
+        <div className="a-pop mt-3 rounded-2xl border-[2.5px] border-ink bg-[#2a0508] p-3 text-white">
+          <div className="text-sm font-black">🕵️ {T.admin}</div>
+          <div className="mt-2 flex gap-2">
+            <input type="password" value={adminPass} onChange={(e) => setAdminPass(e.target.value)} placeholder={T.adminPass} autoComplete="off"
+              className="min-w-0 flex-1 rounded-xl border-2 border-white/40 bg-white/10 px-2 py-1.5 text-sm font-bold outline-none" aria-label={T.adminPass} />
+            <input type="number" min="1" value={adminAmount} onChange={(e) => setAdminAmount(e.target.value)} placeholder={T.adminAmount}
+              className="w-24 rounded-xl border-2 border-white/40 bg-white/10 px-2 py-1.5 text-sm font-bold outline-none" aria-label={T.adminAmount} />
+          </div>
+          <Btn color="sun" onClick={grant} disabled={!adminPass} className="mt-2 w-full py-2 text-sm">{T.adminGive}</Btn>
+          {adminMsg && <p className="mt-1.5 text-xs font-black">{adminMsg}</p>}
+        </div>
+      )}
 
       {error && !me && <p className="mt-3 rounded-2xl bg-[#ffe1e2] px-3 py-2 text-sm font-bold">{T.offlineProfile}</p>}
 

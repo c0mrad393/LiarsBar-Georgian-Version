@@ -260,14 +260,17 @@ export function Card({ rank, suit = "S", size = "md", selected, glow, className 
   );
 }
 
-/** The back of a card: lattice pattern with the bar's medallion. */
-export function CardBack({ size = "sm", className = "", style }) {
+const BACK_BADGE = { red: "🍺", blue: "🍺", money: "💲", rainbow: "🌈", leopard: "🐆", georgia: "✚", gold: "👑", galaxy: "🪐" };
+
+/** The back of a card. `back` is a style from the shop (c_* items); default the classic red lattice. */
+export function CardBack({ size = "sm", back = "red", className = "", style }) {
+  const b = BACK_BADGE[back] ? back : "red";
   return (
     <div className={`card-real card-back-real relative overflow-hidden ${SIZES[size]} ${className}`} style={style}>
-      <div className="absolute inset-[7%] rounded-[3px] card-lattice">
+      <div className={`absolute inset-[7%] rounded-[3px] card-lattice back-${b}`}>
         {size !== "xs" && (
-          <div className="absolute left-1/2 top-1/2 flex h-[38%] w-[62%] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[50%] border border-[#f7e7c4] bg-[#8f1622] text-[0px] sm:text-[0px]">
-            <span className={size === "sm" ? "text-[11px]" : "text-[17px]"}>🍺</span>
+          <div className="back-medal absolute left-1/2 top-1/2 flex h-[38%] w-[62%] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[50%] border border-[#f7e7c4]">
+            <span className={size === "sm" ? "text-[11px]" : "text-[17px]"} style={b === "georgia" ? { color: "#d81e28", fontWeight: 900 } : undefined}>{BACK_BADGE[b]}</span>
           </div>
         )}
       </div>

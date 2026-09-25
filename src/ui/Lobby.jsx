@@ -83,7 +83,7 @@ export default function Lobby({ lobby, isHost, setBots, setMode, onStart, onLeav
           if (p)
             return (
               <div key={`p${i}`} className="a-pop comic flex flex-col items-center rounded-3xl bg-paper px-1 pb-2 pt-3" style={{ animationDelay: `${i * 60}ms` }}>
-                <Character avatar={p.avatar} color={seatColor(i)} size={52} state={i % 2 ? "idle" : "turn"} />
+                <Character avatar={p.avatar} looks={p.looks} color={seatColor(i)} size={52} state={i % 2 ? "idle" : "turn"} />
                 <div className="mt-1 max-w-full truncate text-sm font-extrabold">{p.name}</div>
                 <div className="mt-0.5 flex gap-1">
                   {p.host && <span className="rounded-full border-2 border-ink bg-coral px-1.5 text-[9px] font-black text-white">{T.hostTag}</span>}

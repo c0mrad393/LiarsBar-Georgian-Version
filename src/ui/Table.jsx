@@ -4,7 +4,10 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useTilt } from "../device.js";
 import { PHRASES, RANKS, T } from "../i18n.js";
+import { ITEMS } from "../shop.js";
 import { THROWABLES } from "../shared.js";
+
+const backOf = (looks) => ITEMS[looks?.cards]?.back || "red";
 import { sfx } from "../sfx.js";
 import { Card, CardBack } from "./cards.jsx";
 import Character, { seatColor } from "./Character.jsx";
@@ -60,7 +63,7 @@ export function Emotes({ list }) {
   ));
 }
 
-function Seat({ seat, p, compact, state, point, bubble, emotes, hit, active, holdsPile, onTap, menuOpen, onThrow }) {
+function Seat({ seat, p, compact, state, point, bubble, emotes, hit, active, holdsPile, onTap, menuOpen, onThrow, throwables }) {
   const dead = !seat.alive;
   const size = compact ? 46 : 58;
   return (
@@ -69,8 +72,8 @@ function Seat({ seat, p, compact, state, point, bubble, emotes, hit, active, hol
         {active && <div className="a-arrow absolute -top-6 left-1/2 z-30 text-xl">👇</div>}
         <Emotes list={emotes} />
         {menuOpen && (
-          <div className="a-pop absolute -top-12 left-1/2 z-50 flex -translate-x-1/2 gap-1 rounded-full border-[2.5px] border-ink bg-paper px-1.5 py-1" style={{ boxShadow: "0 3px 0 #2b1d14" }}>
-            {THROWABLES.map((it) => (
+          <div className="a-pop absolute -top-12 left-1/2 z-50 flex max-w-[80vw] -translate-x-1/2 flex-wrap justify-center gap-1 rounded-3xl border-[2.5px] border-ink bg-paper px-1.5 py-1" style={{ boxShadow: "0 3px 0 #2b1d14", width: "max-content" }}>
+            {throwables.map((it) => (
               <button key={it} onClick={(e) => { e.stopPropagation(); onThrow(it); }} className="flex h-9 w-9 items-center justify-center rounded-full text-xl transition-transform hover:scale-110 active:scale-90" aria-label={`${T.throwAt} ${it}`}>{it}</button>
             ))}
           </div>
@@ -80,7 +83,7 @@ function Seat({ seat, p, compact, state, point, bubble, emotes, hit, active, hol
           {holdsPile && !dead && <span className="absolute -left-2 top-0 -rotate-12 text-base">🤫</span>}
           {!dead && (
             <span className="absolute -right-2 bottom-1 flex items-center gap-0.5 rounded-full border-2 border-ink bg-paper px-1 text-[10px] font-black leading-4">
-              <CardBack size="xs" className="!h-[12px] !w-[8px] !rounded-[2px]" />{seat.handCount}
+              <CardBack size="xs" back={backOf(seat.looks)} className="!h-[12px] !w-[8px] !rounded-[2px]" />{seat.handCount}
             </span>
           )}
         </button>
@@ -97,13 +100,13 @@ function Seat({ seat, p, compact, state, point, bubble, emotes, hit, active, hol
   );
 }
 
-function Pile({ pile, pileKey, from }) {
+function Pile({ pile, pileKey, from, back }) {
   return (
     <div className="relative flex items-center justify-center" style={{ width: 120, height: 90 }}>
       {Array.from({ length: pile.count }).map((_, i) => (
         <div key={`${pileKey}-${i}`} className="a-fly-in absolute"
           style={{ "--fx": `${from.x}px`, "--fy": `${from.y}px`, "--r": `${(i - 1) * 14 + ((pileKey * 7) % 11) - 5}deg`, animationDelay: `${i * 80}ms`, marginLeft: (i - (pile.count - 1) / 2) * 16 }}>
-          <CardBack size="md" />
+          <CardBack size="md" back={back} />
         </div>
       ))}
     </div>
@@ -129,7 +132,8 @@ function Throws({ list, pos }) {
  * @param fx      live effects (emotes, throws, chat) from useFx
  * @param center  node drawn upright in the middle (reveal, round banner)
  */
-export default function Table({ view, states, bubbles, fx, center, pileKey, onThrow, className = "" }) {
+export default function Table({ view, states, bubbles, fx, center, pileKey, onThrow, myLooks, throwables = THROWABLES, className = "" }) {
+  const feltColors = ITEMS[myLooks?.felt]?.felt;
   const box = useRef(null);
   const tilt = useRef(null);
   const { w, h } = useSize(box);
@@ -154,10 +158,11 @@ export default function Table({ view, states, bubbles, fx, center, pileKey, onTh
   return (
     <div ref={box} className={`scene relative ${className}`} onClick={() => setMenu(null)}>
       <div ref={tilt} className="scene-tilt absolute inset-0">
-        <div className="felt3d" style={{ left: felt.cx - felt.rx, top: felt.cy - felt.ry, width: felt.rx * 2, height: felt.ry * 2 }}>
+        <div className="felt3d" style={{ left: felt.cx - felt.rx, top: felt.cy - felt.ry, width: felt.rx * 2, height: felt.ry * 2,
+          ...(feltColors ? { background: `radial-gradient(60% 55% at 50% 42%, ${feltColors[0]} 0%, ${feltColors[1]} 55%, ${feltColors[2]} 100%)` } : null) }}>
           <div className="absolute inset-0 flex items-center justify-center">
             {view.pile ? (
-              <Pile pile={view.pile} pileKey={pileKey} from={pileFrom} />
+              <Pile pile={view.pile} pileKey={pileKey} from={pileFrom} back={backOf(view.seats[view.pile.by]?.looks)} />
             ) : !view.reveal ? (
               <div className="opacity-40" style={{ transform: "rotate(-8deg)" }}>
                 <Card rank={view.tableCard} suit={{ K: "H", Q: "D", A: "S" }[view.tableCard]} size="md" />
@@ -183,6 +188,7 @@ export default function Table({ view, states, bubbles, fx, center, pileKey, onTh
               menuOpen={menu === s.idx}
               onTap={(e) => { e.stopPropagation(); setMenu(menu === s.idx ? null : s.idx); sfx("select"); }}
               onThrow={(item) => { setMenu(null); onThrow(s.idx, item); }}
+              throwables={throwables}
             />
           ),
         )}

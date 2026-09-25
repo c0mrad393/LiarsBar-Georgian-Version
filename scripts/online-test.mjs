@@ -18,10 +18,10 @@ async function api(path, body) {
   return { status: r.status, body: await r.json() };
 }
 
-function client(name, cid, { create = false, room = code } = {}) {
+function client(name, cid, { create = false, room = code, avatar = "🐸" } = {}) {
   const c = { name, cid, msgs: [], lobby: null, view: null, host: false, reject: null, closed: false };
   c.ws = new WebSocket(`${SERVER}/room/${room}${create ? "?create=1&mode=devil" : ""}`);
-  c.ws.onopen = () => c.ws.send(JSON.stringify({ t: "hello", clientId: cid, key: KEYS[cid], name, avatar: "🐸" }));
+  c.ws.onopen = () => c.ws.send(JSON.stringify({ t: "hello", clientId: cid, key: KEYS[cid], name, avatar }));
   c.ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
     c.msgs.push(m);
@@ -63,13 +63,43 @@ const ghost = client("ghost", "ghost-1", { room: "zzzz" + Math.random().toString
 await until(() => ghost.reject === "roomMissing", "roomMissing rejection");
 log("ok  unknown room → roomMissing");
 
-// 2. host creates, guest joins
-const host = client("Host", "host-1", { create: true });
+// 2. shop (local server only: needs the dev admin password in server/.dev.vars)
+if (LOCAL) {
+  const fs = await import("node:fs");
+  const token = process.env.ADMIN_TOKEN || (fs.readFileSync(new URL("../server/.dev.vars", import.meta.url), "utf8").match(/ADMIN_TOKEN=(.*)/)?.[1] ?? "").trim();
+  await api("profile", { key: KEYS["host-1"], name: "Host", avatar: "🐸" });
+  await api("profile", { key: KEYS["guest-1"], name: "Guest", avatar: "🐸" });
+  if ((await api("admin", { key: KEYS["host-1"], token: "wrong", amount: 5 })).status !== 403) fail("wrong admin password accepted");
+  const g = await api("admin", { key: KEYS["host-1"], token, amount: 5000 });
+  if (g.status !== 200 || g.body.profile.coins !== 5000 || g.body.profile.earned !== 0) fail(`admin grant: ${JSON.stringify(g)}`);
+  const b1 = await api("buy", { key: KEYS["host-1"], item: "hat_crown" });
+  if (!b1.body.ok || b1.body.profile.coins !== 4500 || !b1.body.profile.owned.includes("hat_crown")) fail(`buy crown: ${JSON.stringify(b1.body)}`);
+  if ((await api("buy", { key: KEYS["host-1"], item: "hat_crown" })).body.error !== "owned") fail("double buy");
+  if ((await api("buy", { key: KEYS["guest-1"], item: "hat_crown" })).body.error !== "poor") fail("buy without coins");
+  if ((await api("buy", { key: KEYS["host-1"], item: "nope" })).status !== 404) fail("unknown item");
+  for (const item of ["🥟", "💩", "o_chokha"]) if (!(await api("buy", { key: KEYS["host-1"], item })).body.ok) fail(`buy ${item}`);
+  const eq = await api("equip", { key: KEYS["host-1"], looks: { hat: "hat_crown", eyes: "eye_laser", outfit: "o_chokha", neck: "hat_top", cards: "c_blue" }, avatar: "🥟" });
+  const L = eq.body.profile.looks;
+  if (L.hat !== "hat_crown" || L.outfit !== "o_chokha" || L.cards !== "c_blue" || L.eyes || L.neck || eq.body.profile.avatar !== "🥟") fail(`equip: ${JSON.stringify(eq.body.profile)}`);
+  const cheat = await api("equip", { key: KEYS["guest-1"], looks: { hat: "hat_crown" }, avatar: "🥟" });
+  if (cheat.body.profile.looks.hat || cheat.body.profile.avatar === "🥟") fail("guest wore gear they don't own");
+  log("ok  shop: admin grant (not on board), buy, owned/poor/unknown, equip drops unowned/wrong-slot, premium head");
+}
+
+// 3. host creates, guest joins
+const host = client("Host", "host-1", { create: true, avatar: LOCAL ? "🥟" : "🐸" });
 await until(() => host.lobby, "host lobby");
 if (!host.host) fail("creator is not host");
 if (host.lobby.mode !== "devil") fail("mode from create param not applied");
-let guest = client("Guest", "guest-1");
+let guest = client("Guest", "guest-1", { avatar: "🥟" });
 await until(() => guest.lobby && host.lobby.seats.length === 2, "guest in lobby");
+if (LOCAL) {
+  const hs = guest.lobby.seats.find((p) => p.host);
+  const gs = guest.lobby.seats.find((p) => p.you);
+  if (hs.avatar !== "🥟" || hs.looks?.hat !== "hat_crown" || hs.looks?.outfit !== "o_chokha") fail(`host gear not visible: ${JSON.stringify(hs)}`);
+  if (gs.avatar === "🥟") fail("guest got a premium head without owning it");
+  log("ok  room shows owned gear and refuses unowned heads");
+}
 if (guest.host) fail("guest became host");
 log("ok  create + join, host flag, devil mode");
 
@@ -93,8 +123,14 @@ await sleep(1300); // throws and chat share one rate limit
 const before = host.msgs.length;
 host.send({ t: "throw", to: 99, item: "🍅" });
 host.send({ t: "throw", to: 1, item: "💣" });
+guest.send({ t: "throw", to: 0, item: "💩" }); // guest doesn't own it
 await sleep(400);
-if (host.msgs.slice(before).some((m) => m.t === "fx" && m.fx.kind === "throw" && m.fx.from === 0)) fail("invalid throw accepted");
+if (host.msgs.slice(before).some((m) => m.t === "fx" && m.fx.kind === "throw" && (m.fx.from === 0 || m.fx.item === "💩"))) fail("invalid throw accepted");
+if (LOCAL) {
+  const hostSeat = host.view.me;
+  host.send({ t: "throw", to: guest.view.me, item: "💩" }); // host bought it
+  await until(() => guest.msgs.some((m) => m.t === "fx" && m.fx.kind === "throw" && m.fx.item === "💩" && m.fx.from === hostSeat), "owned 💩 throw");
+}
 log("ok  throw + quick chat, invalid throws rejected");
 
 // 4. latecomer is refused mid-game

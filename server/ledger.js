@@ -2,10 +2,12 @@
 // Durable Object (a single global instance). Players are identified by the
 // SHA-256 of their secret key; the key itself never reaches storage.
 import { DurableObject } from "cloudflare:workers";
+import { ALL_AVATARS, FREE_AVATARS, ITEMS, cleanLooks, owns } from "../src/shop.js";
 
 export const REWARD = { seat: 10, win: 50, safe: 5, catch: 10, devil: 15 };
 export const DAILY_BONUS = 25;
 export const DAILY_CAP = 600; // most coins one player can earn from games per UTC day
+const ADMIN_MAX_FAILS = 5; // wrong admin passwords per hour before the door locks
 const BOARD_SIZE = 50;
 
 const today = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
@@ -46,7 +48,22 @@ export class Ledger extends DurableObject {
       CREATE INDEX IF NOT EXISTS players_earned ON players (earned DESC);
       CREATE INDEX IF NOT EXISTS players_week ON players (week, week_coins DESC);
       CREATE TABLE IF NOT EXISTS games (id TEXT PRIMARY KEY, at INTEGER NOT NULL);
+      CREATE TABLE IF NOT EXISTS owned (player TEXT NOT NULL, item TEXT NOT NULL, at INTEGER NOT NULL, PRIMARY KEY (player, item));
+      CREATE TABLE IF NOT EXISTS kv (k TEXT PRIMARY KEY, v TEXT NOT NULL);
     `);
+    const cols = this.sql.exec("PRAGMA table_info(players)").toArray().map((c) => c.name);
+    if (!cols.includes("looks")) this.sql.exec("ALTER TABLE players ADD COLUMN looks TEXT NOT NULL DEFAULT '{}'");
+  }
+
+  ownedBy(id) {
+    return this.sql.exec("SELECT item FROM owned WHERE player = ?", id).toArray().map((r) => r.item);
+  }
+  looksOf(r) {
+    try { return JSON.parse(r.looks || "{}"); } catch { return {}; }
+  }
+  /** A head the player may wear: owned (or free), else keep what they had. */
+  validAvatar(avatar, owned, fallback) {
+    return ALL_AVATARS.includes(avatar) && owns(owned, avatar) ? avatar : fallback;
   }
 
   row(id) {
@@ -55,9 +72,12 @@ export class Ledger extends DurableObject {
 
   shape(r) {
     const wk = isoWeek();
+    const owned = this.ownedBy(r.id);
     return {
       name: r.name,
       avatar: r.avatar,
+      looks: cleanLooks(this.looksOf(r), owned),
+      owned,
       coins: r.coins,
       earned: r.earned,
       games: r.games,
@@ -73,6 +93,8 @@ export class Ledger extends DurableObject {
   /** Create or rename a player; returns their profile. */
   upsert(id, name, avatar) {
     const now = Date.now();
+    const old = this.row(id);
+    avatar = this.validAvatar(avatar, old ? this.ownedBy(id) : [], old?.avatar || FREE_AVATARS[0]);
     this.sql.exec(
       `INSERT INTO players (id, name, avatar, created, updated) VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET name = excluded.name, avatar = excluded.avatar, updated = excluded.updated`,
@@ -84,6 +106,65 @@ export class Ledger extends DurableObject {
   profile(id) {
     const r = this.row(id);
     return r ? this.shape(r) : null;
+  }
+
+  /** What a room needs to dress this player: validated head, gear, throwables owned. */
+  gear(id) {
+    const r = this.row(id);
+    if (!r) return null;
+    const owned = this.ownedBy(id);
+    return { avatar: r.avatar, looks: cleanLooks(this.looksOf(r), owned), owned };
+  }
+
+  /** Buy one item. Returns { ok, profile } or { ok: false, error: unknown|owned|poor }. */
+  buy(id, itemId) {
+    return this.ctx.storage.transactionSync(() => {
+      const r = this.row(id);
+      const item = ITEMS[itemId];
+      if (!r || !item) return { ok: false, error: "unknown" };
+      if (item.price === 0 || this.ownedBy(id).includes(itemId)) return { ok: false, error: "owned", profile: this.shape(r) };
+      if (r.coins < item.price) return { ok: false, error: "poor", profile: this.shape(r) };
+      const now = Date.now();
+      this.sql.exec("UPDATE players SET coins = coins - ?, updated = ? WHERE id = ?", item.price, now, id);
+      this.sql.exec("INSERT INTO owned (player, item, at) VALUES (?, ?, ?)", id, itemId, now);
+      return { ok: true, profile: this.shape(this.row(id)) };
+    });
+  }
+
+  /** Put on gear (and optionally a head). Anything not owned or in the wrong slot is dropped. */
+  equip(id, looks, avatar) {
+    const r = this.row(id);
+    if (!r) return null;
+    const owned = this.ownedBy(id);
+    const clean = cleanLooks(looks, owned);
+    const head = avatar ? this.validAvatar(avatar, owned, r.avatar) : r.avatar;
+    this.sql.exec("UPDATE players SET looks = ?, avatar = ?, updated = ? WHERE id = ?", JSON.stringify(clean), head, Date.now(), id);
+    return this.shape(this.row(id));
+  }
+
+  /**
+   * The owner's secret coin tap. `ok(token)` is checked by the caller; this only
+   * counts failures so a guessed password locks the door for an hour.
+   * Granted coins are spendable but never count towards the leaderboards.
+   */
+  adminLocked() {
+    const w = this.sql.exec("SELECT v FROM kv WHERE k = 'admin_fails'").toArray()[0];
+    if (!w) return false;
+    const { n, since } = JSON.parse(w.v);
+    return Date.now() - since < 3600e3 && n >= ADMIN_MAX_FAILS;
+  }
+  adminFail() {
+    const w = this.sql.exec("SELECT v FROM kv WHERE k = 'admin_fails'").toArray()[0];
+    let st = w ? JSON.parse(w.v) : { n: 0, since: Date.now() };
+    if (Date.now() - st.since >= 3600e3) st = { n: 0, since: Date.now() };
+    st.n += 1;
+    this.sql.exec("INSERT INTO kv (k, v) VALUES ('admin_fails', ?) ON CONFLICT(k) DO UPDATE SET v = excluded.v", JSON.stringify(st));
+  }
+  grant(id, amount) {
+    const r = this.row(id);
+    if (!r) return null;
+    this.sql.exec("UPDATE players SET coins = coins + ?, updated = ? WHERE id = ?", amount, Date.now(), id);
+    return this.shape(this.row(id));
   }
 
   daily(id) {

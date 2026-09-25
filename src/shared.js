@@ -1,6 +1,7 @@
 // Used by both the browser and the Cloudflare room server.
 import { MAX_SEATS, MODES, PERSONAS } from "./engine.js";
-import { AVATARS, EMOTES, PHRASES } from "./i18n.js";
+import { EMOTES, PHRASES } from "./i18n.js";
+import { ALL_AVATARS, FREE_AVATARS, FREE_THROWS } from "./shop.js";
 
 export { MAX_SEATS, MODES, EMOTES, PHRASES };
 
@@ -13,20 +14,21 @@ export const KEY_RE = /^[A-HJ-NP-Z2-9]{20}$/;
 export const normKey = (k) => String(k || "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 20);
 export const fmtKey = (k) => normKey(k).match(/.{1,4}/g)?.join("-") || "";
 export const BOT_ORDER = ["pig", "fox", "bull", "cat", "bear"];
-export const THROWABLES = ["🍅", "🥚", "💐"];
+export const THROWABLES = FREE_THROWS; // everyone has these; more in the shop
 export const FX_GAP = 1200; // ms between throws / chat lines per player
 
 export const cleanName = (n, fallback = "სტუმარი") => String(n || "").replace(/\s+/g, " ").trim().slice(0, 16) || fallback;
-export const cleanAvatar = (a) => (AVATARS.includes(a) ? a : AVATARS[0]);
+/** Any known head (ownership of premium heads is checked by the ledger / room). */
+export const cleanAvatar = (a) => (ALL_AVATARS.includes(a) ? a : FREE_AVATARS[0]);
 export const cleanCode = (c) => (c || "").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12);
 
 /** Each bot's signature accessories. */
 export const BOT_LOOKS = {
-  pig: { hat: "🧢" },
-  fox: { eyes: "🕶️" },
-  bull: { hat: "🎩" },
-  cat: { hat: "🎀" },
-  bear: { hat: "🎓", eyes: "👓" },
+  pig: { hat: "hat_duck", neck: "n_redbow", hand: "h_drumstick" },
+  fox: { eyes: "eye_sun", outfit: "o_hawaii", hand: "h_wine" },
+  bull: { hat: "hat_top", mouth: "m_curly", outfit: "o_tux" },
+  cat: { hat: "hat_bow", pet: "p_mouse", aura: "a_hearts" },
+  bear: { hat: "hat_grad", eyes: "eye_glasses", hand: "h_beer", outfit: "o_pajama" },
 };
 
 export const bots = (n) =>

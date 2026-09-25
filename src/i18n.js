@@ -14,7 +14,7 @@ export const MODE_INFO = {
   devil: { emoji: "😈", name: "ეშმაკის რეჟიმი", hint: "ჯოკერი + ეშმაკი: თუ ეშმაკი გაიხსნა, ყველა დანარჩენი რევოლვერთან ჯდება!" },
 };
 
-export const AVATARS = ["🐸", "🐵", "🐼", "🐔", "🦁", "🐨", "🐙", "🦄", "🐧", "🦖", "🐶", "🐹"];
+export { FREE_AVATARS as AVATARS } from "./shop.js";
 
 export const T = {
   title: "მატყუარას ბარი",
@@ -149,6 +149,32 @@ export const T = {
   coinsCapped: "დღიური ლიმიტი (600 🪙) ამოიწურა",
   offlineProfile: "სერვერთან კავშირი ვერ მოხერხდა",
   weekResets: "კვირის რეიტინგი ორშაბათს ნულდება",
+  shop: "შოპი",
+  buy: "იყიდე",
+  confirmBuy: "დაადასტურე",
+  poor: "ქოინები არ გყოფნის",
+  owned: "შენია",
+  equip: "ჩაიცვი",
+  unequip: "მოიხსენი",
+  equipped: "ჩაცმულია",
+  useAvatar: "აირჩიე ავატარად",
+  current: "ახლანდელი",
+  free: "უფასო",
+  mine: "ჩემი",
+  all: "ყველა",
+  bought: "ნაყიდია! 🎉",
+  throwOwned: "თამაშში მოთამაშეზე შეხებით ესვრი",
+  tryOn: "მოსინჯე",
+  shopOffline: "შოპს სერვერთან კავშირი სჭირდება",
+  moreAvatars: "მეტი",
+  admin: "ადმინი",
+  adminPass: "ადმინის პაროლი",
+  adminAmount: "რამდენი ქოინი",
+  adminGive: "💰 ჩარიცხვა",
+  adminDenied: "არასწორი პაროლი",
+  adminLocked: "ძალიან ბევრი მცდელობა, სცადე 1 საათში",
+  adminDisabled: "ადმინის პაროლი ჯერ არ არის დაყენებული",
+  adminDone: "ჩაირიცხა",
 };
 
 export const RULES = [

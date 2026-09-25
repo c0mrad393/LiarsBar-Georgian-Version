@@ -5,6 +5,7 @@ import { requestTilt } from "./device.js";
 import { makeCode, useOnline } from "./online.js";
 import { cleanAvatar, cleanCode, cleanName } from "./shared.js";
 import { useSolo } from "./useGame.js";
+import { FREE_THROWS, ITEMS } from "./shop.js";
 import Game from "./ui/Game.jsx";
 import Home, { Logo } from "./ui/Home.jsx";
 import Lobby from "./ui/Lobby.jsx";
@@ -41,13 +42,15 @@ function Notice({ emoji = "🍺", title, children }) {
   );
 }
 
-function SoloScreen({ profile, mode, bots, onLeave }) {
-  const g = useSolo(profile, mode, bots);
+function SoloScreen({ profile, mode, bots, me, onLeave }) {
+  const g = useSolo(profile, mode, bots, me?.looks || null);
   if (!g.view) return null;
-  return <Game view={g.view} act={g.act} fx={g.fx} emote={g.emote} throwAt={g.throwAt} say={g.say} solo canRestart onAgain={g.again} onLeave={onLeave} />;
+  return <Game view={g.view} act={g.act} fx={g.fx} emote={g.emote} throwAt={g.throwAt} say={g.say} solo myLooks={me?.looks} throwables={throwsOf(me)} canRestart onAgain={g.again} onLeave={onLeave} />;
 }
 
-function OnlineScreen({ code, create, profile, mode, setMode, onLeave, onRetry }) {
+const throwsOf = (me) => [...FREE_THROWS, ...(me?.owned || []).filter((id) => ITEMS[id]?.cat === "throw")];
+
+function OnlineScreen({ code, create, profile, mode, setMode, me, onLeave, onRetry }) {
   const o = useOnline({ code, create, profile, mode, onCode: setRoomInUrl });
   const pickMode = (m) => { o.ctl("mode", m); setMode(m); };
   const leave = () => { if (o.status !== "game" || o.view?.phase === "gameover" || window.confirm(T.leaveGameConfirm)) onLeave(); };
@@ -83,6 +86,8 @@ function OnlineScreen({ code, create, profile, mode, setMode, onLeave, onRetry }
         view={o.view}
         act={o.act}
         fx={o.fx}
+        myLooks={me?.looks}
+        throwables={throwsOf(me)}
         rewards={o.rewards}
         emote={o.emote}
         throwAt={o.throwAt}
@@ -122,7 +127,7 @@ export default function App() {
   const clean = { name: cleanName(profile.name), avatar: cleanAvatar(profile.avatar) };
   const home = () => { setScreen({ name: "home" }); setInvite(""); setRoomInUrl(null); account.refresh(); };
 
-  if (screen.name === "solo") return <SoloScreen profile={clean} mode={mode} bots={soloBots} onLeave={home} />;
+  if (screen.name === "solo") return <SoloScreen profile={clean} mode={mode} bots={soloBots} me={account.me} onLeave={home} />;
   if (screen.name === "online")
     return (
       <OnlineScreen
@@ -132,6 +137,7 @@ export default function App() {
         profile={clean}
         mode={mode}
         setMode={setMode}
+        me={account.me}
         onLeave={home}
         onRetry={() => setAttempt((a) => a + 1)}
       />

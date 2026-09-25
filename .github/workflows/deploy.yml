@@ -40,6 +40,17 @@ jobs:
           for i in $(seq 1 20); do curl -fsS "$url/health" && break; sleep 3; done
           curl -fsS "$url/health" >/dev/null
           echo "url=$url" >> "$GITHUB_OUTPUT"
+      - name: Set the admin password on the server (optional ADMIN_TOKEN secret)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          if [ -n "$ADMIN_TOKEN" ]; then
+            printf '%s' "$ADMIN_TOKEN" | npx wrangler secret put ADMIN_TOKEN --config server/wrangler.jsonc
+          else
+            echo "No ADMIN_TOKEN secret: the admin coin panel stays disabled."
+          fi
 
   build:
     needs: server

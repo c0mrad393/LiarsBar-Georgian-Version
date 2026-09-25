@@ -87,6 +87,27 @@ export function useAccount(profile) {
     return r;
   }, []);
 
+  /** Buy an item. Returns { ok, error? }; the profile updates either way. */
+  const buy = useCallback(async (item) => {
+    const r = await call("buy", { key: accountKey(), item });
+    if (r.profile) setMe(r.profile);
+    return r;
+  }, []);
+
+  /** Put on gear (and optionally switch head). */
+  const equip = useCallback(async (looks, avatar) => {
+    const { profile: p } = await call("equip", { key: accountKey(), looks, avatar });
+    setMe(p);
+    return p;
+  }, []);
+
+  /** The owner's secret coin tap (needs the ADMIN_TOKEN password). */
+  const adminGrant = useCallback(async (token, amount) => {
+    const r = await call("admin", { key: accountKey(), token, amount });
+    setMe(r.profile);
+    return r;
+  }, []);
+
   /** Switch this device to another account. Returns its profile, or throws "unknown". */
   const restore = useCallback(async (code) => {
     const key = normKey(code);
@@ -97,5 +118,5 @@ export function useAccount(profile) {
     return p;
   }, []);
 
-  return { me, error, refresh: load, claimDaily, restore };
+  return { me, error, refresh: load, claimDaily, restore, buy, equip, adminGrant };
 }

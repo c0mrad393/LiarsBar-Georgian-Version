@@ -68,7 +68,7 @@ function Sparkles() {
   });
 }
 
-export function RevealCards({ reveal, tableCard }) {
+export function RevealCards({ reveal, tableCard, back }) {
   const n = reveal.cards.length;
   const tc = RANKS[tableCard];
   const stamp = reveal.devil
@@ -84,7 +84,7 @@ export function RevealCards({ reveal, tableCard }) {
           const delay = `${1000 + i * 280}ms`;
           return (
             <div key={i} className="flip-wrap relative">
-              <CardBack size="md" />
+              <CardBack size="md" back={back} />
               <div
                 className={`a-flip absolute inset-0 ${wild && c.rank === "J" ? "a-rainbow" : ""}`}
                 style={{ animationDelay: delay, backfaceVisibility: "hidden" }}

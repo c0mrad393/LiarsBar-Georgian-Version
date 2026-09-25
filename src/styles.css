@@ -142,6 +142,22 @@ button:hover .card-sheen,
   background-position: -20% 0;
 }
 
+.back-medal { background: #8f1622; }
+.back-blue { background: repeating-linear-gradient(45deg, #f7e7c455 0 1.2px, transparent 1.2px 6px), repeating-linear-gradient(-45deg, #f7e7c455 0 1.2px, transparent 1.2px 6px), radial-gradient(circle, #3a6fd8 0%, #1f4e9c 70%, #163a78 100%); }
+.back-blue .back-medal { background: #163a78; }
+.back-money { background: repeating-linear-gradient(0deg, #ffffff22 0 2px, transparent 2px 7px), radial-gradient(circle, #46a35a, #1f6b33); }
+.back-money .back-medal { background: #1f6b33; }
+.back-rainbow { background: linear-gradient(135deg, #ff5a5f, #ffc83d, #7ed957, #2ec4b6, #3a86ff, #9b5de5); }
+.back-rainbow .back-medal { background: #fffdf8; }
+.back-leopard { background: radial-gradient(circle at 20% 30%, #3b2412 0 3px, transparent 4px) 0 0 / 14px 14px, radial-gradient(circle at 70% 70%, #3b2412 0 2.5px, transparent 3.5px) 0 0 / 14px 14px, #e0a14b; }
+.back-leopard .back-medal { background: #7a4a1e; }
+.back-georgia { background: linear-gradient(#d81e28, #d81e28) 50% 0 / 18% 100% no-repeat, linear-gradient(#d81e28, #d81e28) 0 50% / 100% 14% no-repeat, #fffdf8; }
+.back-georgia .back-medal { background: #fffdf8; }
+.back-gold { background: repeating-linear-gradient(45deg, #ffd54a55 0 1.2px, transparent 1.2px 6px), repeating-linear-gradient(-45deg, #ffd54a55 0 1.2px, transparent 1.2px 6px), #16161c; box-shadow: inset 0 0 0 1.5px #ffd54a; }
+.back-gold .back-medal { background: #16161c; border-color: #ffd54a; }
+.back-galaxy { background: radial-gradient(1px 1px at 20% 30%, #fff 50%, transparent), radial-gradient(1px 1px at 70% 20%, #fff 50%, transparent), radial-gradient(1.5px 1.5px at 40% 80%, #fff 50%, transparent), radial-gradient(1px 1px at 85% 65%, #fff 50%, transparent), radial-gradient(circle at 30% 30%, #6c3fd6, #20124d 60%, #0a0620); }
+.back-galaxy .back-medal { background: #20124d; }
+
 /* --------------------------------------------------------------- animation */
 @keyframes bob {
   0%, 100% { transform: translateY(0) rotate(-2deg); }
@@ -433,6 +449,53 @@ html, body { overscroll-behavior: none; }
 button, .touch { touch-action: manipulation; }
 .safe-b { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
 .safe-t { padding-top: max(6px, env(safe-area-inset-top)); }
+
+/* ------------------------------------------------------------------ gear */
+@keyframes googly { 0% { transform: translate(0, 0); } 25% { transform: translate(4px, 3px); } 50% { transform: translate(-3px, 4px); } 75% { transform: translate(-4px, -2px); } 100% { transform: translate(0, 0); } }
+.gear-googly { animation: googly 0.9s ease-in-out infinite; }
+@keyframes gearspin { to { transform: rotate(360deg); } }
+.gear-spin { animation: gearspin 2.2s linear infinite; transform-box: fill-box; }
+@keyframes laser { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+.gear-laser { animation: laser 0.5s ease-in-out infinite; }
+@keyframes gum { 0% { transform: scale(0.1); opacity: 1; } 70% { transform: scale(1.25); opacity: 1; } 76% { transform: scale(1.5); opacity: 0; } 100% { transform: scale(0.1); opacity: 0; } }
+.gear-gum { animation: gum 2.8s ease-in infinite; }
+@keyframes twinkle { 0%, 100% { opacity: 0.2; transform: scale(0.7); } 50% { opacity: 1; transform: scale(1.15); } }
+.gear-twinkle { animation: twinkle 1.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes propeller { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(-1); } }
+.gear-propeller { animation: propeller 0.18s linear infinite; }
+@keyframes gearbob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+.gear-bob { animation: gearbob 1.8s ease-in-out infinite; }
+@keyframes rain { 0% { transform: translateY(-4px); opacity: 0; } 30% { opacity: 1; } 100% { transform: translateY(22px); opacity: 0; } }
+.gear-rain { animation: rain 0.75s linear infinite; }
+@keyframes beam { 0%, 100% { opacity: 0.15; } 50% { opacity: 0.55; } }
+.gear-beam { animation: beam 1.2s ease-in-out infinite; }
+.gear-zzz { animation: gearbob 1.4s ease-in-out infinite; }
+@keyframes cape { 0%, 100% { transform: skewX(-4deg); } 50% { transform: skewX(5deg); } }
+.gear-cape { animation: cape 1.6s ease-in-out infinite; }
+@keyframes flapL { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-16deg); } }
+@keyframes flapR { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(16deg); } }
+.gear-flap-l { animation: flapL 0.9s ease-in-out infinite; }
+.gear-flap-r { animation: flapR 0.9s ease-in-out infinite; }
+@keyframes orbit { from { transform: rotate(0) translateX(var(--r)) rotate(0); } to { transform: rotate(360deg) translateX(var(--r)) rotate(-360deg); } }
+.gear-orbit { animation: orbit 1.8s linear infinite; margin-left: -0.5em; margin-top: -0.5em; line-height: 1; }
+@keyframes gearrise { 0% { opacity: 0; transform: translateY(0) scale(0.6); } 20% { opacity: 1; } 100% { opacity: 0; transform: translateY(-70px) scale(1.1); } }
+.gear-rise { animation: gearrise 2.4s ease-out infinite; }
+@keyframes gearfall { 0% { opacity: 0; transform: translateY(0) rotate(0); } 15% { opacity: 1; } 100% { opacity: 0; transform: translateY(120px) rotate(40deg); } }
+.gear-fall { animation: gearfall 2s linear infinite; }
+/* item animations from the catalog (anim: …) */
+@keyframes bobble { 0%, 100% { transform: translateX(-50%) rotate(-8deg); } 50% { transform: translateX(-50%) rotate(8deg) translateY(-3px); } }
+.anim-bobble { animation: bobble 0.8s ease-in-out infinite; }
+.anim-flicker { animation: flicker 0.35s ease-in-out infinite; }
+@keyframes shine { 0%, 100% { filter: drop-shadow(0 0 0 #ffd54a); } 50% { filter: drop-shadow(0 0 8px #ffd54a); } }
+.anim-shine { animation: shine 1.6s ease-in-out infinite; }
+@keyframes floaty { 0%, 100% { transform: translateY(0) rotate(-6deg); } 50% { transform: translateY(-6px) rotate(6deg); } }
+.anim-float { animation: floaty 2.4s ease-in-out infinite; }
+@keyframes flop { 0%, 100% { transform: rotate(-20deg); } 50% { transform: rotate(25deg); } }
+.anim-flop { animation: flop 0.4s ease-in-out infinite; }
+.anim-sparkle { animation: shine 0.9s ease-in-out infinite; }
+.anim-orbit { animation: orbit 2.4s linear infinite; --r: 26px; }
+@keyframes blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.2); } }
+.chr-face-in { display: inline-block; animation: blink 4.5s ease-in-out infinite; transform-origin: 50% 40%; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

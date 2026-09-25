@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useWakeLock } from "../device.js";
+import { ITEMS } from "../shop.js";
 import { MAX_PLAY } from "../engine.js";
 import { EMOTES, MODE_INFO, PHRASES, RANKS, T, describe, quipText } from "../i18n.js";
 import { sfx, unlockAudio } from "../sfx.js";
@@ -12,6 +13,7 @@ import Roulette from "./Roulette.jsx";
 import Table, { Bubble, Emotes } from "./Table.jsx";
 
 const BUBBLE_MS = 2800;
+export const backOf = (looks) => ITEMS[looks?.cards]?.back || "red";
 
 /** Mood of each character right now: moments (from events) beat the phase. */
 function moodOf(view, i, moments) {
@@ -43,7 +45,7 @@ function Log({ view, nm }) {
   );
 }
 
-export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo, canRestart, onAgain, onLeave, onToLobby }) {
+export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo, myLooks, throwables, canRestart, onAgain, onLeave, onToLobby }) {
   const me = view.me;
   const mine = view.seats[me];
   const [selected, setSelected] = useState([]);
@@ -174,7 +176,7 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
   else status = "…";
 
   const center = view.reveal ? (
-    <RevealCards reveal={view.reveal} tableCard={view.tableCard} />
+    <RevealCards reveal={view.reveal} tableCard={view.tableCard} back={backOf(view.seats[view.reveal.by]?.looks)} />
   ) : view.phase === "dealing" ? (
     <div className="a-pop font-display text-3xl text-white" style={{ textShadow: "2px 3px 0 #2b1d14" }}>🃏 {T.round} {view.round}!</div>
   ) : null;
@@ -217,6 +219,8 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
             fx={fx}
             center={center}
             pileKey={pileKey}
+            myLooks={myLooks}
+            throwables={throwables}
             onThrow={(to, item) => { unlockAudio(); throwAt(to, item); }}
             className="min-h-[270px] flex-1 sm:min-h-[340px] lg:max-h-[520px]"
           />

@@ -40,13 +40,13 @@ function useEngine() {
 
 // ------------------------------------------------------------------- solo ---
 
-export function useSolo(profile, mode, botCount = 3) {
+export function useSolo(profile, mode, botCount = 3, looks = null) {
   const { state, stateRef, dispatch, reset } = useEngine();
   const [fx, pushFx] = useFx();
 
   const again = useCallback(() => {
-    reset(createGame([{ name: profile.name, avatar: profile.avatar, kind: "human" }, ...bots(botCount)], { mode }));
-  }, [profile.name, profile.avatar, mode, botCount, reset]);
+    reset(createGame([{ name: profile.name, avatar: profile.avatar, looks, kind: "human" }, ...bots(botCount)], { mode }));
+  }, [profile.name, profile.avatar, mode, botCount, looks, reset]);
 
   useEffect(() => { again(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
