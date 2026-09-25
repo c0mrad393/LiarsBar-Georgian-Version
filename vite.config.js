@@ -25,9 +25,25 @@ function serviceWorker() {
   };
 }
 
+/**
+ * The app stylesheet must not hold up the splash screen: load it without
+ * blocking the first paint; main.jsx waits for it before mounting the app.
+ */
+function nonBlockingCss() {
+  return {
+    name: "liarsbar-async-css",
+    apply: "build",
+    enforce: "post",
+    transformIndexHtml(html) {
+      return html.replace(/<link rel="stylesheet"( crossorigin)? href="([^"]+\.css)">/g,
+        (_, co = "", href) => `<link rel="preload" as="style"${co} href="${href}" data-app-css onload="this.onload=null;this.rel='stylesheet'"><noscript><link rel="stylesheet" href="${href}"></noscript>`);
+    },
+  };
+}
+
 export default defineConfig({
   base: "./",
-  plugins: [react(), tailwindcss(), serviceWorker()],
+  plugins: [react(), tailwindcss(), serviceWorker(), nonBlockingCss()],
   build: { target: "es2020", cssCodeSplit: true },
   // server/.wrangler holds the local room server's database; don't reload the page on its writes.
   server: { port: 5178, watch: { ignored: ["**/.wrangler/**", "**/server/**"] } },
