@@ -24,10 +24,10 @@ export function ModePicker({ mode, setMode, disabled }) {
             disabled={disabled}
             onClick={() => { setMode(k); sfx(dark ? "devil" : "select"); }}
             aria-pressed={on}
-            className={`rounded-2xl border-[2.5px] border-ink px-3 py-2.5 text-left transition-transform ${on ? "-translate-y-0.5" : "opacity-70 hover:opacity-100"} ${dark ? (on ? "bg-[#2a0508] text-white" : "bg-[#f3dada]") : on ? "bg-sun" : "bg-cream"}`}
+            className={`rounded-2xl border-[2.5px] border-ink px-3 py-2.5 text-left transition-transform ${on ? "-translate-y-0.5" : "hover:-translate-y-0.5"} ${dark ? (on ? "bg-[#2a0508] text-white" : "bg-[#f3dada]") : on ? "bg-sun" : "bg-cream"}`}
             style={{ boxShadow: on ? "0 4px 0 #2b1d14" : "0 2px 0 #2b1d14" }}>
             <div className="text-sm font-black"><span className={on ? "a-hop inline-block" : "inline-block"}>{m.emoji}</span> {m.name}</div>
-            <div className={`mt-0.5 text-[10px] font-semibold leading-snug ${dark && on ? "text-white/80" : "text-ink-soft"}`}>{m.hint}</div>
+            <div className={`mt-0.5 text-xs font-semibold leading-snug ${dark && on ? "text-white/80" : "text-ink-soft"}`}>{m.hint}</div>
           </button>
         );
       })}
@@ -142,7 +142,7 @@ export default function Home({ profile, setProfile, account, mode, setMode, solo
               </button>
             );
           })}
-          <button onClick={() => openShop("head")} className="flex aspect-square flex-col items-center justify-center rounded-2xl border-[2.5px] border-dashed border-ink bg-paper text-[10px] font-black leading-tight" aria-label={T.moreAvatars}>
+          <button onClick={() => openShop("head")} className="flex aspect-square flex-col items-center justify-center rounded-2xl border-[2.5px] border-dashed border-ink bg-paper text-xs font-black leading-tight" aria-label={T.moreAvatars}>
             <span className="text-xl">🛍️</span>+{ALL_AVATARS.length - myHeads.length}
           </button>
         </div>
@@ -169,7 +169,7 @@ export default function Home({ profile, setProfile, account, mode, setMode, solo
                 <span><span className="block text-lg">{T.solo}</span><span className="block text-xs font-semibold opacity-70">{soloBots + 1} {T.players}</span></span>
               </Btn>
               <div className="comic-sm flex flex-col items-center justify-center rounded-2xl bg-paper px-2">
-                <span className="text-[10px] font-extrabold text-ink-soft">{T.bots}</span>
+                <span className="text-xs font-extrabold text-ink-soft">{T.bots}</span>
                 <Stepper value={soloBots} min={1} max={5} onChange={setSoloBots} label={T.bots} />
               </div>
             </div>

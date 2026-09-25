@@ -5,7 +5,7 @@ import { isMuted, setMuted, sfx, unlockAudio } from "../sfx.js";
 const BTN = {
   sun: "bg-sun text-ink",
   coral: "bg-coral text-white",
-  mint: "bg-mint text-white",
+  mint: "bg-[#0f8277] text-white", // dark enough for white text
   grape: "bg-grape text-white",
   sky: "bg-sky text-white",
   paper: "bg-paper text-ink",

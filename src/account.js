@@ -55,12 +55,11 @@ export function useAccount(profile) {
 
   const load = useCallback(async () => {
     try {
-      const { profile: p } = await call("restore", { key: accountKey() });
-      setMe(p);
+      const { profile: p } = await call("me", { key: accountKey() });
+      setMe(p); // null for a new player: created on first save
       setError(null);
-    } catch (e) {
-      if (e.message === "unknown") setMe(null); // new player: created on first save
-      else setError("offline");
+    } catch {
+      setError("offline");
     } finally {
       setSynced(true);
     }

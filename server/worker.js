@@ -55,6 +55,7 @@ async function api(req, env, path) {
   if (path === "leaderboard") return json(await ledger.board(body.period === "all" ? "all" : "week", id));
   if (!id) return json({ error: "key" }, 400);
   if (path === "profile") return json({ profile: await ledger.upsert(id, cleanName(body.name), cleanAvatar(body.avatar)) });
+  if (path === "me") return json({ profile: await ledger.profile(id) }); // null for a brand-new player
   if (path === "restore") {
     const profile = await ledger.profile(id);
     return profile ? json({ profile }) : json({ error: "unknown" }, 404);
