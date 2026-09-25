@@ -27,7 +27,7 @@ export function ModePicker({ mode, setMode, disabled }) {
             className={`rounded-2xl border-[2.5px] border-ink px-3 py-2.5 text-left transition-transform ${on ? "-translate-y-0.5" : "hover:-translate-y-0.5"} ${dark ? (on ? "bg-[#2a0508] text-white" : "bg-[#f3dada]") : on ? "bg-sun" : "bg-cream"}`}
             style={{ boxShadow: on ? "0 4px 0 #2b1d14" : "0 2px 0 #2b1d14" }}>
             <div className="text-sm font-black"><span className={on ? "a-hop inline-block" : "inline-block"}>{m.emoji}</span> {m.name}</div>
-            <div className={`mt-0.5 text-xs font-semibold leading-snug ${dark && on ? "text-white/80" : "text-ink-soft"}`}>{m.hint}</div>
+            <div className={`mt-0.5 text-xs font-semibold leading-snug ${dark && on ? "text-white/85" : on ? "text-ink" : "text-ink-soft"}`}>{m.hint}</div>
           </button>
         );
       })}
