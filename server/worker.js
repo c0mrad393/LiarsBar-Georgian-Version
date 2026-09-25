@@ -69,10 +69,12 @@ async function api(req, env, path) {
   }
   if (path === "admin") {
     // The owner's coin tap: needs the ADMIN_TOKEN secret (set in GitHub Actions secrets).
-    const secret = env.ADMIN_TOKEN || "";
-    if (secret.length < 8) return json({ error: "disabled" }, 404);
+    // Any length works: five wrong guesses lock the door for an hour anyway.
+    const secret = (env.ADMIN_TOKEN || "").trim();
+    if (!secret) return json({ error: "disabled" }, 404);
+    if (!String(body.token || "").trim()) return json({ error: "token" }, 400);
     if (await ledger.adminLocked()) return json({ error: "locked" }, 429);
-    if (!(await sameSecret(String(body.token || ""), secret))) {
+    if (!(await sameSecret(String(body.token || "").trim(), secret))) {
       await ledger.adminFail();
       return json({ error: "denied" }, 403);
     }

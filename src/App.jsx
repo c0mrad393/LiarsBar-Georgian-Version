@@ -14,7 +14,7 @@ import { Btn } from "./ui/parts.jsx";
 function loadProfile() {
   try {
     const p = JSON.parse(localStorage.getItem("lb-profile") || "{}");
-    return { name: typeof p.name === "string" ? p.name.slice(0, 16) : "", avatar: cleanAvatar(p.avatar || AVATARS[(Math.random() * AVATARS.length) | 0]) };
+    return { name: typeof p.name === "string" ? p.name.slice(0, 16) : "", avatar: cleanAvatar(p.avatar || AVATARS[0]) }; // new players start as 🙂: every accessory fits it
   } catch {
     return { name: "", avatar: AVATARS[0] };
   }

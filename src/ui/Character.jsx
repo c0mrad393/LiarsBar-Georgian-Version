@@ -1,7 +1,7 @@
 // An animated bar patron: the player's emoji as the head on a little body
 // with gloved hands, reacting to the game (thinking, trembling, jumping,
 // sulking, dancing, getting hit) and wearing shop gear (`looks`).
-import { ITEMS } from "../shop.js";
+import { FACE_FIT, ITEMS } from "../shop.js";
 import { AURAS, Body, FACE, HATS, HAT_BOX, NECK, WINGS, WINGS_BOX } from "./gear.jsx";
 
 export const SEAT_COLORS = ["#ff5a5f", "#3a86ff", "#2ec4b6", "#9b5de5", "#ffb020", "#ff7b39"];
@@ -19,6 +19,13 @@ const gear = (v) => (v ? ITEMS[v] || { e: v } : null);
 
 /** An emoji item: outer span places it, inner span animates it. */
 function EmojiGear({ item, top, size, rot, dx = 0 }) {
+  if (item.anim === "bobble" && dx) {
+    return (
+      <span className="chr-acc" style={{ top, fontSize: size, transform: `translateX(calc(-50% + ${dx}px))` }}>
+        <span className="anim-bobble inline-block" style={{ transformOrigin: "50% 100%" }}>{item.e}</span>
+      </span>
+    );
+  }
   const bobble = item.anim === "bobble";
   return (
     <span className={`chr-acc ${bobble ? "anim-bobble" : ""}`} style={{ top, fontSize: size, transform: bobble ? undefined : `translateX(calc(-50% + ${dx}px)) rotate(${rot}deg)` }}>
@@ -27,26 +34,44 @@ function EmojiGear({ item, top, size, rot, dx = 0 }) {
   );
 }
 
-function FaceGear({ slot, item, head }) {
+/**
+ * Face gear, fitted to where this head's face actually is (FACE_FIT).
+ * Hats scale with the face and sit on top of it; eyes and mouth move and shrink with it.
+ */
+function FaceGear({ slot, item, head, fit }) {
   const p = FACE_SLOT[slot];
-  if (item.svg && slot === "hat" && HATS[item.svg]) {
-    const [top, w] = HAT_BOX[item.svg] || [-0.6, 0.9];
-    const Draw = HATS[item.svg];
-    return (
-      <svg viewBox="0 0 100 72" className="pointer-events-none absolute left-1/2 overflow-visible" style={{ top: head * top, width: head * w, transform: "translateX(-50%)" }} aria-hidden="true">
-        <Draw />
-      </svg>
-    );
+  const fx = fit.x || 0, fy = fit.y || 0, fs = fit.s || 1;
+  // The top of the face moves by the centre shift plus what the smaller face frees up.
+  const hs = Math.max(fs, 0.55);
+  const lift = fy + 0.36 * (1 - fs);
+  if (slot === "hat") {
+    if (item.svg && HATS[item.svg]) {
+      const [top, w] = HAT_BOX[item.svg] || [-0.6, 0.9];
+      const Draw = HATS[item.svg];
+      const hgt = head * w * hs * 0.72;
+      return (
+        <svg viewBox="0 0 100 72" className="pointer-events-none absolute left-1/2 overflow-visible" aria-hidden="true"
+          style={{ top: head * (top + lift) + (head * w * 0.72 - hgt) * 0.8, width: head * w * hs, transform: `translateX(calc(-50% + ${fx * head}px))` }}>
+          <Draw />
+        </svg>
+      );
+    }
+    const size = head * (item.s ?? p.size);
+    return <EmojiGear item={item} top={head * ((item.dy ?? p.top) + lift) + size * (1 - hs) * 0.9} size={size * hs} rot={item.rot ?? p.rot} dx={((item.dx || 0) + fx) * head} />;
   }
   if (item.svg && FACE[item.svg]) {
     const Draw = FACE[item.svg];
+    const cy = slot === "eyes" ? 40 : 62;
     return (
       <svg viewBox="0 0 100 100" className="pointer-events-none absolute inset-0 h-full w-full overflow-visible" aria-hidden="true">
-        <Draw />
+        <g transform={`translate(${50 + fx * 100} ${cy + fy * 100}) scale(${fs}) translate(-50 ${-cy})`}><Draw /></g>
       </svg>
     );
   }
-  return <EmojiGear item={item} top={head * (item.dy ?? p.top)} size={head * (item.s ?? p.size)} rot={item.rot ?? p.rot} dx={(item.dx || 0) * head} />;
+  const size = head * (item.s ?? p.size) * fs;
+  const cy = (item.dy ?? p.top) * head + (head * (item.s ?? p.size)) / 2; // centre of the item on a plain face
+  const top = 0.4 * head + (cy - 0.4 * head) * fs + fy * head - size / 2;
+  return <EmojiGear item={item} top={top} size={size} rot={item.rot ?? p.rot} dx={((item.dx || 0) * fs + fx) * head} />;
 }
 
 const SPLAT = {
@@ -110,6 +135,7 @@ export default function Character({ avatar, color = SEAT_COLORS[0], size = 56, s
   const dead = state === "dead";
   const left = point != null && Math.cos((point * Math.PI) / 180) < 0;
   const L = looks || {};
+  const fit = FACE_FIT[avatar] || {};
   const hat = gear(L.hat), eyes = gear(L.eyes), mouth = gear(L.mouth), neck = gear(L.neck);
   const hand = gear(L.hand), pet = gear(L.pet), aura = gear(L.aura), outfit = gear(L.outfit), wings = gear(L.wings);
   const Wings = wings?.svg && WINGS[wings.svg];
@@ -155,9 +181,9 @@ export default function Character({ avatar, color = SEAT_COLORS[0], size = 56, s
           <span className="chr-face" style={{ fontSize: head * 0.82 }}>
             <span className="chr-face-in" style={{ animationDelay: blinkDelay }}>{dead ? "👻" : avatar}</span>
           </span>
-          {!dead && mouth && <FaceGear slot="mouth" item={mouth} head={head} />}
-          {!dead && eyes && <FaceGear slot="eyes" item={eyes} head={head} />}
-          {!dead && hat && <FaceGear slot="hat" item={hat} head={head} />}
+          {!dead && mouth && <FaceGear slot="mouth" item={mouth} head={head} fit={fit} />}
+          {!dead && eyes && <FaceGear slot="eyes" item={eyes} head={head} fit={fit} />}
+          {!dead && hat && <FaceGear slot="hat" item={hat} head={head} fit={fit} />}
           {state === "nervous" && (
             <>
               <span className="a-sweat absolute -right-1 top-0" style={{ fontSize: head * 0.3, "--dx": "8px" }}>💦</span>
