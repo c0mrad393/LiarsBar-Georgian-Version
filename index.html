@@ -17,10 +17,28 @@
     <meta name="apple-mobile-web-app-title" content="მატყუარას ბარი" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Noto+Sans+Georgian:wght@500;600;700;800;900&display=swap" rel="stylesheet" />
+    <!-- Fonts load without blocking the first paint (the splash below uses system fonts). -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Noto+Sans+Georgian:wght@500;700;900&display=swap" onload="this.onload=null;this.rel='stylesheet'" />
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Noto+Sans+Georgian:wght@500;700;900&display=swap" /></noscript>
+    <style>
+      /* Splash: painted before any JavaScript runs, replaced when the app mounts. */
+      html, body { margin: 0; background: #fff6e6; }
+      .splash { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #2b1d14;
+        background: radial-gradient(40rem 28rem at 8% -5%, #ffd9a8 0%, transparent 60%), radial-gradient(36rem 26rem at 105% 10%, #cdeefd 0%, transparent 60%), #fff6e6; }
+      .splash b { font-size: 30px; font-weight: 900; text-shadow: 3px 3px 0 #ffc83d; }
+      .splash i { font-size: 64px; font-style: normal; animation: sp-hop .9s ease-in-out infinite; }
+      .splash span { display: flex; gap: 6px; }
+      .splash span em { width: 10px; height: 10px; border-radius: 50%; background: #2b1d14; animation: sp-dot 1s ease-in-out infinite; }
+      .splash span em:nth-child(2) { animation-delay: .15s; } .splash span em:nth-child(3) { animation-delay: .3s; }
+      @keyframes sp-hop { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-14px); } }
+      @keyframes sp-dot { 0%, 100% { opacity: .2; } 50% { opacity: 1; } }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="splash" aria-label="იტვირთება"><i>🍻</i><b>მატყუარას ბარი</b><span><em></em><em></em><em></em></span></div>
+    </div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

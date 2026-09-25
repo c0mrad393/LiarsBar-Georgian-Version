@@ -13,7 +13,7 @@ const SIZES = {
   xs: "h-[34px] w-[24px] rounded-[3px]",
   sm: "h-[62px] w-[44px] rounded-[5px]",
   md: "h-[88px] w-[63px] rounded-[7px]",
-  lg: "h-[106px] w-[76px] rounded-[8px] sm:h-[120px] sm:w-[86px]",
+  lg: "h-[106px] w-[76px] rounded-[8px] sm:h-[120px] sm:w-[86px] short:h-[90px] short:w-[65px]",
 };
 
 // ------------------------------------------------------------------ suits ---

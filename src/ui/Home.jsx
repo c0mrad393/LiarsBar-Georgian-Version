@@ -1,11 +1,14 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
 import { AVATARS, MODE_INFO, RULES, T } from "../i18n.js";
 import { cleanCode } from "../shared.js";
 import { sfx } from "../sfx.js";
 import { Card } from "./cards.jsx";
-import { Btn, SoundToggle, Stepper } from "./parts.jsx";
-import { CoinChip, Leaderboard, ProfileSheet } from "./Profile.jsx";
-import Shop from "./Shop.jsx";
+import { Btn, CoinChip, SoundToggle, Stepper } from "./parts.jsx";
+
+// Loaded on first open: keeps the first screen light on phones.
+const Shop = lazy(() => import("./Shop.jsx"));
+const ProfileSheet = lazy(() => import("./Profile.jsx").then((m) => ({ default: m.ProfileSheet })));
+const Leaderboard = lazy(() => import("./Profile.jsx").then((m) => ({ default: m.Leaderboard })));
 import Character, { seatColor } from "./Character.jsx";
 import { ALL_AVATARS, ITEMS } from "../shop.js";
 
@@ -73,6 +76,13 @@ export default function Home({ profile, setProfile, account, mode, setMode, solo
   }, []);
   const setName = (name) => setProfile({ ...profile, name });
   const ready = profile.name.trim().length > 0;
+  const [online, setOnline] = useState(() => navigator.onLine !== false);
+  useEffect(() => {
+    const up = () => setOnline(true), down = () => setOnline(false);
+    window.addEventListener("online", up);
+    window.addEventListener("offline", down);
+    return () => { window.removeEventListener("online", up); window.removeEventListener("offline", down); };
+  }, []);
 
   return (
     <div className="mx-auto flex min-h-screen w-full max-w-xl flex-col px-4 pb-10 pt-4">
@@ -84,11 +94,16 @@ export default function Home({ profile, setProfile, account, mode, setMode, solo
           <SoundToggle />
         </div>
       </div>
-      {panel === "profile" && <ProfileSheet account={account} profile={profile} setProfile={setProfile} onClose={() => setPanel(null)} />}
-      {panel === "board" && <Leaderboard onClose={() => setPanel(null)} />}
-      {panel === "shop" && <Shop account={account} profile={profile} setProfile={setProfile} startCat={shopCat} onClose={() => setPanel(null)} />}
+      <Suspense fallback={<div className="fixed inset-0 z-[85] flex items-center justify-center bg-ink/30"><span className="a-hop text-5xl">🍻</span></div>}>
+        {panel === "profile" && <ProfileSheet account={account} profile={profile} setProfile={setProfile} onClose={() => setPanel(null)} />}
+        {panel === "board" && <Leaderboard onClose={() => setPanel(null)} />}
+        {panel === "shop" && <Shop account={account} profile={profile} setProfile={setProfile} startCat={shopCat} onClose={() => setPanel(null)} />}
+      </Suspense>
       <div className="a-fade-up mt-2"><Logo /></div>
 
+      {!online && (
+        <div className="a-pop mt-4 rounded-2xl border-[2.5px] border-ink bg-cream px-4 py-2 text-center text-xs font-black">📴 {T.offlineNow}</div>
+      )}
       {invite && (
         <div className="a-pop comic mt-6 rounded-3xl bg-sun px-5 py-4 text-center">
           <div className="text-2xl font-black">{T.invited}</div>
@@ -143,7 +158,7 @@ export default function Home({ profile, setProfile, account, mode, setMode, solo
       <div className="a-fade-up mt-6 flex flex-col gap-3" style={{ animationDelay: "160ms" }}>
         {invite ? (
           <>
-            <Btn color="coral" disabled={!ready} onClick={() => onJoin(invite)} className="py-4 text-xl">🍻 {T.join}</Btn>
+            <Btn color="coral" disabled={!ready || !online} onClick={() => onJoin(invite)} className="py-4 text-xl">🍻 {T.join}</Btn>
             <button onClick={onDropInvite} className="mt-1 text-sm font-bold text-ink-soft underline decoration-2 underline-offset-4">{T.menu}</button>
           </>
         ) : (
@@ -158,7 +173,7 @@ export default function Home({ profile, setProfile, account, mode, setMode, solo
                 <Stepper value={soloBots} min={1} max={5} onChange={setSoloBots} label={T.bots} />
               </div>
             </div>
-            <Btn color="coral" disabled={!ready} onClick={onHost} className="flex items-center gap-3 py-4 text-left">
+            <Btn color="coral" disabled={!ready || !online} onClick={onHost} className="flex items-center gap-3 py-4 text-left">
               <span className="text-3xl">🎉</span>
               <span><span className="block text-lg">{T.host}</span><span className="block text-xs font-semibold opacity-85">{T.hostHint}</span></span>
             </Btn>
@@ -172,7 +187,7 @@ export default function Home({ profile, setProfile, account, mode, setMode, solo
                 aria-label={T.joinCode}
                 className="comic-sm min-w-0 flex-1 rounded-2xl bg-paper px-4 py-3 font-mono text-lg font-bold lowercase outline-none"
               />
-              <Btn color="mint" type="submit" disabled={!ready || !cleanCode(code)}>🔗 {T.join}</Btn>
+              <Btn color="mint" type="submit" disabled={!ready || !online || !cleanCode(code)}>🔗 {T.join}</Btn>
             </form>
           </>
         )}

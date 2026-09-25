@@ -40,7 +40,7 @@ export default function Hand({ cards, selected, canPick, onToggle, onPlay, round
   };
 
   return (
-    <div className="flex min-h-[124px] items-end justify-center px-2 sm:min-h-[146px]" style={{ touchAction: canPick ? "none" : "auto" }}>
+    <div className="flex min-h-[124px] items-end justify-center px-2 sm:min-h-[146px] short:min-h-[100px]" style={{ touchAction: canPick ? "none" : "auto" }}>
       {cards.map((c, i) => {
         const on = selected.includes(c.id);
         const off = i - (n - 1) / 2;

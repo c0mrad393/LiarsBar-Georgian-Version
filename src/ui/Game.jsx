@@ -183,6 +183,10 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
 
   return (
     <div className={`relative flex min-h-[100dvh] flex-col overflow-x-hidden ${shake === "hard" ? "a-shake" : shake === "soft" ? "a-nudge" : ""}`}>
+      <div className="rotate-hint fixed inset-0 z-[99] flex-col items-center justify-center gap-3 bg-cream text-center">
+        <span className="a-wiggle text-6xl">📱</span>
+        <span className="px-6 text-lg font-black">{T.rotate}</span>
+      </div>
       {flash ? <div key={flash} className="a-flash pointer-events-none fixed inset-0 z-[75] bg-white" onAnimationEnd={() => setFlash(0)} /> : null}
       {burst && <LiarBurst burst={burst.id} seat={view.seats[burst.seat]} />}
       {devil && <DevilBurst id={devil.id} seat={view.seats[devil.seat]} />}
@@ -222,11 +226,11 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
             myLooks={myLooks}
             throwables={throwables}
             onThrow={(to, item) => { unlockAudio(); throwAt(to, item); }}
-            className="min-h-[270px] flex-1 sm:min-h-[340px] lg:max-h-[520px]"
+            className="min-h-[270px] flex-1 short:min-h-[220px] sm:min-h-[340px] lg:max-h-[520px]"
           />
 
           {/* me */}
-          <div className="safe-b relative mt-2">
+          <div className="safe-b relative mt-2 short:mt-0">
             <div className="flex items-center justify-between gap-2">
               <div className="relative flex items-center gap-2">
                 <div className="relative">
@@ -257,12 +261,12 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
             )}
 
             {mine.alive && (
-              <div className="mt-2 flex items-stretch justify-center gap-3">
-                <Btn color="coral" onClick={call} disabled={!canCall} className={`flex-1 py-3 sm:flex-none sm:px-8 ${canCall && view.mustCall ? "a-hop" : ""}`}>
+              <div className="mt-2 flex items-stretch justify-center gap-3 short:mt-1">
+                <Btn color="coral" onClick={call} disabled={!canCall} className={`flex-1 py-3 short:py-2 sm:flex-none sm:px-8 ${canCall && view.mustCall ? "a-hop" : ""}`}>
                   <span className="block text-lg leading-none">🤥 {T.liar}</span>
                   <span className="block font-display text-xs tracking-wider opacity-80">{T.liarEn}</span>
                 </Btn>
-                <Btn color="sun" onClick={() => play()} disabled={!canPick || !selected.length} className="flex-1 py-3 sm:flex-none sm:px-8">
+                <Btn color="sun" onClick={() => play()} disabled={!canPick || !selected.length} className="flex-1 py-3 short:py-2 sm:flex-none sm:px-8">
                   <span className="block text-lg leading-none">🃏 {T.play}{selected.length ? ` ×${selected.length}` : ""}</span>
                   <span className="block text-[11px] font-bold opacity-70">{canPick ? (selected.length ? `${selected.length}× ${tc.emoji} ${tc.geo} · ☝️` : T.pickCards) : " "}</span>
                 </Btn>
@@ -270,10 +274,10 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
             )}
 
             {/* toolbar */}
-            <div className="relative mt-3 flex items-center justify-center gap-2 pb-1">
+            <div className="relative mt-3 flex items-center justify-center gap-2 pb-1 short:mt-1.5">
               {[["emote", "😀"], ["chat", "💬"], ["log", "📜"]].map(([k, icon]) => (
                 <button key={k} onClick={() => setSheet(sheet === k ? null : k)}
-                  className={`comic-sm flex h-11 w-11 items-center justify-center rounded-full text-xl transition-transform active:scale-90 ${sheet === k ? "bg-sun" : "bg-paper"} ${k === "log" ? "lg:hidden" : ""}`}
+                  className={`comic-sm flex h-11 w-11 items-center justify-center rounded-full text-xl transition-transform active:scale-90 short:h-10 short:w-10 short:text-lg ${sheet === k ? "bg-sun" : "bg-paper"} ${k === "log" ? "lg:hidden" : ""}`}
                   aria-label={k === "emote" ? "emoji" : k === "chat" ? T.chat : T.log} aria-expanded={sheet === k}>
                   {icon}
                 </button>

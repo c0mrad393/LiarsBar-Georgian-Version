@@ -7,15 +7,6 @@ import { sfx } from "../sfx.js";
 import Character, { seatColor } from "./Character.jsx";
 import { Btn } from "./parts.jsx";
 
-export function CoinChip({ coins, onClick, className = "" }) {
-  return (
-    <button onClick={onClick} className={`comic-sm flex h-10 items-center gap-1.5 rounded-full bg-sun px-3 text-sm font-black transition-transform active:scale-95 ${className}`} aria-label={`${coins ?? 0} ${T.coins}`}>
-      <span className="a-bob inline-block">🪙</span>
-      <span className="tabular-nums">{coins ?? "…"}</span>
-    </button>
-  );
-}
-
 function Modal({ title, onClose, children }) {
   useEffect(() => {
     const h = (e) => e.key === "Escape" && onClose();

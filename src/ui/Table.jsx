@@ -67,7 +67,7 @@ function Seat({ seat, p, compact, state, point, bubble, emotes, hit, active, hol
   const dead = !seat.alive;
   const size = compact ? 46 : 58;
   return (
-    <div className="absolute z-20" style={{ left: p.x, top: p.y, transform: `translate(-50%, -50%) scale(${p.scale})` }}>
+    <div className="absolute z-20" style={{ left: p.x, top: p.y, transform: `translate(-50%, -50%) translateZ(80px) scale(${p.scale})` }}>
       <div className="relative flex flex-col items-center">
         {active && <div className="a-arrow absolute -top-6 left-1/2 z-30 text-xl">👇</div>}
         <Emotes list={emotes} />

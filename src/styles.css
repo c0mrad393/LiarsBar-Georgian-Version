@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* Short phones (iPhone SE, small Androids): tighter game layout. */
+@custom-variant short (@media (max-height: 700px));
 
 @theme {
   --font-sans: "Noto Sans Georgian", system-ui, sans-serif;
@@ -446,7 +448,19 @@ button:hover .card-sheen,
 
 /* mobile app feel */
 html, body { overscroll-behavior: none; }
+/* no double-tap zoom, no text selection or long-press menus on game pieces */
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea, code, .selectable { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+img, svg { -webkit-user-drag: none; }
 button, .touch { touch-action: manipulation; }
+/* iPhone zooms into inputs with text under 16px: keep them at 16px on phones */
+@media (max-width: 640px) { input, textarea, select { font-size: 16px !important; } }
+/* phone held sideways during a game: ask to turn it back */
+.rotate-hint { display: none; }
+@media (orientation: landscape) and (max-height: 500px) and (pointer: coarse) {
+  .rotate-hint { display: flex; }
+}
 .safe-b { padding-bottom: max(8px, env(safe-area-inset-bottom)); }
 .safe-t { padding-top: max(6px, env(safe-area-inset-top)); }
 

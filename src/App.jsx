@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { AVATARS, T } from "./i18n.js";
 import { useAccount } from "./account.js";
 import { requestTilt } from "./device.js";
@@ -6,9 +6,13 @@ import { makeCode, useOnline } from "./online.js";
 import { cleanAvatar, cleanCode, cleanName } from "./shared.js";
 import { useSolo } from "./useGame.js";
 import { FREE_THROWS, ITEMS } from "./shop.js";
-import Game from "./ui/Game.jsx";
+// The table and lobby load separately and are fetched in the background while
+// you're on the home screen, so starting a game never waits on the network.
+const loadGame = () => import("./ui/Game.jsx");
+const loadLobby = () => import("./ui/Lobby.jsx");
+const Game = lazy(loadGame);
+const Lobby = lazy(loadLobby);
 import Home, { Logo } from "./ui/Home.jsx";
-import Lobby from "./ui/Lobby.jsx";
 import { Btn } from "./ui/parts.jsx";
 
 function loadProfile() {
@@ -101,7 +105,19 @@ function OnlineScreen({ code, create, profile, mode, setMode, me, onLeave, onRet
   );
 }
 
+function Loading() {
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center">
+      <span className="a-hop text-6xl">🍻</span>
+    </div>
+  );
+}
+
 export default function App() {
+  useEffect(() => {
+    const idle = window.requestIdleCallback || ((f) => setTimeout(f, 1200));
+    idle(() => { loadGame(); loadLobby(); });
+  }, []);
   const [profile, setProfile] = useState(loadProfile);
   const account = useAccount(profile);
   const [invite, setInvite] = useState(roomFromUrl);
@@ -127,9 +143,24 @@ export default function App() {
   const clean = { name: cleanName(profile.name), avatar: cleanAvatar(profile.avatar) };
   const home = () => { setScreen({ name: "home" }); setInvite(""); setRoomInUrl(null); account.refresh(); };
 
-  if (screen.name === "solo") return <SoloScreen profile={clean} mode={mode} bots={soloBots} me={account.me} onLeave={home} />;
+  // Phone back button / swipe-back inside a game or lobby: ask instead of leaving the site.
+  const homeRef = useRef(home);
+  homeRef.current = home;
+  useEffect(() => {
+    if (screen.name === "home") return;
+    window.history.pushState({ lb: screen.name }, "");
+    const onPop = () => {
+      if (window.confirm(T.leaveConfirm)) homeRef.current();
+      else window.history.pushState({ lb: screen.name }, "");
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, [screen.name]);
+
+  if (screen.name === "solo") return <Suspense fallback={<Loading />}><SoloScreen profile={clean} mode={mode} bots={soloBots} me={account.me} onLeave={home} /></Suspense>;
   if (screen.name === "online")
     return (
+      <Suspense fallback={<Loading />}>
       <OnlineScreen
         key={`${screen.code}-${attempt}`}
         code={screen.code}
@@ -141,6 +172,7 @@ export default function App() {
         onLeave={home}
         onRetry={() => setAttempt((a) => a + 1)}
       />
+      </Suspense>
     );
 
   return (
