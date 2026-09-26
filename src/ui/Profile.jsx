@@ -2,11 +2,12 @@
 import { useEffect, useState } from "react";
 import { accountKey, fetchBoard } from "../account.js";
 import { T } from "../i18n.js";
+import { ACHIEVEMENTS } from "../achievements.js";
 import { fmtKey } from "../shared.js";
 import { sfx } from "../sfx.js";
 import Character, { seatColor } from "./Character.jsx";
 import { Face } from "./heads.jsx";
-import { Btn } from "./parts.jsx";
+import { Btn, TitleTag } from "./parts.jsx";
 
 function Modal({ title, onClose, children }) {
   useEffect(() => {
@@ -34,6 +35,63 @@ function CoinRain() {
         <span key={i} className="a-confetti absolute top-0 text-2xl"
           style={{ left: `${(i * 37) % 100}%`, "--dx": `${((i * 13) % 20) - 10}vw`, "--rot": `${(i % 2 ? 1 : -1) * 540}deg`, "--dur": `${1.8 + (i % 5) * 0.3}s`, "--delay": `${(i % 7) * 0.08}s` }}>🪙</span>
       ))}
+    </div>
+  );
+}
+
+/** Badges with progress; tap an unlocked one to wear it as your title. */
+function Achievements({ me, setTitle }) {
+  const [open, setOpen] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const stats = me.stats || {};
+  const got = ACHIEVEMENTS.filter((a) => (stats[a.stat] || 0) >= a.goal).length;
+  const sel = ACHIEVEMENTS.find((a) => a.id === open);
+  const wear = async (id) => {
+    setBusy(true);
+    try { await setTitle(id); sfx(id ? "join" : "pop"); } catch { /* offline */ }
+    setBusy(false);
+  };
+  return (
+    <div className="mt-4 rounded-2xl border-2 border-ink bg-cream px-3 py-3">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-black">🏅 {T.achievements}</span>
+        <span className="rounded-full border-2 border-ink bg-sun px-2 text-[11px] font-black">{got}/{ACHIEVEMENTS.length}</span>
+      </div>
+      <div className="mt-2 grid grid-cols-5 gap-1.5">
+        {ACHIEVEMENTS.map((a) => {
+          const n = Math.min(a.goal, stats[a.stat] || 0);
+          const done = n >= a.goal;
+          const worn = me.title === a.id;
+          return (
+            <button key={a.id} onClick={() => { setOpen(open === a.id ? null : a.id); sfx("select"); }} aria-label={a.name} aria-pressed={open === a.id}
+              className={`relative flex aspect-square flex-col items-center justify-center rounded-2xl border-[2.5px] transition-transform active:scale-95 ${done ? "border-ink bg-paper" : "border-ink/25 bg-ink/5"} ${open === a.id ? "-translate-y-0.5 ring-2 ring-sun" : ""}`}
+              style={done ? { boxShadow: "0 3px 0 #2b1d14" } : undefined}>
+              <span className={`text-2xl ${done ? "" : "opacity-35 grayscale"}`}>{a.icon}</span>
+              {!done && (
+                <span className="absolute inset-x-1.5 bottom-1 h-1.5 overflow-hidden rounded-full bg-ink/15">
+                  <span className="block h-full rounded-full bg-mint" style={{ width: `${(n / a.goal) * 100}%` }} />
+                </span>
+              )}
+              {worn && <span className="absolute -right-1 -top-1 rounded-full border-2 border-ink bg-grape px-1 text-[9px] font-black text-white">✓</span>}
+            </button>
+          );
+        })}
+      </div>
+      {sel ? (
+        <div className="a-pop mt-2 rounded-xl bg-paper px-3 py-2 text-left">
+          <div className="text-sm font-black">{sel.icon} {sel.name}</div>
+          <div className="text-[11px] font-bold text-ink-soft">{sel.desc} · {Math.min(sel.goal, stats[sel.stat] || 0)}/{sel.goal}</div>
+          {(stats[sel.stat] || 0) >= sel.goal && (
+            me.title === sel.id ? (
+              <Btn color="paper" disabled={busy} onClick={() => wear(null)} className="mt-2 w-full py-1.5 text-xs">{T.titleOff}</Btn>
+            ) : (
+              <Btn color="grape" disabled={busy} onClick={() => wear(sel.id)} className="mt-2 w-full py-1.5 text-xs">🎖️ {T.wearTitle}: „{sel.title}“</Btn>
+            )
+          )}
+        </div>
+      ) : (
+        <p className="mt-2 text-[11px] font-bold leading-snug text-ink-soft">{T.achHint}</p>
+      )}
     </div>
   );
 }
@@ -101,6 +159,7 @@ export function ProfileSheet({ account, profile, setProfile, onClose }) {
             <span className="tabular-nums">{me?.coins ?? 0}</span>
           </div>
           {me && <div className="text-xs font-bold text-ink-soft">{T.thisWeek}: {me.weekCoins} 🪙 · {me.weekWins} 🏆</div>}
+          {me?.title && <TitleTag id={me.title} className="mt-1" />}
         </div>
       </div>
 
@@ -130,6 +189,7 @@ export function ProfileSheet({ account, profile, setProfile, onClose }) {
               </div>
             ))}
           </div>
+          <Achievements me={me} setTitle={account.setTitle} />
           <div className="mt-4 rounded-2xl border-2 border-dashed border-ink/40 px-3 py-3 text-center">
             <div className="text-sm font-black">🎁 {T.daily}</div>
             {me.dailyReady ? (

@@ -100,6 +100,13 @@ export function useAccount(profile) {
     return p;
   }, []);
 
+  /** Wear an unlocked achievement as a title (null takes it off). */
+  const setTitle = useCallback(async (title) => {
+    const { profile: p } = await call("title", { key: accountKey(), title });
+    setMe(p);
+    return p;
+  }, []);
+
   /** The owner's secret coin tap (needs the ADMIN_TOKEN password). */
   const adminGrant = useCallback(async (token, amount) => {
     const r = await call("admin", { key: accountKey(), token, amount });
@@ -117,5 +124,5 @@ export function useAccount(profile) {
     return p;
   }, []);
 
-  return { me, error, refresh: load, claimDaily, restore, buy, equip, adminGrant };
+  return { me, error, refresh: load, claimDaily, restore, buy, equip, adminGrant, setTitle };
 }

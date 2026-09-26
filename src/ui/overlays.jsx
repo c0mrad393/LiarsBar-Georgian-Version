@@ -1,5 +1,6 @@
 // Full-screen and table-centre moments: the reveal, LIAR!, the devil, game over.
 import { CHAOS_INFO, END_EMOTES, RANKS, T, quipText } from "../i18n.js";
+import { ACH } from "../achievements.js";
 import { sfx } from "../sfx.js";
 import { Card, CardBack } from "./cards.jsx";
 import Character, { seatColor } from "./Character.jsx";
@@ -46,6 +47,18 @@ function Rewards({ view, rewards, solo }) {
         </div>
       )}
       {rewards.you && <div className="mt-1.5 text-xs font-bold">{T.balance}: 🪙 {rewards.you.coins}{rewards.you.capped ? ` · ${T.coinsCapped}` : ""}</div>}
+      {rewards.you?.unlocked?.length > 0 && (
+        <div className="mt-2 border-t-2 border-dashed border-ink/30 pt-2">
+          <div className="text-xs font-black">🏅 {T.newAch}</div>
+          <div className="mt-1 flex flex-wrap justify-center gap-1.5">
+            {rewards.you.unlocked.map((id, i) => ACH[id] && (
+              <span key={id} className="a-pop inline-flex items-center gap-1 rounded-full border-2 border-ink bg-grape px-2 py-0.5 text-xs font-black text-white" style={{ animationDelay: `${600 + i * 200}ms` }}>
+                <span className="a-hop inline-block">{ACH[id].icon}</span> {ACH[id].name}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
       {rewards.list.length > 1 && (
         <div className="mt-2 flex flex-wrap justify-center gap-1.5 border-t-2 border-dashed border-ink/30 pt-2">
           {rewards.list.filter((r) => r.seat !== view.me).map((r) => (

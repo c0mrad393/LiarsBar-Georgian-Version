@@ -46,7 +46,7 @@ function Notice({ emoji = "🍺", title, children }) {
 }
 
 function SoloScreen({ profile, mode, bots, me, onLeave }) {
-  const g = useSolo(profile, mode, bots, me?.looks || null);
+  const g = useSolo(profile, mode, bots, me?.looks || null, me?.title || null);
   if (!g.view) return null;
   return <Game view={g.view} act={g.act} fx={g.fx} emote={g.emote} throwAt={g.throwAt} say={g.say} solo myLooks={me?.looks} throwables={throwsOf(me)} canRestart onAgain={g.again} onLeave={onLeave} />;
 }

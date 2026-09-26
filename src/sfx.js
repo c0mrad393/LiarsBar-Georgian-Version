@@ -32,11 +32,18 @@ function ac() {
   if (ctx.state !== "running") ctx.resume().catch(() => {});
   return ctx;
 }
-export const unlockAudio = () => { if (!muted) ac(); };
+export const unlockAudio = () => { if (!muted || musicWanted()) ac(); };
+
+/** The live context for the music player (created on the first tap, like sounds). */
+export const audioContext = () => ctx;
+let musicWanted = () => false;
+/** music.js tells us whether it wants audio even while effects are muted. */
+export const setMusicWanted = (fn) => { musicWanted = fn; };
 
 if (typeof window !== "undefined") {
   const onGesture = () => {
-    if (muted || !ctx) return;
+    if (muted && !musicWanted()) return;
+    if (!ctx) { ac(); return; }
     if (stale || ctx.state !== "running") fresh();
   };
   for (const ev of ["pointerdown", "touchend", "keydown"]) window.addEventListener(ev, onGesture, { capture: true, passive: true });

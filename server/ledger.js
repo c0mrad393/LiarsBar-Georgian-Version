@@ -3,6 +3,7 @@
 // SHA-256 of their secret key; the key itself never reaches storage.
 import { DurableObject } from "cloudflare:workers";
 import { ALL_AVATARS, FREE_AVATARS, ITEMS, cleanLooks, headOf, owns } from "../src/shop.js";
+import { EXTRA_STATS, unlocked, validTitle } from "../src/achievements.js";
 
 export const REWARD = { seat: 10, win: 50, safe: 5, catch: 10, devil: 15 };
 export const DAILY_BONUS = 25;
@@ -61,6 +62,8 @@ export class Ledger extends DurableObject {
     `);
     const cols = this.sql.exec("PRAGMA table_info(players)").toArray().map((c) => c.name);
     if (!cols.includes("looks")) this.sql.exec("ALTER TABLE players ADD COLUMN looks TEXT NOT NULL DEFAULT '{}'");
+    if (!cols.includes("stats")) this.sql.exec("ALTER TABLE players ADD COLUMN stats TEXT NOT NULL DEFAULT '{}'");
+    if (!cols.includes("title")) this.sql.exec("ALTER TABLE players ADD COLUMN title TEXT NOT NULL DEFAULT ''");
     this.migrateHeads();
   }
 
@@ -91,6 +94,12 @@ export class Ledger extends DurableObject {
   looksOf(r) {
     try { return JSON.parse(r.looks || "{}"); } catch { return {}; }
   }
+  /** All achievement counters: the ledger's columns plus the extra ones. */
+  statsOf(r) {
+    let x = {};
+    try { x = JSON.parse(r.stats || "{}"); } catch { /* empty */ }
+    return { ...x, games: r.games, wins: r.wins, survived: r.survived, catches: r.catches };
+  }
   /** A head the player may wear: owned (or free), else keep what they had. */
   validAvatar(avatar, owned, fallback) {
     return ALL_AVATARS.includes(avatar) && owns(owned, avatar) ? avatar : fallback;
@@ -117,6 +126,8 @@ export class Ledger extends DurableObject {
       weekCoins: r.week === wk ? r.week_coins : 0,
       weekWins: r.week === wk ? r.week_wins : 0,
       dailyReady: r.last_daily !== today(),
+      stats: this.statsOf(r),
+      title: validTitle(r.title, this.statsOf(r)),
     };
   }
 
@@ -143,7 +154,7 @@ export class Ledger extends DurableObject {
     const r = this.row(id);
     if (!r) return null;
     const owned = this.ownedBy(id);
-    return { avatar: r.avatar, looks: cleanLooks(this.looksOf(r), owned), owned };
+    return { avatar: r.avatar, looks: cleanLooks(this.looksOf(r), owned), owned, title: validTitle(r.title, this.statsOf(r)) };
   }
 
   /** Buy one item. Returns { ok, profile } or { ok: false, error: unknown|owned|poor }. */
@@ -231,12 +242,35 @@ export class Ledger extends DurableObject {
              day = ?, day_earned = ?, updated = ? WHERE id = ?`,
           got, got, p.win ? 1 : 0, p.safe, p.catches, wk, weekCoins, weekWins, day, dayEarned + got, now, p.id,
         );
-        out[p.id] = { got, coins: r.coins + got, capped: got < p.amount };
+        // Achievements: bump the extra counters and report what this game unlocked.
+        const before = this.statsOf(r);
+        const x = {};
+        for (const k of EXTRA_STATS) x[k] = before[k] || 0;
+        x.poker += p.poker || 0;
+        x.wine += p.wine || 0;
+        x.devils += p.devils || 0;
+        x.streak = Math.max(x.streak, p.safe || 0);
+        if (p.win && p.mode === "dice") x.diceWins++;
+        if (p.win && p.mode === "chaos") x.chaosWins++;
+        if (p.win && p.pulls === 0) x.flawless++;
+        this.sql.exec("UPDATE players SET stats = ? WHERE id = ?", JSON.stringify(x), p.id);
+        const had = new Set(unlocked(before));
+        const fresh = unlocked(this.statsOf(this.row(p.id))).filter((a) => !had.has(a));
+        out[p.id] = { got, coins: r.coins + got, capped: got < p.amount, unlocked: fresh };
       }
       // Keep the idempotency table small.
       this.sql.exec("DELETE FROM games WHERE at < ?", now - 7 * 864e5);
       return out;
     });
+  }
+
+  /** Wear an unlocked achievement as a title (null takes it off). */
+  setTitle(id, title) {
+    const r = this.row(id);
+    if (!r) return null;
+    const t = validTitle(title, this.statsOf(r));
+    this.sql.exec("UPDATE players SET title = ?, updated = ? WHERE id = ?", t || "", Date.now(), id);
+    return this.shape(this.row(id));
   }
 
   /** Top players for "week" or "all", plus the caller's own rank. */

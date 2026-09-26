@@ -3,10 +3,12 @@ import { PERSONAS } from "../engine.js";
 import { MODE_INFO, T } from "../i18n.js";
 import { inviteLink } from "../online.js";
 import { sfx } from "../sfx.js";
+import { useMusic } from "../music.js";
 import { Logo, MODE_SKIN, ModePicker } from "./Home.jsx";
 import { BOT_LOOKS, BOT_ORDER } from "../shared.js";
 import Character, { seatColor } from "./Character.jsx";
-import { Btn, SoundToggle, Stepper } from "./parts.jsx";
+import BarScene from "./BarScene.jsx";
+import { Btn, SoundToggle, Stepper, TitleTag } from "./parts.jsx";
 
 /** Seconds until a public table starts by itself. */
 function useStartsIn(lobby) {
@@ -24,6 +26,7 @@ function useStartsIn(lobby) {
 
 export default function Lobby({ lobby, isHost, setBots, setMode, setPublic, onStart, onLeave }) {
   const startsIn = useStartsIn(lobby);
+  useMusic("bar");
   useEffect(() => { if (startsIn != null && startsIn <= 3 && startsIn > 0) sfx("select"); }, [startsIn]);
   const [copied, setCopied] = useState(false);
   const link = lobby.code ? inviteLink(lobby.code) : "";
@@ -60,7 +63,8 @@ export default function Lobby({ lobby, isHost, setBots, setMode, setPublic, onSt
   const share = () => navigator.share?.({ title: T.title, text: "მოდი, ვითამაშოთ მატყუარას ბარი! 🍻", url: link }).catch(() => {});
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-xl flex-col px-4 pb-10 pt-4">
+    <div className="relative isolate mx-auto flex min-h-screen w-full max-w-xl flex-col px-4 pb-10 pt-4">
+      <BarScene mode={lobby.mode} className="-z-10" />
       <div className="flex items-center justify-between">
         <button onClick={onLeave} className="comic-sm rounded-full bg-paper px-4 py-2 text-sm font-extrabold">← {T.leave}</button>
         <SoundToggle />
@@ -118,6 +122,7 @@ export default function Lobby({ lobby, isHost, setBots, setMode, setPublic, onSt
               <div key={`p${i}`} className="a-pop comic flex flex-col items-center rounded-3xl bg-paper px-1 pb-2 pt-3" style={{ animationDelay: `${i * 60}ms` }}>
                 <Character avatar={p.avatar} looks={p.looks} color={seatColor(i)} size={52} state={i % 2 ? "idle" : "turn"} />
                 <div className="mt-1 max-w-full truncate text-sm font-extrabold">{p.name}</div>
+                {p.title && <TitleTag id={p.title} className="mt-0.5" />}
                 <div className="mt-0.5 flex gap-1">
                   {p.host && <span className="rounded-full border-2 border-ink bg-coral px-1.5 text-[9px] font-black text-white">{T.hostTag}</span>}
                   {p.you && <span className="rounded-full border-2 border-ink bg-mint px-1.5 text-[9px] font-black text-white">{T.you}</span>}

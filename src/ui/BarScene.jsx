@@ -103,10 +103,10 @@ function Churchkhela() {
  * @param mode    classic | devil | chaos | dice
  * @param flicker changes whenever a shot goes off (lamps blink, the room dims)
  */
-function BarScene({ mode = "classic", flicker = 0 }) {
+function BarScene({ mode = "classic", flicker = 0, className = "z-0" }) {
   const t = THEMES[mode] || THEMES.classic;
   return (
-    <div className={`bar-scene pointer-events-none fixed inset-0 z-0 overflow-hidden bar-${mode}`} aria-hidden="true"
+    <div className={`bar-scene pointer-events-none fixed inset-0 overflow-hidden bar-${mode} ${className}`} aria-hidden="true"
       style={{ background: `linear-gradient(${t.wall[0]}, ${t.wall[1]})` }}>
       {/* the cellar arch */}
       <div className="absolute inset-x-[4%] bottom-[-40px] top-[16%] rounded-t-[50%_180px] border-[16px] border-b-0"

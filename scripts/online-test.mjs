@@ -203,6 +203,17 @@ if (!board.body.me || !board.body.top.some((r) => r.me)) fail(`week board lacks 
 if (!all.body.top.length || all.body.top.some((r) => "id" in r)) fail("all-time board empty or leaks ids");
 if ((await api("profile", { key: KEYS["guest-1"], name: "Renamed", avatar: "🦄" })).body.profile?.name !== "Renamed") fail("rename");
 log(`ok  ledger API: restore, 404/400, daily once, leaderboard (host #${board.body.me.rank} this week), rename`);
+
+// achievements: counted after the game, titles only when unlocked
+const hp = (await api("me", { key: KEYS["host-1"] })).body.profile;
+if (hp.stats?.games !== 1 || typeof hp.stats.poker !== "number") fail(`achievement stats: ${JSON.stringify(hp.stats)}`);
+if ((await api("title", { key: KEYS["host-1"], title: "king" })).body.profile.title !== null) fail("wore a locked title");
+const got = host.rewards.you.unlocked || [];
+if (got.length) {
+  const t = await api("title", { key: KEYS["host-1"], title: got[0] });
+  if (t.body.profile.title !== got[0]) fail("could not wear an unlocked title");
+}
+log(`ok  achievements: stats counted, locked title refused${got.length ? `, wearing „${got[0]}“` : ""}`);
 }
 {
   // Safe on a real server too: fresh keys, nothing earned, so nothing on the boards.

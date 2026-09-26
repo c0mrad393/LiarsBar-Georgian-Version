@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { T } from "../i18n.js";
+import { ACH } from "../achievements.js";
 import { isMuted, setMuted, sfx, unlockAudio } from "../sfx.js";
+import { isMusicOn, setMusicOn } from "../music.js";
 
 const BTN = {
   sun: "bg-sun text-ink",
@@ -84,16 +86,41 @@ export function Timer({ deadline, offset, className = "" }) {
   );
 }
 
+/** Sound button: opens two switches, effects and music. */
 export function SoundToggle({ className = "" }) {
   const [m, setM] = useState(isMuted());
-  return (
-    <button
-      onClick={() => { setMuted(!m); setM(!m); if (m) { unlockAudio(); sfx("pop"); } }}
-      className={`comic-sm flex h-10 w-10 items-center justify-center rounded-full bg-paper text-lg transition-transform active:scale-90 ${className}`}
-      aria-label={T.sound}
-      title={T.sound}>
-      {m ? "🔇" : "🔊"}
+  const [music, setMusic] = useState(isMusicOn());
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    const t = setTimeout(() => window.addEventListener("pointerdown", close), 0);
+    return () => { clearTimeout(t); window.removeEventListener("pointerdown", close); };
+  }, [open]);
+  const row = (icon, label, value, flip) => (
+    <button onPointerDown={(e) => e.stopPropagation()} onClick={flip} aria-pressed={value}
+      className="flex w-full items-center justify-between gap-3 rounded-xl px-2 py-1.5 text-sm font-black hover:bg-cream">
+      <span>{icon} {label}</span>
+      <span className={`relative h-6 w-10 rounded-full border-2 border-ink transition-colors ${value ? "bg-[#0f8277]" : "bg-cream"}`}>
+        <span className={`absolute top-0.5 h-4 w-4 rounded-full border-2 border-ink bg-paper transition-all ${value ? "left-[18px]" : "left-0.5"}`} />
+      </span>
     </button>
+  );
+  return (
+    <div className={`relative ${className}`}>
+      <button
+        onClick={() => { unlockAudio(); setOpen(!open); }}
+        className="comic-sm flex h-10 w-10 items-center justify-center rounded-full bg-paper text-lg transition-transform active:scale-90"
+        aria-label={T.sound} aria-expanded={open} title={T.sound}>
+        {m && !music ? "🔇" : music ? "🎵" : "🔊"}
+      </button>
+      {open && (
+        <div className="a-pop comic absolute right-0 top-12 z-[70] w-48 rounded-2xl bg-paper p-1.5">
+          {row("🎵", T.music, music, () => { setMusicOn(!music); setMusic(!music); unlockAudio(); })}
+          {row("🔊", T.sounds, !m, () => { setMuted(!m); setM(!m); if (m) { unlockAudio(); sfx("pop"); } })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -166,6 +193,18 @@ export function CoinChip({ coins, onClick, className = "" }) {
       <span className="a-bob inline-block">🪙</span>
       <span className="tabular-nums">{coins ?? "…"}</span>
     </button>
+  );
+}
+
+/** A player's title (an achievement they chose to wear). `short` = icon only. */
+export function TitleTag({ id, short, className = "" }) {
+  const a = ACH[id];
+  if (!a) return null;
+  if (short) return <span className={`inline-block ${className}`} title={a.title}>{a.icon}</span>;
+  return (
+    <span className={`inline-flex max-w-full items-center gap-1 truncate rounded-full border-2 border-ink bg-grape px-1.5 text-[10px] font-black leading-4 text-white ${className}`}>
+      {a.icon} <span className="truncate">{a.title}</span>
+    </span>
   );
 }
 

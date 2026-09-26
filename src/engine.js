@@ -148,6 +148,7 @@ export function createGame(seats, opts = {}, now = Date.now()) {
       kind: p.kind,
       persona: p.persona || null,
       looks: p.looks || null, // cosmetic accessories: { hat, eyes, ... }
+      title: p.title || null, // an achievement id worn as a title (cosmetic)
       clientId: p.clientId || null,
       connected: true,
       alive: true,
@@ -542,6 +543,7 @@ export function viewFor(s, me) {
       name: p.name,
       avatar: p.avatar,
       looks: p.looks,
+      title: p.title || null,
       kind: p.kind,
       connected: p.connected,
       alive: p.alive,

@@ -11,7 +11,7 @@ const backOf = (looks) => ITEMS[looks?.cards]?.back || "red";
 import { sfx } from "../sfx.js";
 import { Card, CardBack } from "./cards.jsx";
 import Character, { seatColor } from "./Character.jsx";
-import { Chambers } from "./parts.jsx";
+import { Chambers, TitleTag } from "./parts.jsx";
 import { BidBadge, Die } from "./dice.jsx";
 
 function useSize(ref) {
@@ -89,8 +89,8 @@ function Seat({ seat, p, compact, state, point, bubble, emotes, hit, active, hol
             </span>
           )}
         </button>
-        <div className={`-mt-1 max-w-[84px] truncate rounded-full border-2 border-ink px-2 text-[11px] font-black leading-5 ${dead ? "bg-cream text-ink-soft line-through" : active ? "bg-sun" : "bg-paper"}`}>
-          {seat.name}
+        <div className={`-mt-1 max-w-[92px] truncate rounded-full border-2 border-ink px-2 text-[11px] font-black leading-5 ${dead ? "bg-cream text-ink-soft line-through" : active ? "bg-sun" : "bg-paper"}`}>
+          {seat.title && <TitleTag id={seat.title} short className="mr-0.5" />}{seat.name}
         </div>
         {!dead && <div className="mt-0.5"><Chambers pulls={seat.pulls} small /></div>}
         {!seat.connected && seat.kind === "human" && (

@@ -31,8 +31,11 @@ export const BOT_LOOKS = {
   bear: { hat: "hat_grad", eyes: "eye_glasses", hand: "h_beer", outfit: "o_pajama" },
 };
 
+/** Each bot's title (an achievement id, like a player's). */
+export const BOT_TITLES = { pig: "hunter", fox: "poker", bull: "bulletproof", cat: "sommelier", bear: "king" };
+
 export const bots = (n) =>
-  BOT_ORDER.slice(0, Math.max(0, n)).map((k) => ({ name: PERSONAS[k].name, avatar: PERSONAS[k].avatar, kind: "bot", persona: k, looks: BOT_LOOKS[k] }));
+  BOT_ORDER.slice(0, Math.max(0, n)).map((k) => ({ name: PERSONAS[k].name, avatar: PERSONAS[k].avatar, kind: "bot", persona: k, looks: BOT_LOOKS[k], title: BOT_TITLES[k] }));
 
 // ---------------------------------------------------------------- bot fun ---
 // Bots throw tomatoes and react too. Runs wherever the engine runs (solo:

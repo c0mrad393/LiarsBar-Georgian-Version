@@ -2,17 +2,19 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useWakeLock } from "../device.js";
 import { ITEMS } from "../shop.js";
 import { MAX_PLAY } from "../engine.js";
-import { CHAOS_INFO, EMOTES, MODE_INFO, PHRASES, RANKS, T, describe, quipText } from "../i18n.js";
+import { CHAOS_INFO, MODE_INFO, PHRASES, RANKS, T, describe, quipText } from "../i18n.js";
 import { sfx, unlockAudio } from "../sfx.js";
+import { useMusic } from "../music.js";
 import { Card } from "./cards.jsx";
 import Character, { seatColor } from "./Character.jsx";
 import Hand from "./Hand.jsx";
 import { BidPicker, Die, MyDice, RevealDice } from "./dice.jsx";
 import { Face } from "./heads.jsx";
 import { ChaosBanner, DevilBurst, DuelSplit, GameOver, LiarBurst, RevealCards } from "./overlays.jsx";
-import { Btn, Chambers, Confetti, SoundToggle, Timer } from "./parts.jsx";
+import { Btn, Chambers, Confetti, SoundToggle, Timer, TitleTag } from "./parts.jsx";
 import Roulette from "./Roulette.jsx";
 import BarScene from "./BarScene.jsx";
+import { EmoteWheel, useEmoteWheel } from "./EmoteWheel.jsx";
 import Table, { Bubble, Emotes } from "./Table.jsx";
 
 const BUBBLE_MS = 2800;
@@ -69,16 +71,20 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
   useEffect(() => {
     if (view.phase !== "playing") return;
     let seen = true;
-    try { seen = localStorage.getItem("lb-tip-throw") === "1"; localStorage.setItem("lb-tip-throw", "1"); } catch { /* private mode */ }
+    try { seen = localStorage.getItem("lb-tip-wheel") === "1"; localStorage.setItem("lb-tip-wheel", "1"); } catch { /* private mode */ }
     if (seen) return;
     setTip(true);
-    const t = setTimeout(() => setTip(false), 6000);
+    const t = setTimeout(() => setTip(false), 8000);
     return () => clearTimeout(t);
   }, [view.phase === "playing"]); // eslint-disable-line react-hooks/exhaustive-deps
   const [, tick] = useState(0);
+  const tableRef = useRef(null);
+  const sendEmote = useCallback((e) => { unlockAudio(); emote(e); }, [emote]);
+  const wheel = useEmoteWheel(tableRef, sendEmote);
   const lastSeen = useRef(null);
   const seenFx = useRef(new Set());
   useWakeLock(view.phase !== "gameover");
+  useMusic(view.phase === "roulette" ? "tense" : view.opts?.mode === "chaos" ? "chaos" : "bar");
 
   const nm = useCallback((i) => (i === me ? `${view.seats[i]?.name} (${T.you})` : view.seats[i]?.name ?? "?"), [me, view.seats]);
 
@@ -239,6 +245,10 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
       {confetti ? <Confetti key={confetti} /> : null}
       {chaos && <ChaosBanner key={chaos.id} event={chaos.event} />}
       {duel && <DuelSplit key={duel.id} a={duel.a} b={duel.b} />}
+      {wheel.wheel && (
+        <EmoteWheel {...wheel.wheel} onPick={(e) => { sendEmote(e); wheel.close(); }} onClose={wheel.close}
+          onPhrases={() => { wheel.close(); setSheet("react"); }} />
+      )}
 
       <BarScene mode={view.opts?.mode} flicker={lamps} />
       <div className="relative z-10 mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-4 px-2 sm:px-4 lg:grid-cols-[1fr_270px]">
@@ -282,6 +292,7 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
           </header>
 
           {/* table */}
+          <div ref={tableRef} className="contents">
           <Table
             view={view}
             states={states}
@@ -294,6 +305,7 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
             onThrow={(to, item) => { unlockAudio(); throwAt(to, item); }}
             className="min-h-[270px] flex-1 short:min-h-[220px] sm:min-h-[340px] lg:max-h-[520px]"
           />
+          </div>
 
           {/* me */}
           <div className="safe-b relative mt-2 short:mt-0">
@@ -306,7 +318,7 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
                   <Bubble text={bubbles[me]?.text || (mySay && PHRASES[mySay.i])} />
                 </div>
                 <div className="min-w-0">
-                  <div className="max-w-[140px] truncate text-sm font-black">{mine.name}</div>
+                  <div className="max-w-[140px] truncate text-sm font-black">{mine.title && <TitleTag id={mine.title} short className="mr-0.5" />}{mine.name}</div>
                   <Chambers pulls={mine.pulls} dead={!mine.alive} small />
                 </div>
               </div>
@@ -317,17 +329,12 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
                     <Timer deadline={view.deadline} offset={view.clockOffset} className="!border-0 !px-1" />
                   </span>
                 )}
-                <button onClick={() => setSheet(sheet === "react" ? null : "react")} aria-label={T.react} aria-expanded={sheet === "react"}
+                <button onClick={(e) => { unlockAudio(); sfx("pop"); setSheet(null); const r = e.currentTarget.getBoundingClientRect(); wheel.openAt(r.left + r.width / 2, r.top - 60); }} aria-label={T.react}
                   className={`comic-sm flex h-11 w-11 items-center justify-center rounded-full text-xl transition-transform active:scale-90 ${sheet === "react" ? "bg-sun" : "bg-paper"}`}>😀</button>
               </div>
               {sheet === "react" && (
                 <div className="a-pop comic absolute bottom-full right-0 z-50 mb-2 w-[min(92vw,340px)] rounded-3xl bg-paper p-2.5">
-                  <div className="grid grid-cols-8 gap-0.5">
-                    {EMOTES.map((e) => (
-                      <button key={e} onClick={() => { unlockAudio(); emote(e); setSheet(null); }} className="flex aspect-square items-center justify-center rounded-xl text-xl transition-transform hover:bg-cream active:scale-90" aria-label={e}>{e}</button>
-                    ))}
-                  </div>
-                  <div className="mt-2 grid grid-cols-2 gap-1.5 border-t-2 border-dashed border-ink/15 pt-2">
+                  <div className="grid grid-cols-2 gap-1.5">
                     {PHRASES.map((p, i) => (
                       <button key={i} onClick={() => { unlockAudio(); say(i); setSheet(null); }} className="rounded-xl bg-cream px-2 py-1.5 text-left text-xs font-extrabold transition-transform active:scale-95">{p}</button>
                     ))}
@@ -376,8 +383,8 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
             )}
 
             {tip && (
-              <div className="a-pop pointer-events-none absolute -top-12 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border-[2.5px] border-ink bg-sun px-3 py-1 text-xs font-black" style={{ boxShadow: "0 3px 0 #2b1d14" }}>
-                {T.tipThrow}
+              <div className="a-pop pointer-events-none absolute -top-16 left-1/2 z-40 w-max max-w-[92vw] -translate-x-1/2 rounded-2xl border-[2.5px] border-ink bg-sun px-3 py-1 text-center text-xs font-black leading-relaxed" style={{ boxShadow: "0 3px 0 #2b1d14" }}>
+                {T.tipThrow}<br />{T.tipWheel}
               </div>
             )}
             {sheet === "log" && (

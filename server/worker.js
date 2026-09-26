@@ -72,6 +72,10 @@ async function api(req, env, path) {
     const r = await ledger.buy(id, String(body.item || ""));
     return json(r, r.error === "unknown" ? 404 : 200);
   }
+  if (path === "title") {
+    const profile = await ledger.setTitle(id, typeof body.title === "string" ? body.title : null);
+    return profile ? json({ profile }) : json({ error: "unknown" }, 404);
+  }
   if (path === "equip") {
     const profile = await ledger.equip(id, body.looks, typeof body.avatar === "string" ? body.avatar : null);
     return profile ? json({ profile }) : json({ error: "unknown" }, 404);
@@ -166,7 +170,7 @@ export class Room extends DurableObject {
       youHost: m.hostCid === cid,
       seats: m.lobby
         .filter((p) => this.connected(p.cid))
-        .map((p) => ({ name: p.name, avatar: p.avatar, looks: p.looks || {}, host: p.cid === m.hostCid, you: p.cid === cid })),
+        .map((p) => ({ name: p.name, avatar: p.avatar, looks: p.looks || {}, title: p.title || null, host: p.cid === m.hostCid, you: p.cid === cid })),
     };
   }
   broadcastLobby() {
@@ -251,11 +255,12 @@ export class Room extends DurableObject {
   /** Per-game stats the log can't hold (it keeps only the last 60 events). */
   count(ev) {
     const t = (this.tally ||= {});
-    const bump = (seat, k) => { (t[seat] ||= { safe: 0, catches: 0, devil: 0 })[k]++; };
-    if (ev.type === "safe") bump(ev.seat, "safe");
+    const bump = (seat, k) => { const s = (t[seat] ||= { safe: 0, catches: 0, devil: 0 }); s[k] = (s[k] || 0) + 1; };
+    if (ev.type === "safe") { bump(ev.seat, "safe"); if (ev.wine) bump(ev.seat, "wine"); }
     if (ev.type === "bluff") bump(ev.other, "catches"); // the accuser caught a bluff
+    if (ev.type === "truth") bump(ev.seat, "poker"); // told the truth and got called a liar
     if (ev.type === "devil") bump(ev.seat, "devil");
-    return ev.type === "safe" || ev.type === "bluff" || ev.type === "devil";
+    return ev.type === "safe" || ev.type === "bluff" || ev.type === "devil" || ev.type === "truth";
   }
 
   /** Pay out coins for a finished game (only with 2+ different real players). */
@@ -279,7 +284,10 @@ export class Room extends DurableObject {
         devil: t.devil * REWARD.devil,
       };
       const amount = Object.values(parts).reduce((a, b) => a + b, 0);
-      results.push({ id, name: s.name, avatar: s.avatar, amount, win, safe: t.safe, catches: t.catches });
+      results.push({
+        id, name: s.name, avatar: s.avatar, amount, win, safe: t.safe, catches: t.catches,
+        poker: t.poker || 0, wine: t.wine || 0, devils: t.devil, pulls: s.pulls, mode: game.opts.mode,
+      });
       bySeat[s.idx] = { id, parts, amount };
     }
     // Rooms whose code starts with "zz" are for automated tests: no coins, no leaderboard.
@@ -345,7 +353,7 @@ export class Room extends DurableObject {
     if (this.game && this.game.phase !== "gameover") return;
     const roster = this.meta.lobby.filter((p) => this.connected(p.cid));
     this.meta.lobby = roster;
-    const seats = roster.map((p) => ({ name: p.name, avatar: p.avatar, looks: p.looks || {}, kind: "human", clientId: p.cid }));
+    const seats = roster.map((p) => ({ name: p.name, avatar: p.avatar, looks: p.looks || {}, title: p.title || null, kind: "human", clientId: p.cid }));
     seats.push(...bots(Math.min(this.meta.bots ?? DEFAULT_BOTS, MAX_SEATS - seats.length)));
     this.game = seats.length >= 2 ? createGame(seats, { ...ONLINE_OPTS, mode: this.meta.mode }) : null;
     this.meta.startsAt = null;
@@ -489,6 +497,7 @@ export class Room extends DurableObject {
     const owned = gear?.owned || [];
     const avatar = owns(owned, cleanAvatar(m.avatar)) ? cleanAvatar(m.avatar) : gear?.avatar || FREE_AVATARS[0];
     const looks = gear?.looks || {};
+    const title = gear?.title || null;
     const throws = [...FREE_THROWS, ...owned.filter((id) => ITEMS[id]?.cat === "throw")];
     const meta = this.meta;
     const known = meta.lobby.find((p) => p.cid === cid);
@@ -497,7 +506,7 @@ export class Room extends DurableObject {
     if (!known) {
       if (this.game && this.game.phase !== "gameover") return refuse("alreadyStarted");
       if (meta.lobby.filter((p) => this.connected(p.cid)).length >= MAX_SEATS) return refuse("roomFull");
-      meta.lobby.push({ cid, name, avatar, acct, looks, throws });
+      meta.lobby.push({ cid, name, avatar, acct, looks, throws, title });
     } else {
       if (acct) known.acct = acct;
       known.throws = throws;
@@ -505,6 +514,7 @@ export class Room extends DurableObject {
         known.name = name;
         known.avatar = avatar;
         known.looks = looks;
+        known.title = title;
       }
     }
 

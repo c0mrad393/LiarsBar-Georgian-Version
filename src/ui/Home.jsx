@@ -3,11 +3,15 @@ import { AVATARS, MODE_INFO, RULES, T } from "../i18n.js";
 import { ITEMS } from "../shop.js";
 import { cleanCode } from "../shared.js";
 import { fetchTables } from "../online.js";
+import { useMusic } from "../music.js";
 import { sfx } from "../sfx.js";
 import { Card } from "./cards.jsx";
 import Character, { seatColor } from "./Character.jsx";
+import { PERSONAS } from "../engine.js";
+import { BOT_LOOKS } from "../shared.js";
+import BarScene from "./BarScene.jsx";
 import { Face } from "./heads.jsx";
-import { Btn, CoinChip, Sheet, SoundToggle, Stepper } from "./parts.jsx";
+import { Btn, CoinChip, Sheet, SoundToggle, Stepper, TitleTag } from "./parts.jsx";
 
 // Loaded on first open: keeps the first screen light on phones.
 const Shop = lazy(() => import("./Shop.jsx"));
@@ -73,6 +77,66 @@ function OpenTables({ onJoin }) {
   );
 }
 
+/** The home screen's neon sign on a swinging wooden board. */
+function Sign() {
+  return (
+    <div className="flex flex-col items-center pt-5">
+      <div className="sign-swing relative">
+        <svg className="absolute -top-7 left-1/2 -translate-x-1/2" width="170" height="30" aria-hidden="true">
+          <path d="M85 2L14 28M85 2L156 28" stroke="#2b1d14" strokeWidth="2.5" fill="none" />
+          <circle cx="85" cy="3" r="3.5" fill="#2b1d14" />
+        </svg>
+        <div className="wood comic rounded-2xl px-4 py-2.5 text-center short:py-1.5">
+          <h1 className="neon whitespace-nowrap text-[27px] font-black leading-tight min-[400px]:text-[32px] sm:text-5xl">{T.title}</h1>
+          <p className="font-display text-sm tracking-wide text-sun">{T.tagline}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const COUNTER_BOTS = ["fox", "pig", "bear", "bull"];
+const COUNTER_MOODS = ["idle", "talk", "happy", "turn", "idle", "win"];
+
+/**
+ * You at the bar counter, with the bots hanging around: they chat, cheer and
+ * look about. Tap yourself to change name and look.
+ */
+function BarCounter({ profile, looks, onEdit, children }) {
+  const [moods, setMoods] = useState(["idle", "idle", "idle", "idle"]);
+  useEffect(() => {
+    const t = setInterval(() => {
+      setMoods((m) => m.map((x, i) => (Math.random() < 0.35 ? COUNTER_MOODS[(Math.random() * COUNTER_MOODS.length) | 0] : i % 2 ? x : "idle")));
+    }, 2600);
+    return () => clearInterval(t);
+  }, []);
+  const spots = [["8%", 50, 0], ["24%", 58, 1], ["76%", 58, 2], ["92%", 50, 3]];
+  return (
+    <div className="relative mx-auto h-[196px] w-full max-w-sm short:h-[164px]">
+      {spots.map(([left, size, i]) => {
+        const k = COUNTER_BOTS[i];
+        return (
+          <div key={k} className="absolute bottom-[46px] -translate-x-1/2" style={{ left, zIndex: 1 }}>
+            <Character avatar={PERSONAS[k].avatar} looks={BOT_LOOKS[k]} color={seatColor(i + 1)} size={size} state={moods[i]} />
+          </div>
+        );
+      })}
+      <button onClick={onEdit} aria-label={T.editProfile} className="absolute bottom-[40px] left-1/2 z-[2] -translate-x-1/2 transition-transform active:scale-95">
+        <Character avatar={profile.avatar} looks={looks} color={seatColor(0)} size={92} state="happy" />
+      </button>
+      {/* the counter */}
+      <div className="absolute inset-x-0 bottom-0 z-[3]">
+        <div className="relative mx-2 h-3 rounded-t-lg border-[3px] border-b-0 border-ink bg-[#c07d3f]">
+          <span className="absolute -top-6 left-[15%] text-xl">🍷</span>
+          <span className="absolute -top-6 right-[14%] text-xl">🍺</span>
+          <span className="absolute -top-5 left-[33%] text-base">🥟</span>
+        </div>
+        <div className="wood comic flex h-[46px] items-center justify-center rounded-b-2xl rounded-t-md px-3">{children}</div>
+      </div>
+    </div>
+  );
+}
+
 export function Logo({ small }) {
   return (
     <div className="flex flex-col items-center text-center">
@@ -95,7 +159,7 @@ export function Logo({ small }) {
   );
 }
 
-function NameInput({ value, onChange, autoFocus }) {
+function NameInput({ value, onChange, autoFocus, compact }) {
   return (
     <input
       id="nm"
@@ -105,37 +169,13 @@ function NameInput({ value, onChange, autoFocus }) {
       onChange={(e) => onChange(e.target.value)}
       placeholder={T.namePh}
       aria-label={T.yourName}
-      className="w-full rounded-2xl border-[3px] border-ink bg-cream px-4 py-3 text-lg font-bold outline-none focus:bg-white"
+      className={`w-full rounded-2xl border-[3px] border-ink bg-cream font-bold outline-none focus:bg-white ${compact ? "px-3 py-1 text-base" : "px-4 py-3 text-lg"}`}
     />
   );
 }
 
-/** You: your character, name and a way into the wardrobe. First visit asks for a name right here. */
-function PlayerCard({ profile, setName, looks, onEdit }) {
-  if (!profile.name.trim())
-    return (
-      <section className="comic a-pop rounded-3xl bg-paper p-4">
-        <div className="flex items-center gap-3">
-          <Character avatar={profile.avatar} looks={looks} color={seatColor(0)} size={60} state="happy" />
-          <div className="min-w-0 flex-1">
-            <label htmlFor="nm" className="text-sm font-black">{T.yourName}</label>
-            <div className="mt-1"><NameInput value={profile.name} onChange={setName} /></div>
-          </div>
-        </div>
-      </section>
-    );
-  return (
-    <button onClick={onEdit} className="comic a-pop flex w-full items-center gap-4 rounded-3xl bg-paper px-4 py-3 text-left transition-transform active:scale-[0.98]" aria-label={T.editProfile}>
-      <Character avatar={profile.avatar} looks={looks} color={seatColor(0)} size={70} />
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-2xl font-black leading-tight">{profile.name}</div>
-        <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-cream px-2 py-0.5 text-xs font-bold text-ink-soft">✏️ {T.editProfile}</div>
-      </div>
-    </button>
-  );
-}
-
 export default function Home({ profile, setProfile, account, mode, setMode, soloBots, setSoloBots, invite, onSolo, onHost, onQuick, onJoin, onDropInvite }) {
+  useMusic("bar");
   const [quickMode, setQuickMode] = useState(() => {
     try { const m = localStorage.getItem("lb-quick"); return m === "any" || MODE_INFO[m] ? m : "any"; } catch { return "any"; }
   });
@@ -166,8 +206,9 @@ export default function Home({ profile, setProfile, account, mode, setMode, solo
   const looks = account.me?.looks;
 
   return (
-    <div className="safe-b mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-4 pt-3">
-      <div className="safe-t flex items-center justify-between gap-2">
+    <div className="safe-b relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-4 pt-3">
+      <BarScene mode={mode} />
+      <div className="safe-t relative z-10 flex items-center justify-between gap-2">
         <CoinChip coins={account.me?.coins ?? (account.error ? "—" : 0)} onClick={() => setPanel("profile")} className={account.me?.dailyReady ? "a-hop" : ""} />
         <div className="flex items-center gap-2">
           <button onClick={() => openShop()} className="comic-sm flex h-10 items-center gap-1 rounded-full bg-coral px-3 text-sm font-black text-white" aria-label={T.shop}>🛍️<span className="hidden sm:inline">{T.shop}</span></button>
@@ -182,8 +223,8 @@ export default function Home({ profile, setProfile, account, mode, setMode, solo
         {panel === "shop" && <Shop account={account} profile={profile} setProfile={setProfile} startCat={shopCat} onClose={() => setPanel(null)} />}
       </Suspense>
 
-      <main className="flex flex-1 flex-col justify-center gap-5 py-5 short:gap-3 short:py-3">
-        <div className="a-fade-up"><Logo /></div>
+      <main className="relative z-10 flex flex-1 flex-col justify-center gap-4 py-4 short:gap-2 short:py-2">
+        <div className="a-fade-up"><Sign /></div>
 
         {!online && <div className="a-pop rounded-2xl border-[2.5px] border-ink bg-cream px-4 py-2 text-center text-xs font-black">📴 {T.offlineNow}</div>}
 
@@ -194,7 +235,16 @@ export default function Home({ profile, setProfile, account, mode, setMode, solo
           </div>
         )}
 
-        <PlayerCard profile={profile} setName={setName} looks={looks} onEdit={() => open("me")} />
+        <BarCounter profile={profile} looks={looks} onEdit={() => open("me")}>
+          {ready ? (
+            <button onClick={() => open("me")} className="flex min-w-0 items-center gap-1.5 rounded-full border-[2.5px] border-ink bg-paper px-3 py-1 text-base font-black" aria-label={T.editProfile}>
+              {account.me?.title && <TitleTag id={account.me.title} short />}
+              <span className="truncate">{profile.name}</span><span className="text-xs">✏️</span>
+            </button>
+          ) : (
+            <div className="w-full max-w-[240px]"><NameInput value={profile.name} onChange={setName} compact /></div>
+          )}
+        </BarCounter>
 
         {invite ? (
           <div className="flex flex-col gap-2">
@@ -203,12 +253,12 @@ export default function Home({ profile, setProfile, account, mode, setMode, solo
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
-            <Btn color="sun" disabled={!ready} onClick={() => open("solo")} className="flex flex-col items-center gap-1 px-2 py-4">
+            <Btn color="sun" disabled={!ready} onClick={() => open("solo")} className="btn-shine flex flex-col items-center gap-1 px-2 py-4">
               <span className="a-bob inline-block text-4xl">🤖</span>
               <span className="text-base leading-tight">{T.withBots}</span>
               <span className="text-xs font-bold opacity-70">{soloBots + 1} {T.players} · {MODE_INFO[mode].emoji}</span>
             </Btn>
-            <Btn color="coral" disabled={!ready || !online} onClick={() => open("friends")} className="flex flex-col items-center gap-1 px-2 py-4">
+            <Btn color="coral" disabled={!ready || !online} onClick={() => open("friends")} className="btn-shine flex flex-col items-center gap-1 px-2 py-4">
               <span className="a-bob inline-block text-4xl" style={{ animationDelay: "0.4s" }}>🌍</span>
               <span className="text-base leading-tight">{T.online}</span>
               <span className="text-xs font-bold opacity-90">{T.onlineHint}</span>
@@ -217,7 +267,7 @@ export default function Home({ profile, setProfile, account, mode, setMode, solo
         )}
       </main>
 
-      <footer className="flex items-center justify-center gap-4 pb-3 text-sm font-extrabold text-ink-soft">
+      <footer className="relative z-10 flex items-center justify-center gap-4 pb-3 text-sm font-extrabold text-ink-soft">
         <button onClick={() => open("rules")} className="underline decoration-wavy decoration-2 underline-offset-4">📖 {T.rules}</button>
         {installEv && <button onClick={() => { installEv.prompt(); setInstallEv(null); }} className="underline decoration-2 underline-offset-4">📲 {T.installShort}</button>}
       </footer>
