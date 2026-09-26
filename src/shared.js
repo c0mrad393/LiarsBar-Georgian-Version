@@ -1,9 +1,9 @@
 // Used by both the browser and the Cloudflare room server.
 import { MAX_SEATS, MODES, PERSONAS } from "./engine.js";
-import { EMOTES, PHRASES } from "./i18n.js";
+import { EMOTES, END_EMOTES, PHRASES } from "./i18n.js";
 import { FREE_THROWS, headOf } from "./shop.js";
 
-export { MAX_SEATS, MODES, EMOTES, PHRASES };
+export { MAX_SEATS, MODES, EMOTES, END_EMOTES, PHRASES };
 
 export const ONLINE_OPTS = { turnMs: 30000, pullMs: 15000 };
 export const GUEST_ACTIONS = new Set(["play", "bid", "call", "pull"]);
@@ -49,8 +49,22 @@ export function botFx(game, ev) {
   if (ev.type === "truth" && Math.random() < 0.3) out.push({ delay: 1200, fx: { kind: "emote", seat: pick(b).idx, e: "😱" } });
   if (ev.type === "safe" && Math.random() < 0.35) out.push({ delay: 900, fx: { kind: "emote", seat: pick(b).idx, e: pick(["😏", "👏", "🍺"]) } });
   if (ev.type === "dead" && Math.random() < 0.5) out.push({ delay: 1500, fx: { kind: "emote", seat: pick(b).idx, e: pick(["💀", "😂", "😱"]) } });
-  if (ev.type === "win") for (const x of b) out.push({ delay: 600 + Math.random() * 900, fx: { kind: "emote", seat: x.idx, e: "👏" } });
+  if (ev.type === "win") {
+    // Game over: every bot, out or not, shares how it went.
+    for (const x of game.seats.filter((p) => p.kind === "bot")) {
+      const e = x.idx === ev.seat ? pick(["😎", "🥳", "🔥"]) : pick(["😭", "🤬", "🤯", "👏", "💀", "🤝"]);
+      out.push({ delay: 900 + Math.random() * 1600, fx: { kind: "emote", seat: x.idx, e } });
+    }
+  }
   return out;
+}
+
+/** After the game a player's reaction often gets one back from a bot. */
+export function botEmoteBack(game, fx) {
+  const b = game.seats.filter((p) => p.kind === "bot" && p.idx !== fx.seat);
+  if (game.phase !== "gameover" || !b.length || Math.random() > 0.6) return [];
+  const answer = { "😂": ["😂", "🤬"], "😭": ["😂", "🤝"], "🤬": ["😂", "😎"], "😎": ["🤬", "👏"], "🥳": ["👏", "😭"], "👏": ["🤝", "😎"], "💀": ["😂", "💀"] };
+  return [{ delay: 700 + Math.random() * 700, fx: { kind: "emote", seat: pick(b).idx, e: pick(answer[fx.e] || END_EMOTES) } }];
 }
 
 /** A bot that gets hit usually answers in kind. */

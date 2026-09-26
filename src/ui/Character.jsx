@@ -75,6 +75,74 @@ function FaceGear({ slot, item, head, fit }) {
   return <EmojiGear item={item} top={top} size={size} rot={item.rot ?? p.rot} dx={((item.dx || 0) * fs + fx) * head} />;
 }
 
+/** A revolver pointing left (the barrel end at x=0), with the paw on the grip. */
+function Revolver({ cocked }) {
+  return (
+    <svg viewBox="0 0 100 70" className="h-full w-full overflow-visible" aria-hidden="true">
+      <defs>
+        <linearGradient id="gunsteel" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor="#dfe3ea" /><stop offset="0.5" stopColor="#9aa3b2" /><stop offset="1" stopColor="#5d6573" />
+        </linearGradient>
+      </defs>
+      <path d="M62 30 86 30 96 66 76 68 70 44Z" fill="#8a4b24" stroke="#2b1d14" strokeWidth="3" strokeLinejoin="round" />
+      <path d="M78 40l6 18" stroke="#b86d3a" strokeWidth="3" strokeLinecap="round" />
+      <rect x="2" y="14" width="56" height="11" rx="3" fill="url(#gunsteel)" stroke="#2b1d14" strokeWidth="3" />
+      <path d="M48 12 80 12 84 32 58 36 48 26Z" fill="url(#gunsteel)" stroke="#2b1d14" strokeWidth="3" strokeLinejoin="round" />
+      <ellipse cx="62" cy="24" rx="11" ry="10" fill="#c9ced8" stroke="#2b1d14" strokeWidth="3" />
+      <path d="M56 20h12M56 28h12" stroke="#2b1d14" strokeWidth="1.6" />
+      <path d="M62 36q-2 10 6 12" fill="none" stroke="#2b1d14" strokeWidth="3" />
+      <g className="gun-hammer" style={{ transform: cocked ? "rotate(-38deg)" : "none" }}>
+        <path d="M78 12 90 2 94 6 84 16Z" fill="#5d6573" stroke="#2b1d14" strokeWidth="2.6" strokeLinejoin="round" />
+      </g>
+      <rect x="4" y="9" width="4" height="6" fill="#2b1d14" />
+      <circle cx="80" cy="48" r="13" fill="var(--paw)" stroke="#2b1d14" strokeWidth="3" />
+      <circle cx="76" cy="44" r="4" fill="var(--paw-lit)" opacity="0.8" />
+    </svg>
+  );
+}
+
+/** A wine glass raised to the mouth. */
+function RaisedGlass({ poison }) {
+  return (
+    <svg viewBox="0 0 60 80" className="h-full w-full overflow-visible" aria-hidden="true">
+      <path d="M8 4H40Q42 28 24 36Q6 28 8 4Z" fill="#fffdf8" fillOpacity="0.85" stroke="#2b1d14" strokeWidth="3" strokeLinejoin="round" />
+      <path d="M10 13H38Q37 29 24 33Q11 29 10 13Z" fill={poison ? "#57cc3b" : "#b3202a"} />
+      <path d="M24 36V62M12 66H36" stroke="#2b1d14" strokeWidth="3.5" strokeLinecap="round" />
+      <circle cx="42" cy="58" r="12" fill="var(--paw)" stroke="#2b1d14" strokeWidth="3" />
+    </svg>
+  );
+}
+
+/**
+ * What the character holds up to its head at the roulette.
+ * gun: barrel at the right temple; glass: at the mouth.
+ * firing = the trigger is being pulled; result = "safe" | "dead" once known.
+ */
+function Held({ hold, S, head, firing, result }) {
+  if (hold === "glass") {
+    const w = S * 0.38;
+    return (
+      <div className={`held-glass pointer-events-none absolute z-[6] ${firing ? "held-sip" : ""} ${result === "dead" ? "held-drop" : ""}`}
+        style={{ width: w, height: w * 1.33, left: S / 2 + head * 0.08, top: head * 0.5 }}>
+        <RaisedGlass poison={result === "dead"} />
+      </div>
+    );
+  }
+  const w = S * 0.66;
+  return (
+    <div className={`held-gun pointer-events-none absolute z-[6] ${firing ? "held-fire" : "held-aim"} ${result === "dead" ? "held-drop" : ""} ${result === "safe" ? "held-lower" : ""}`}
+      style={{ width: w, height: w * 0.7, left: S / 2 + head * 0.36, top: head * 0.2 }}>
+      <Revolver cocked={firing || !!result} />
+      {result === "dead" && (
+        <span className="a-pop absolute -left-[30%] -top-[40%] text-[length:var(--fs)]" style={{ "--fs": `${S * 0.5}px` }}>💥</span>
+      )}
+      {result === "safe" && (
+        <span className="a-float-up absolute -left-[10%] -top-[30%] font-display text-ink" style={{ fontSize: S * 0.2 }}>click</span>
+      )}
+    </div>
+  );
+}
+
 const SPLAT = {
   "🍅": { c: "#e8352e", seeds: true },
   "🥚": { c: "#fffdf2", yolk: true },
@@ -127,11 +195,12 @@ function Splat({ item, size, delay }) {
 /**
  * @param state idle | turn | nervous | happy | sad | win | talk | dead | busted | tipsy
  * @param blush 0–1 red cheeks (wine drunk so far)
+ * @param hold  "gun" (to the temple) | "glass" (to the mouth) at the roulette; firing / result drive it
  * @param looks { hat, eyes, mouth, neck, hand, pet, aura, outfit, wings } item ids
  * @param hit   item that just hit this player (🍅 🥚 💐 …), with `hitKey` to replay
  * @param point angle in degrees towards a player being accused, or null
  */
-export default function Character({ avatar: rawAvatar, color = SEAT_COLORS[0], size = 56, state = "idle", looks, hit, hitKey, hitDelay = 0, point = null, blush = 0 }) {
+export default function Character({ avatar: rawAvatar, color = SEAT_COLORS[0], size = 56, state = "idle", looks, hit, hitKey, hitDelay = 0, point = null, blush = 0, hold = null, firing = false, result = null }) {
   const avatar = headOf(rawAvatar);
   const S = size;
   const head = S * 0.8;
@@ -148,7 +217,7 @@ export default function Character({ avatar: rawAvatar, color = SEAT_COLORS[0], s
   const paw = HEAD_INFO[avatar].colors;
 
   return (
-    <div className={`chr chr-${state} ${hit ? "chr-hit" : ""} ${point != null ? "chr-point" : ""} ${L.wings === "w_jet" && !dead ? "gear-bob" : ""}`}
+    <div className={`chr chr-${state} ${hit ? "chr-hit" : ""} ${point != null ? "chr-point" : ""} ${hold ? `chr-hold chr-hold-${hold}` : ""} ${L.wings === "w_jet" && !dead ? "gear-bob" : ""}`}
       style={{ width: S, height: S * 1.22, "--paw": paw.fur, "--paw-lit": paw.light }}>
       <span className="absolute bottom-[-4%] left-1/2 h-[10%] w-[80%] -translate-x-1/2 rounded-[50%] bg-ink/20 blur-[2px]" aria-hidden="true" />
       {Wings && !dead && (
@@ -199,6 +268,7 @@ export default function Character({ avatar: rawAvatar, color = SEAT_COLORS[0], s
           {hit && <Splat item={hit} size={head} delay={hitDelay} />}
         </div>
       </div>
+      {hold && <Held hold={hold} S={S} head={head} firing={firing} result={result} />}
       {aura?.svg && AURAS[aura.svg] && !dead && (
         <div className="pointer-events-none absolute -inset-[18%]" aria-hidden="true">{AURAS[aura.svg](S)}</div>
       )}

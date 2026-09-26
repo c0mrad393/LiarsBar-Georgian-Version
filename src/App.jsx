@@ -1,7 +1,6 @@
 import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { AVATARS, T } from "./i18n.js";
 import { useAccount } from "./account.js";
-import { requestTilt } from "./device.js";
 import { makeCode, useOnline } from "./online.js";
 import { MODES, cleanAvatar, cleanCode, cleanName } from "./shared.js";
 import { useSolo } from "./useGame.js";
@@ -186,10 +185,10 @@ export default function App() {
       soloBots={soloBots}
       setSoloBots={setSoloBots}
       invite={invite}
-      onSolo={() => { requestTilt(); setScreen({ name: "solo" }); }}
-      onHost={() => { requestTilt(); const code = makeCode(); setRoomInUrl(code); setAttempt(0); setScreen({ name: "online", code, create: true }); }}
-      onQuick={(m) => { requestTilt(); setAttempt(0); setScreen({ name: "online", quick: m }); }}
-      onJoin={(code) => { requestTilt(); setRoomInUrl(code); setAttempt(0); setScreen({ name: "online", code, create: false }); }}
+      onSolo={() => { setScreen({ name: "solo" }); }}
+      onHost={() => { const code = makeCode(); setRoomInUrl(code); setAttempt(0); setScreen({ name: "online", code, create: true }); }}
+      onQuick={(m) => { setAttempt(0); setScreen({ name: "online", quick: m }); }}
+      onJoin={(code) => { setRoomInUrl(code); setAttempt(0); setScreen({ name: "online", code, create: false }); }}
       onDropInvite={home}
     />
   );

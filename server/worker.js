@@ -1,16 +1,16 @@
 // Cloudflare Worker + Durable Object: one `Room` object per table.
 //
 // The room runs the same pure engine as solo play (src/engine.js) and sends
-// every player only their own view. Game state lives in memory while a game
-// runs (pending engine timers keep the object awake); storage holds the lobby
-// and a snapshot at the start of each round, so a restart loses at most the
-// current round. Idle rooms hibernate (not billed) and are wiped after
-// ROOM_TTL with nobody connected.
+// every player only their own view. The game is saved after every step and
+// its clock is the Durable Object alarm (not setTimeout), so a room that
+// Cloudflare restarts or evicts mid-game wakes up where it was and carries
+// on: bots keep playing, AFK timers still fire. Idle rooms hibernate (not
+// billed) and are wiped after ROOM_TTL with nobody connected.
 import { DurableObject } from "cloudflare:workers";
 import { createGame, reduce, schedule, viewFor } from "../src/engine.js";
 import { REWARD } from "./ledger.js";
 import { ALL_THROWS, FREE_AVATARS, FREE_THROWS, ITEMS, owns } from "../src/shop.js";
-import { CODE_RE, EMOTES, FX_GAP, KEY_RE, normKey, GUEST_ACTIONS, MAX_SEATS, MODES, ONLINE_OPTS, PHRASES, botFx, botThrowBack, bots, cleanAvatar, cleanName } from "../src/shared.js";
+import { CODE_RE, EMOTES, END_EMOTES, FX_GAP, KEY_RE, normKey, GUEST_ACTIONS, MAX_SEATS, MODES, ONLINE_OPTS, PHRASES, botEmoteBack, botFx, botThrowBack, bots, cleanAvatar, cleanName } from "../src/shared.js";
 
 export { Ledger } from "./ledger.js";
 export { Matchmaker } from "./matchmaker.js";
@@ -117,13 +117,13 @@ export class Room extends DurableObject {
     super(ctx, env);
     this.meta = null; // { code, hostCid, bots, mode, lobby: [{ cid, name, avatar }] }
     this.game = null;
-    this.timer = null;
     this.lastEmote = new Map();
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"));
     ctx.blockConcurrencyWhile(async () => {
       this.meta = (await ctx.storage.get("meta")) || null;
       this.game = (await ctx.storage.get("game")) || null;
       this.tally = (await ctx.storage.get("tally")) || {};
+      this.rewards = (await ctx.storage.get("rewards")) || null;
     });
   }
 
@@ -147,8 +147,9 @@ export class Room extends DurableObject {
   saveMeta() {
     return this.ctx.storage.put("meta", this.meta);
   }
-  saveGame() {
-    return this.game ? this.ctx.storage.put({ game: this.game, tally: this.tally || {} }) : this.ctx.storage.delete(["game", "tally"]);
+  saveGame(withTally = true) {
+    if (!this.game) return this.ctx.storage.delete(["game", "tally", "rewards"]);
+    return this.ctx.storage.put(withTally ? { game: this.game, tally: this.tally || {} } : { game: this.game });
   }
 
   lobbyMsg(cid) {
@@ -214,17 +215,11 @@ export class Room extends DurableObject {
   autoStart() {
     const m = this.meta;
     const ready = m.public && !this.game && this.humans().length >= 2;
-    if (!ready) {
-      m.startsAt = null;
-      clearTimeout(this.autoTimer);
-      return;
-    }
-    if (m.startsAt) return;
-    m.startsAt = Date.now() + AUTO_START_MS;
-    clearTimeout(this.autoTimer);
-    this.autoTimer = setTimeout(() => {
-      if (this.meta?.startsAt && !this.game) this.start();
-    }, AUTO_START_MS);
+    const at = ready ? m.startsAt || Date.now() + AUTO_START_MS : null;
+    if (at === (m.startsAt || null)) return;
+    m.startsAt = at;
+    this.saveMeta();
+    this.rearm();
   }
 
   // --------------------------------------------------------------- engine ---
@@ -236,21 +231,20 @@ export class Room extends DurableObject {
     if (next === prev) return false;
     this.game = next;
     const seen = prev.log[0]?.id ?? 0;
+    let counted = false;
     for (const ev of next.log) {
       if (ev.id <= seen) break;
       this.later(botFx(next, ev));
-      this.count(ev);
+      counted = this.count(ev) || counted;
     }
     if (next.phase === "gameover" && prev.phase !== "gameover") {
       this.finish(next).catch((err) => console.error("finish", err));
       // Public tables go back to the lobby by themselves, so the next game can gather.
-      if (this.meta.public) setTimeout(() => this.game === next && this.toLobby(), BACK_TO_LOBBY_MS);
+      if (this.meta.public) { this.meta.backAt = Date.now() + BACK_TO_LOBBY_MS; this.saveMeta(); }
     }
-    // Snapshot at round starts and at the end; everything else stays in memory.
-    const t = next.log[0]?.type;
-    if (t === "deal" || t === "roll" || t === "chaos" || t === "start" || next.phase === "gameover") this.saveGame();
+    this.saveGame(counted); // every step: a restarted room resumes exactly here
     this.broadcastState();
-    this.arm();
+    this.rearm();
     return true;
   }
 
@@ -261,6 +255,7 @@ export class Room extends DurableObject {
     if (ev.type === "safe") bump(ev.seat, "safe");
     if (ev.type === "bluff") bump(ev.other, "catches"); // the accuser caught a bluff
     if (ev.type === "devil") bump(ev.seat, "devil");
+    return ev.type === "safe" || ev.type === "bluff" || ev.type === "devil";
   }
 
   /** Pay out coins for a finished game (only with 2+ different real players). */
@@ -302,6 +297,7 @@ export class Room extends DurableObject {
       list: Object.entries(bySeat).map(([seat, r]) => ({ seat: Number(seat), got: paid?.[r.id]?.got ?? 0, parts: r.parts })),
       paid: paid || {},
     };
+    if (this.game === game) this.ctx.storage.put("rewards", this.rewards);
     for (const ws of this.sockets()) this.sendRewards(ws, this.cidOf(ws));
   }
 
@@ -321,18 +317,28 @@ export class Room extends DurableObject {
     for (const { delay, fx } of list) setTimeout(() => this.game && this.fx(fx), delay);
   }
 
-  /** Schedule the engine's next automatic step (bots, reveals, AFK timeouts). */
-  arm() {
-    clearTimeout(this.timer);
-    this.timer = null;
-    if (!this.game || !this.sockets().length) return; // nobody watching: pause
-    const plan = schedule(this.game, Date.now());
-    if (!plan) return;
-    const at = this.game;
-    this.timer = setTimeout(() => {
-      this.timer = null;
-      if (this.game === at) this.dispatch(plan.make(at));
-    }, plan.delay);
+  /**
+   * Set the one alarm to the earliest thing this room is waiting for: the
+   * engine's next automatic step (bots, reveals, AFK timeouts; only while
+   * someone is connected), a public lobby's auto-start, a public table going
+   * back to the lobby, or forgetting a room nobody came back to.
+   */
+  rearm() {
+    const m = this.meta;
+    if (!m) return;
+    const now = Date.now();
+    const times = [];
+    const watching = this.sockets().length > 0;
+    if (this.game && watching) {
+      const plan = schedule(this.game, now);
+      if (plan) times.push(now + plan.delay);
+    }
+    if (!this.game && m.startsAt && watching) times.push(m.startsAt);
+    if (this.game?.phase === "gameover" && m.backAt && watching) times.push(m.backAt);
+    if (!watching) times.push((m.emptyAt || now) + ROOM_TTL);
+    const at = Math.min(...times);
+    if (Number.isFinite(at)) this.ctx.storage.setAlarm(Math.max(at, now + 1));
+    else this.ctx.storage.deleteAlarm();
   }
 
   start() {
@@ -343,25 +349,27 @@ export class Room extends DurableObject {
     seats.push(...bots(Math.min(this.meta.bots ?? DEFAULT_BOTS, MAX_SEATS - seats.length)));
     this.game = seats.length >= 2 ? createGame(seats, { ...ONLINE_OPTS, mode: this.meta.mode }) : null;
     this.meta.startsAt = null;
-    clearTimeout(this.autoTimer);
+    this.meta.backAt = null;
     this.report();
     this.meta.gameId = `${this.meta.code}-${Date.now()}`;
     this.tally = {};
     this.rewards = null;
+    this.ctx.storage.delete("rewards");
     this.saveMeta();
     this.saveGame();
     this.sync();
-    this.arm();
+    this.rearm();
   }
 
   toLobby() {
     if (this.game && this.game.phase !== "gameover") return;
     this.game = null;
-    this.arm();
+    this.meta.backAt = null;
     this.meta.lobby = this.meta.lobby.filter((p) => this.connected(p.cid));
     this.saveMeta();
     this.saveGame();
     this.broadcastLobby();
+    this.rearm();
   }
 
   // ------------------------------------------------------------- sockets ---
@@ -400,8 +408,6 @@ export class Room extends DurableObject {
     if (reject) {
       this.send(server, { t: "reject", reason: reject });
       server.close(4000, reject);
-    } else {
-      await this.ctx.storage.deleteAlarm();
     }
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -426,6 +432,11 @@ export class Room extends DurableObject {
     if (!cid) return;
     const isHost = this.meta.hostCid === cid;
     switch (m.t) {
+      case "sync":
+        // The phone came back from the background: resend what it should be showing.
+        if (this.game && this.seatOf(cid) >= 0) { this.sendState(ws, cid); this.sendRewards(ws, cid); }
+        else this.send(ws, this.lobbyMsg(cid));
+        break;
       case "act":
         if (m.a && GUEST_ACTIONS.has(m.a.type)) {
           const seat = this.seatOf(cid);
@@ -440,13 +451,14 @@ export class Room extends DurableObject {
         const key = `${cid}:${m.t === "emote" ? "e" : "x"}`;
         if (seat < 0 || now - (this.lastEmote.get(key) || 0) < (m.t === "emote" ? EMOTE_GAP : FX_GAP)) break;
         let fx = null;
-        if (m.t === "emote" && EMOTES.includes(m.e)) fx = { kind: "emote", seat, e: m.e };
+        if (m.t === "emote" && (EMOTES.includes(m.e) || END_EMOTES.includes(m.e))) fx = { kind: "emote", seat, e: m.e };
         if (m.t === "say" && Number.isInteger(m.i) && m.i >= 0 && m.i < PHRASES.length) fx = { kind: "say", seat, i: m.i };
         const mayThrow = (this.meta.lobby.find((p) => p.cid === cid)?.throws || FREE_THROWS).includes(m.item);
         if (m.t === "throw" && ALL_THROWS.includes(m.item) && mayThrow && Number.isInteger(m.to) && m.to !== seat && this.game.seats[m.to]) fx = { kind: "throw", from: seat, to: m.to, item: m.item };
         if (!fx) break;
         this.lastEmote.set(key, now);
         this.fx(fx);
+        if (fx.kind === "emote") this.later(botEmoteBack(this.game, fx));
         break;
       }
       case "start":
@@ -497,6 +509,7 @@ export class Room extends DurableObject {
     }
 
     ws.serializeAttachment({ cid });
+    meta.emptyAt = null;
     // Same player in a second tab: keep the newest connection.
     for (const other of this.sockets(ws)) if (this.cidOf(other) === cid) other.close(4001, "replaced");
     if (!meta.hostCid || !this.connected(meta.hostCid, ws)) meta.hostCid = cid; // no host online: you are it
@@ -507,10 +520,10 @@ export class Room extends DurableObject {
       if (seat < 0) this.send(ws, this.lobbyMsg(cid)); // joined after game over: waits for the rematch
       if (seat < 0 || !this.dispatch({ type: "presence", seat, connected: true })) this.broadcastState(); // host flag may have moved
       this.sendRewards(ws, cid);
-      this.arm();
     } else {
       this.broadcastLobby();
     }
+    this.rearm(); // someone is watching again: restart the clock
   }
 
   async webSocketClose(ws) {
@@ -536,20 +549,36 @@ export class Room extends DurableObject {
       const next = this.meta.lobby.find((p) => this.connected(p.cid));
       if (next) this.meta.hostCid = next.cid;
     }
+    if (!this.sockets().length) this.meta.emptyAt = Date.now(); // the clock pauses; the room is forgotten after ROOM_TTL
     await this.saveMeta();
     this.sync();
-    if (!this.sockets().length) {
-      this.arm(); // stops the engine clock
-      await this.ctx.storage.setAlarm(Date.now() + ROOM_TTL);
-    }
+    this.rearm();
   }
 
-  /** Nobody came back within ROOM_TTL: forget the room. */
+  /** The room's clock (see rearm): whatever is due now, then the next alarm. */
   async alarm() {
-    if (this.sockets().length) return;
-    if (this.meta?.listed) matchmaker(this.env).report(this.meta.code, { open: false }).catch(() => {});
-    this.meta = null;
-    this.game = null;
-    await this.ctx.storage.deleteAll();
+    if (!this.meta) return;
+    const now = Date.now();
+    const m = this.meta;
+    if (!this.sockets().length) {
+      if (now >= (m.emptyAt || now) + ROOM_TTL - 1000) {
+        // Nobody came back: forget the room.
+        if (m.listed) matchmaker(this.env).report(m.code, { open: false }).catch(() => {});
+        this.meta = null;
+        this.game = null;
+        await this.ctx.storage.deleteAll();
+        return;
+      }
+    } else if (!this.game) {
+      if (m.startsAt && now >= m.startsAt - 50) this.start();
+    } else if (this.game.phase === "gameover") {
+      if (m.backAt && now >= m.backAt - 50) this.toLobby();
+    } else {
+      // A running game with people watching: rearm() only ever sets the alarm
+      // for the engine's next step here (it is re-set on every change), so it is due.
+      const plan = schedule(this.game, now);
+      if (plan) this.dispatch(plan.make(this.game));
+    }
+    this.rearm();
   }
 }

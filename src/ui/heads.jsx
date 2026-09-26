@@ -21,12 +21,15 @@ const FACE_OF = {
   dead: ["x", "tongue"],
   busted: ["wide", "o", "worried"],
   tipsy: ["dizzy", "grin"],
+  brace: ["squeeze", "grit", "worried"], // trigger pulled: eyes shut tight
 };
 
 function Eyes({ kind, y, blink }) {
   const xs = [37, 63];
   if (kind === "happy")
     return <g fill="none" {...sw} strokeWidth="3.6">{xs.map((x) => <path key={x} d={`M${x - 7} ${y + 2}Q${x} ${y - 7} ${x + 7} ${y + 2}`} />)}</g>;
+  if (kind === "squeeze")
+    return <g fill="none" {...sw} strokeWidth="3.4">{xs.map((x, i) => <path key={x} d={i ? `M${x + 7} ${y - 5}L${x - 5} ${y}L${x + 7} ${y + 5}` : `M${x - 7} ${y - 5}L${x + 5} ${y}L${x - 7} ${y + 5}`} />)}</g>;
   if (kind === "x")
     return <g {...sw} strokeWidth="3.4">{xs.map((x) => <path key={x} d={`M${x - 5} ${y - 5}l10 10M${x + 5} ${y - 5}l-10 10`} />)}</g>;
   if (kind === "dizzy")
@@ -61,6 +64,13 @@ function Mouth({ kind, y }) {
           <path d={`M39 ${y}Q50 ${y + 17} 61 ${y}Z`} fill={MOUTH_IN} {...sw} strokeWidth="2.6" />
           <path d={`M44 ${y + 8}Q50 ${y + 4} 56 ${y + 8}Q50 ${y + 13} 44 ${y + 8}Z`} fill="#ff7a8a" />
           <path d={`M41 ${y + 1}H59`} stroke="#fff" strokeWidth="3" strokeLinecap="round" />
+        </g>
+      );
+    case "grit":
+      return (
+        <g>
+          <rect x="40" y={y - 1} width="20" height="9" rx="3" fill="#fff" {...sw} strokeWidth="2.4" />
+          <path d={`M45 ${y - 1}v9M50 ${y - 1}v9M55 ${y - 1}v9M40 ${y + 3.5}h20`} stroke={INK} strokeWidth="1.4" />
         </g>
       );
     case "o":

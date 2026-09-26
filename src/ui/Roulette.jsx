@@ -82,7 +82,7 @@ function Cylinder({ spinning, result, pulls, chamber, slow }) {
   const to = deg + land;
   const cx = 100, cy = 100;
   return (
-    <div className="relative mx-auto h-44 w-44" style={{ perspective: 500 }}>
+    <div className="relative mx-auto h-32 w-32" style={{ perspective: 500 }}>
       <div className="absolute inset-x-4 -bottom-3 h-6 rounded-[50%] bg-ink/25 blur-md" />
       <div className="absolute left-1/2 top-[-6px] z-10 h-0 w-0 -translate-x-1/2" style={{ borderLeft: "11px solid transparent", borderRight: "11px solid transparent", borderTop: `16px solid ${result === "dead" ? "#ff5a5f" : "#2b1d14"}` }} />
       <div className="h-full w-full" style={{ transform: "rotateX(38deg)", transformStyle: "preserve-3d" }}>
@@ -119,7 +119,7 @@ function Cylinder({ spinning, result, pulls, chamber, slow }) {
 function Glasses({ spinning, result, pulls, chamber, slow }) {
   const tried = (i) => i < pulls || (result && i === chamber);
   return (
-    <div className="relative mx-auto flex h-36 w-64 items-end justify-center">
+    <div className="relative mx-auto flex h-28 w-64 items-end justify-center">
       <div className="absolute inset-x-2 bottom-1 h-8 rounded-[50%] bg-[#7a4a2c]" style={{ boxShadow: "0 5px 0 #2b1d14" }} />
       {Array.from({ length: 6 }).map((_, i) => {
         const a = ((i - 2.5) / 2.5) * 0.9;
@@ -181,8 +181,10 @@ export default function Roulette({ view, nm, onPull }) {
         {slow && !r.result && <div className="a-pop mx-auto mt-1 w-fit rounded-full border-2 border-ink bg-ink px-2.5 text-[11px] font-black tracking-wide text-sun">🎬 {T.clutch}</div>}
 
         <div className="relative mx-auto mt-3 flex w-fit justify-center">
-          <Character avatar={v.avatar} looks={v.looks} color={seatColor(r.victim)} size={86} state={dead ? "dead" : safe ? (wine ? "tipsy" : "happy") : "nervous"}
-            blush={wine ? (r.result ? r.chamber + 1 : v.pulls) / 5 : 0} />
+          <Character avatar={v.avatar} looks={v.looks} color={seatColor(r.victim)} size={100}
+            state={dead ? "dead" : safe ? (wine ? "tipsy" : "happy") : r.spinning ? "brace" : "nervous"}
+            blush={wine ? (r.result ? r.chamber + 1 : v.pulls) / 5 : 0}
+            hold={wine ? "glass" : "gun"} firing={r.spinning} result={r.result} />
         </div>
         <h2 className="mt-1 text-xl font-black">{mine ? T.you : v.name} · {wine ? T.faceGlass : T.facesGun}</h2>
         <p className="text-xs font-bold text-ink-soft">{T[r.reason]}</p>

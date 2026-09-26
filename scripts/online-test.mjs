@@ -154,6 +154,12 @@ if (guest.view.me !== seatBefore) fail("guest got a different seat");
 if (!guest.view.seats[seatBefore].hand) fail("guest lost their hand");
 log("ok  disconnect → offline autopilot → reconnect to same seat");
 
+// 5b. a phone back from the background asks for the table again
+const before5 = guest.msgs.length;
+guest.send({ t: "sync" });
+await until(() => guest.msgs.slice(before5).some((m) => m.t === "state"), "state after sync");
+log("ok  sync resends the table");
+
 // 6. play to the end
 const t0 = Date.now();
 while (host.view.phase !== "gameover") {
@@ -163,6 +169,13 @@ while (host.view.phase !== "gameover") {
   if (Date.now() - t0 > 10 * 60 * 1000) fail("game did not finish in 10 minutes");
 }
 await until(() => host.rewards && guest.rewards, "rewards after game over", 10000);
+{
+  // game over: end-of-game reactions reach everyone
+  const b = host.msgs.length;
+  guest.send({ t: "emote", e: "🤯" });
+  await until(() => host.msgs.slice(b).some((m) => m.t === "fx" && m.fx.kind === "emote" && m.fx.e === "🤯"), "end reaction");
+  log("ok  end-of-game reaction shared");
+}
 if (!LOCAL) {
   if (host.rewards.eligible || host.rewards.you) fail("test room paid coins");
   log("ok  test room: rewards computed, nothing paid");

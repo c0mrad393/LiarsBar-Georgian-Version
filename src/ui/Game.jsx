@@ -402,7 +402,7 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
       </div>
 
       {view.phase === "roulette" && view.roulette && <Roulette view={view} nm={nm} onPull={() => act({ type: "pull" })} />}
-      {view.phase === "gameover" && <GameOver view={view} nm={nm} rewards={rewards} solo={solo} canRestart={canRestart} onAgain={onAgain} onLeave={onLeave} onToLobby={onToLobby} />}
+      {view.phase === "gameover" && <GameOver view={view} nm={nm} rewards={rewards} solo={solo} canRestart={canRestart} onAgain={onAgain} onLeave={onLeave} onToLobby={onToLobby} fx={fx} emote={(e) => { unlockAudio(); emote(e); }} />}
     </div>
   );
 }

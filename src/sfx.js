@@ -12,16 +12,45 @@ export function setMuted(m) {
   try { localStorage.setItem("lb-muted", m ? "1" : "0"); } catch { /* private mode */ }
 }
 
+// Phones suspend audio when the browser goes to the background; iOS then
+// leaves the context "interrupted" (or "running" but silent) until it's
+// rebuilt inside a tap. So: mark it stale when the page hides, and on the
+// next touch build a fresh one. Sounds are synthesized, nothing to reload.
+let stale = false;
+
+function fresh() {
+  const C = window.AudioContext || window.webkitAudioContext;
+  if (!C) return null;
+  try { ctx?.close(); } catch { /* already closed */ }
+  ctx = new C();
+  stale = false;
+  return ctx;
+}
+
 function ac() {
-  if (!ctx) {
-    const C = window.AudioContext || window.webkitAudioContext;
-    if (!C) return null;
-    ctx = new C();
-  }
-  if (ctx.state === "suspended") ctx.resume();
+  if (!ctx) return fresh();
+  if (ctx.state !== "running") ctx.resume().catch(() => {});
   return ctx;
 }
 export const unlockAudio = () => { if (!muted) ac(); };
+
+if (typeof window !== "undefined") {
+  const onGesture = () => {
+    if (muted || !ctx) return;
+    if (stale || ctx.state !== "running") fresh();
+  };
+  for (const ev of ["pointerdown", "touchend", "keydown"]) window.addEventListener(ev, onGesture, { capture: true, passive: true });
+  document.addEventListener("visibilitychange", () => {
+    if (!ctx) return;
+    if (document.visibilityState === "hidden") {
+      stale = true;
+      ctx.suspend().catch(() => {});
+    } else {
+      ctx.resume().catch(() => {}); // works on desktop / Android; iOS waits for the next tap
+    }
+  });
+  window.addEventListener("pageshow", (e) => { if (e.persisted && ctx) stale = true; });
+}
 
 function noise(c, dur) {
   const buf = c.createBuffer(1, Math.max(1, (c.sampleRate * dur) | 0), c.sampleRate);

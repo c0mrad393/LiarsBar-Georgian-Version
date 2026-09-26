@@ -1,24 +1,15 @@
-// Phone niceties: tilt parallax, keeping the screen awake, vibration.
+// Phone niceties: keeping the screen awake, vibration; mouse parallax on desktop.
 import { useEffect } from "react";
 
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-
 /**
- * iOS asks for motion permission, and only from a tap. Call this from the
- * click that starts a game; elsewhere it is a no-op.
+ * Tilts `ref`'s scene a few degrees with the mouse. Desktop only: on phones
+ * the gyroscope tilt felt jittery, so touch screens keep the table still.
  */
-export function requestTilt() {
-  try {
-    const D = window.DeviceOrientationEvent;
-    if (D && typeof D.requestPermission === "function") D.requestPermission().catch(() => {});
-  } catch { /* not supported */ }
-}
-
-/** Tilts `ref`'s scene a few degrees with the phone (or the mouse on desktop). */
 export function useTilt(ref) {
   useEffect(() => {
     const el = ref.current;
     if (!el || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    if (!window.matchMedia?.("(hover: hover) and (pointer: fine)").matches) return;
     let raf = 0;
     const set = (x, y) => {
       cancelAnimationFrame(raf);
@@ -27,16 +18,10 @@ export function useTilt(ref) {
         el.style.setProperty("--ty", `${y.toFixed(2)}deg`);
       });
     };
-    const onOrient = (e) => {
-      if (e.beta == null || e.gamma == null) return;
-      set(clamp((45 - e.beta) / 7, -6, 6), clamp(e.gamma / 6, -7, 7));
-    };
     const onMouse = (e) => set(((window.innerHeight / 2 - e.clientY) / window.innerHeight) * 5, ((e.clientX - window.innerWidth / 2) / window.innerWidth) * 7);
-    window.addEventListener("deviceorientation", onOrient);
     window.addEventListener("mousemove", onMouse);
     return () => {
       cancelAnimationFrame(raf);
-      window.removeEventListener("deviceorientation", onOrient);
       window.removeEventListener("mousemove", onMouse);
     };
   }, [ref]);

@@ -234,6 +234,7 @@ export const T = {
   duel: "დუელი: ორივე რევოლვერთან 🤠",
   clutch: "გადამწყვეტი მომენტი",
   finalDuel: "ფინალური დუელი!",
+  endReact: "როგორ ხარ? გაუზიარე 👇",
   finalDuelSub: "ორი დარჩა. ერთი წავა სახლში 🏠",
   // public tables
   online: "ონლაინ",
@@ -358,6 +359,8 @@ for (const k in QUIP_COUNTS) if (Q[k].length !== QUIP_COUNTS[k]) throw new Error
 export const quipText = (ev) => (ev.quip != null && Q[ev.type] ? Q[ev.type][ev.quip] : null);
 
 export const EMOTES = ["😂", "🤥", "😱", "😏", "🔥", "💀", "🍺", "👏"];
+/** Reactions on the game-over screen: everyone shares how it ended for them. */
+export const END_EMOTES = ["😂", "😭", "🤬", "🤯", "😎", "🥳", "👏", "🔥", "💀", "🤝"];
 
 /** Quick-chat lines (sent by index). */
 export const PHRASES = [

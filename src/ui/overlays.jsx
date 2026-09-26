@@ -1,5 +1,5 @@
 // Full-screen and table-centre moments: the reveal, LIAR!, the devil, game over.
-import { CHAOS_INFO, RANKS, T, quipText } from "../i18n.js";
+import { CHAOS_INFO, END_EMOTES, RANKS, T, quipText } from "../i18n.js";
 import { sfx } from "../sfx.js";
 import { Card, CardBack } from "./cards.jsx";
 import Character, { seatColor } from "./Character.jsx";
@@ -143,26 +143,67 @@ export function LiarBurst({ burst, seat }) {
   );
 }
 
-export function GameOver({ view, nm, rewards, solo, canRestart, onAgain, onLeave, onToLobby }) {
+/**
+ * Game over: everyone at the table in a row, with their reactions popping up
+ * over their faces, and the buttons to send your own.
+ */
+function EndReactions({ view, fx, emote }) {
+  const [sent, setSent] = useState(null);
+  const send = (e) => {
+    emote(e);
+    sfx("pop");
+    setSent(e);
+  };
+  return (
+    <div className="mt-4 rounded-2xl border-[2.5px] border-ink bg-cream px-2 pb-2 pt-1">
+      <div className="flex justify-center gap-1.5 pt-7">
+        {view.seats.map((s) => {
+          const mine = fx.filter((f) => f.kind === "emote" && f.seat === s.idx);
+          return (
+            <div key={s.idx} className="relative flex flex-col items-center" title={s.name}>
+              {mine.map((f) => (
+                <span key={f.id} className="a-float-up pointer-events-none absolute bottom-6 z-10 text-3xl" style={{ left: `${10 + f.x * 30}%`, "--r": `${(f.x - 0.5) * 40}deg` }}>{f.e}</span>
+              ))}
+              <span className={`flex h-10 w-10 items-center justify-center rounded-full border-[2.5px] border-ink ${s.idx === view.me ? "ring-2 ring-sun ring-offset-1" : ""}`} style={{ background: seatColor(s.idx) }}>
+                <Face id={s.avatar} size={34} state={s.idx === view.winner ? "win" : "sad"} />
+              </span>
+              <span className="mt-0.5 max-w-[48px] truncate text-[10px] font-black">{s.name}</span>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-1 text-[11px] font-black text-ink-soft">{T.endReact}</div>
+      <div className="mt-1 grid grid-cols-5 gap-1">
+        {END_EMOTES.map((e) => (
+          <button key={e} onClick={() => send(e)} aria-label={e}
+            className={`flex h-10 items-center justify-center rounded-xl text-2xl transition-transform active:scale-90 ${sent === e ? "bg-sun" : "bg-paper"}`}>{e}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function GameOver({ view, nm, rewards, solo, canRestart, onAgain, onLeave, onToLobby, fx = [], emote }) {
   const w = view.winner != null ? view.seats[view.winner] : null;
   const iWon = view.winner === view.me;
   const ev = view.log.find((e) => e.type === "win");
   const quip = ev && quipText(ev);
   return (
     <div className="a-fade-up fixed inset-0 z-[80] flex items-center justify-center bg-ink/45 px-4 backdrop-blur-[3px]">
-      <div className="a-pop comic w-full max-w-sm rounded-[2rem] bg-paper p-7 text-center">
-        <div className="relative mx-auto flex w-fit justify-center pt-8">
+      <div className="a-pop comic no-scrollbar max-h-[94dvh] w-full max-w-sm overflow-y-auto rounded-[2rem] bg-paper px-6 pb-6 pt-4 text-center">
+        <div className="relative mx-auto flex w-fit justify-center pt-8 short:pt-6">
           {w ? (
-            <Character avatar={w.avatar} looks={{ ...w.looks, hat: "👑" }} color={seatColor(w.idx)} size={112} state="win" />
+            <Character avatar={w.avatar} looks={{ ...w.looks, hat: "hat_crown" }} color={seatColor(w.idx)} size={96} state="win" />
           ) : (
             <div className="text-7xl">🍺</div>
           )}
         </div>
         <h2 className="mt-2 text-2xl font-black">{iWon ? T.youWin : w ? `${nm(view.winner)} ${T.wins}` : "…"}</h2>
-        {quip && <div className="speech mx-auto mt-4 w-fit rounded-2xl px-3 py-1.5 text-sm font-extrabold">„{quip}“</div>}
-        <p className="mt-4 text-sm font-bold text-ink-soft">{iWon ? T.winSub : T.loseSub}</p>
+        {quip && <div className="speech mx-auto mt-2 w-fit rounded-2xl px-3 py-1.5 text-sm font-extrabold">„{quip}“</div>}
+        <p className="mt-2 text-sm font-bold text-ink-soft">{iWon ? T.winSub : T.loseSub}</p>
         <Rewards view={view} rewards={rewards} solo={solo} />
-        <div className="mt-6 flex flex-col gap-2">
+        {emote && <EndReactions view={view} fx={fx} emote={emote} />}
+        <div className="mt-4 flex flex-col gap-2">
           {canRestart ? (
             <Btn color="sun" onClick={onAgain} className="py-3.5 text-lg">🔁 {T.again}</Btn>
           ) : (

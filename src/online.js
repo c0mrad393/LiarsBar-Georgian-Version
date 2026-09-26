@@ -10,8 +10,10 @@ const SERVER = SERVER_HTTP.replace(/^http/, "ws");
 export const onlineAvailable = !!SERVER;
 
 const ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
-const PING_MS = 25000;
-const MAX_RETRIES = 8;
+const PING_MS = 10000;
+const STALE_MS = 25000; // nothing heard for this long: the socket is dead even if it says "open"
+const FIRST_TRIES = 6; // a room we never reached: give up (server down) after these
+const MAX_BACKOFF = 5000;
 
 /** Open public tables (for the list on the home screen). */
 export async function fetchTables() {
@@ -76,6 +78,9 @@ export function useOnline({ code: initialCode, create, quick, profile, mode, onC
     let stopped = false;
     let ws = null;
     let ping = null;
+    let watchdog = null;
+    let probe = null;
+    let lastHeard = Date.now();
     let retryTimer = null;
     let retries = 0;
     let everOpen = false;
@@ -105,16 +110,19 @@ export function useOnline({ code: initialCode, create, quick, profile, mode, onC
       const q = seeking
         ? `?quick=1&mode=${encodeURIComponent(quickMode || "classic")}`
         : creating ? `?create=1&mode=${encodeURIComponent(mode || "classic")}` : "";
+      if (ws) { ws.onclose = null; ws.onmessage = null; try { ws.close(); } catch { /* already gone */ } }
       ws = new WebSocket(`${SERVER}/room/${room}${q}`);
       wsRef.current = ws;
       ws.onopen = () => {
         retries = 0;
         everOpen = true;
+        lastHeard = Date.now();
         ws.send(JSON.stringify({ t: "hello", clientId: clientId(), key: accountKey(), name: profile.name, avatar: profile.avatar }));
         clearInterval(ping);
         ping = setInterval(() => ws.readyState === 1 && ws.send("ping"), PING_MS);
       };
       ws.onmessage = (ev) => {
+        lastHeard = Date.now();
         if (ev.data === "pong") return;
         let m;
         try { m = JSON.parse(ev.data); } catch { return; }
@@ -165,31 +173,60 @@ export function useOnline({ code: initialCode, create, quick, profile, mode, onC
           if (ev.code === 4001) { setError("replaced"); setStatus("error"); }
           return;
         }
-        if (++retries > MAX_RETRIES) {
-          setError(everOpen ? "netError" : "serverDown");
-          setStatus("error");
-          return;
-        }
-        setStatus((s) => (s === "connecting" ? s : "reconnecting"));
-        retryTimer = setTimeout(connect, Math.min(8000, 500 * 2 ** retries));
+        retry();
       };
     };
 
+    // Once we've been in the room, never give up: phones drop the connection
+    // all the time (tunnels, lifts, switching apps). The server keeps the seat.
+    const retry = () => {
+      clearTimeout(retryTimer);
+      if (stopped) return;
+      if (!everOpen && ++retries > FIRST_TRIES) {
+        setError("serverDown");
+        setStatus("error");
+        return;
+      }
+      if (everOpen) retries++;
+      setStatus((s) => (s === "connecting" ? s : "reconnecting"));
+      retryTimer = setTimeout(connect, Math.min(MAX_BACKOFF, 300 * 2 ** Math.min(retries, 5)));
+    };
+    const drop = () => {
+      if (ws) { ws.onclose = null; try { ws.close(); } catch { /* already gone */ } }
+      clearInterval(ping);
+      retry();
+    };
+    // A socket can die silently (phone asleep, network switch) and still look open.
+    watchdog = setInterval(() => {
+      if (!stopped && ws?.readyState === 1 && Date.now() - lastHeard > STALE_MS) drop();
+    }, 5000);
+
     if (seeking) seek();
     else connect();
-    // Reconnect right away when the phone wakes up or the network returns.
+    // The phone woke up or the network came back: reconnect now, or check that
+    // the open socket still works (and fetch the current table) before trusting it.
     const kick = () => {
-      if (!stopped && ws && ws.readyState > 1) { clearTimeout(retryTimer); retries = 0; connect(); }
+      if (stopped || document.visibilityState === "hidden" || !ws) return;
+      if (ws.readyState > 1) { clearTimeout(retryTimer); retries = 0; connect(); return; }
+      if (ws.readyState !== 1) return;
+      const asked = Date.now();
+      try { ws.send("ping"); ws.send(JSON.stringify({ t: "sync" })); } catch { /* handled by the probe */ }
+      clearTimeout(probe);
+      probe = setTimeout(() => { if (!stopped && lastHeard < asked) { retries = 0; drop(); } }, 3000);
     };
     window.addEventListener("online", kick);
+    window.addEventListener("pageshow", kick);
     document.addEventListener("visibilitychange", kick);
     return () => {
       stopped = true;
       clearTimeout(retryTimer);
+      clearTimeout(probe);
       clearInterval(ping);
+      clearInterval(watchdog);
       window.removeEventListener("online", kick);
+      window.removeEventListener("pageshow", kick);
       document.removeEventListener("visibilitychange", kick);
-      ws?.close(1000, "leave");
+      if (ws) { ws.onclose = null; ws.close(1000, "leave"); }
     };
   }, [initialCode, quick]); // eslint-disable-line react-hooks/exhaustive-deps
 

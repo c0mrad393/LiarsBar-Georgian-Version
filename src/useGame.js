@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createGame, reduce, schedule, viewFor } from "./engine.js";
 import { later } from "./hostTimer.js";
 import { useFx } from "./fx.js";
-import { botFx, botThrowBack, bots } from "./shared.js";
+import { botEmoteBack, botFx, botThrowBack, bots } from "./shared.js";
 
 /** Runs the engine: holds full state, applies actions, fires scheduled host actions. */
 function useEngine() {
@@ -76,7 +76,11 @@ export function useSolo(profile, mode, botCount = 3, looks = null) {
     view,
     act: useCallback((a) => dispatch({ ...a, seat: 0 }), [dispatch]),
     fx,
-    emote: useCallback((e) => pushFx({ kind: "emote", seat: 0, e }), [pushFx]),
+    emote: useCallback((e) => {
+      const f = { kind: "emote", seat: 0, e };
+      pushFx(f);
+      if (stateRef.current) later(botEmoteBack(stateRef.current, f));
+    }, [pushFx, later, stateRef]),
     throwAt,
     say: useCallback((i) => pushFx({ kind: "say", seat: 0, i }), [pushFx]),
     again,
