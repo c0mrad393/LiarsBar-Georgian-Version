@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useState } from "react";
 import { AVATARS, MODE_INFO, RULES, T } from "../i18n.js";
 import { ITEMS } from "../shop.js";
 import { cleanCode } from "../shared.js";
+import { fetchTables } from "../online.js";
 import { sfx } from "../sfx.js";
 import { Card } from "./cards.jsx";
 import Character, { seatColor } from "./Character.jsx";
@@ -12,26 +13,62 @@ const Shop = lazy(() => import("./Shop.jsx"));
 const ProfileSheet = lazy(() => import("./Profile.jsx").then((m) => ({ default: m.ProfileSheet })));
 const Leaderboard = lazy(() => import("./Profile.jsx").then((m) => ({ default: m.Leaderboard })));
 
+/** Each mode's tile colours: [picked, not picked, text on picked is light]. */
+export const MODE_SKIN = {
+  classic: ["bg-sun", "bg-cream", false],
+  devil: ["bg-[#2a0508]", "bg-[#f3dada]", true],
+  chaos: ["bg-[#6a2bb8]", "bg-[#efe3fb]", true],
+  dice: ["bg-[#1d5fc4]", "bg-[#e1ecfc]", true],
+};
+
 export function ModePicker({ mode, setMode, disabled }) {
   return (
     <div className="grid grid-cols-2 gap-2">
       {Object.entries(MODE_INFO).map(([k, m]) => {
         const on = mode === k;
-        const dark = k === "devil";
+        const [onBg, offBg, light] = MODE_SKIN[k];
         return (
           <button
             key={k}
             disabled={disabled}
-            onClick={() => { setMode(k); sfx(dark ? "devil" : "select"); }}
+            onClick={() => { setMode(k); sfx(k === "devil" ? "devil" : k === "chaos" ? "joker" : "select"); }}
             aria-pressed={on}
-            className={`rounded-2xl border-[2.5px] border-ink px-3 py-2.5 text-left transition-transform ${on ? "-translate-y-0.5" : "hover:-translate-y-0.5"} ${dark ? (on ? "bg-[#2a0508] text-white" : "bg-[#f3dada]") : on ? "bg-sun" : "bg-cream"}`}
+            className={`flex flex-col justify-start rounded-2xl border-[2.5px] border-ink px-3 py-2.5 text-left transition-transform ${on ? "-translate-y-0.5" : "hover:-translate-y-0.5"} ${on ? onBg : offBg} ${on && light ? "text-white" : ""}`}
             style={{ boxShadow: on ? "0 4px 0 #2b1d14" : "0 2px 0 #2b1d14" }}>
             <div className="text-sm font-black"><span className={on ? "a-hop inline-block" : "inline-block"}>{m.emoji}</span> {m.name}</div>
-            <div className={`mt-0.5 text-xs font-semibold leading-snug ${dark && on ? "text-white/85" : on ? "text-ink" : "text-ink-soft"}`}>{m.hint}</div>
+            <div className={`mt-0.5 text-xs font-semibold leading-snug ${on ? (light ? "text-white/85" : "text-ink") : "text-ink-soft"}`}>{m.hint}</div>
           </button>
         );
       })}
     </div>
+  );
+}
+
+/** Open public tables, refreshed while the sheet is open. */
+function OpenTables({ onJoin }) {
+  const [list, setList] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    const load = () => fetchTables().then((l) => alive && setList(l)).catch(() => alive && setList((x) => x || []));
+    load();
+    const t = setInterval(load, 5000);
+    return () => { alive = false; clearInterval(t); };
+  }, []);
+  if (!list) return <div className="py-3 text-center text-sm font-bold text-ink-soft"><span className="a-wiggle inline-block">🔎</span></div>;
+  if (!list.length) return <p className="rounded-2xl bg-cream px-3 py-2.5 text-center text-xs font-bold text-ink-soft">{T.noTables}</p>;
+  return (
+    <ul className="flex flex-col gap-1.5">
+      {list.map((t) => (
+        <li key={t.code} className="a-fade-up flex items-center gap-2 rounded-2xl border-[2.5px] border-ink bg-cream py-1.5 pl-2 pr-1.5">
+          <span className="text-2xl">{t.avatar}</span>
+          <div className="min-w-0 flex-1 leading-tight">
+            <div className="truncate text-sm font-black">{t.host}</div>
+            <div className="text-[11px] font-bold text-ink-soft">{MODE_INFO[t.mode]?.emoji} {MODE_INFO[t.mode]?.name} · 👥 {t.players}/{t.max}</div>
+          </div>
+          <Btn color="mint" onClick={() => onJoin(t.code)} className="px-3 py-1.5 text-sm">{T.sit}</Btn>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -97,7 +134,11 @@ function PlayerCard({ profile, setName, looks, onEdit }) {
   );
 }
 
-export default function Home({ profile, setProfile, account, mode, setMode, soloBots, setSoloBots, invite, onSolo, onHost, onJoin, onDropInvite }) {
+export default function Home({ profile, setProfile, account, mode, setMode, soloBots, setSoloBots, invite, onSolo, onHost, onQuick, onJoin, onDropInvite }) {
+  const [quickMode, setQuickMode] = useState(() => {
+    try { const m = localStorage.getItem("lb-quick"); return m === "any" || MODE_INFO[m] ? m : "any"; } catch { return "any"; }
+  });
+  const pickQuick = (m) => { setQuickMode(m); sfx("select"); try { localStorage.setItem("lb-quick", m); } catch { /* private mode */ } };
   const [panel, setPanel] = useState(null); // profile | board | shop (lazy)
   const [sheet, setSheet] = useState(null); // me | solo | friends | rules
   const [shopCat, setShopCat] = useState("hat");
@@ -167,9 +208,9 @@ export default function Home({ profile, setProfile, account, mode, setMode, solo
               <span className="text-xs font-bold opacity-70">{soloBots + 1} {T.players} · {MODE_INFO[mode].emoji}</span>
             </Btn>
             <Btn color="coral" disabled={!ready || !online} onClick={() => open("friends")} className="flex flex-col items-center gap-1 px-2 py-4">
-              <span className="a-bob inline-block text-4xl" style={{ animationDelay: "0.4s" }}>🎉</span>
-              <span className="text-base leading-tight">{T.withFriends}</span>
-              <span className="text-xs font-bold opacity-90">{T.withFriendsHint}</span>
+              <span className="a-bob inline-block text-4xl" style={{ animationDelay: "0.4s" }}>🌍</span>
+              <span className="text-base leading-tight">{T.online}</span>
+              <span className="text-xs font-bold opacity-90">{T.onlineHint}</span>
             </Btn>
           </div>
         )}
@@ -216,11 +257,31 @@ export default function Home({ profile, setProfile, account, mode, setMode, solo
       )}
 
       {sheet === "friends" && (
-        <Sheet title={`🎉 ${T.withFriends}`} onClose={() => setSheet(null)}>
-          <Btn color="coral" onClick={() => { setSheet(null); onHost(); }} className="flex w-full items-center justify-center gap-2 py-4 text-lg">🎉 {T.host}</Btn>
+        <Sheet title={`🌍 ${T.online}`} onClose={() => setSheet(null)}>
+          <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={T.mode}>
+            {["any", ...Object.keys(MODE_INFO)].map((k) => {
+              const on = quickMode === k;
+              return (
+                <button key={k} onClick={() => pickQuick(k)} role="radio" aria-checked={on}
+                  className={`whitespace-nowrap rounded-full border-[2.5px] border-ink px-3 py-1 text-xs font-black ${on ? "bg-sun" : "bg-cream"}`}
+                  style={{ boxShadow: on ? "0 3px 0 #2b1d14" : "0 1px 0 #2b1d14" }}>
+                  {k === "any" ? `🎰 ${T.anyMode}` : `${MODE_INFO[k].emoji} ${MODE_INFO[k].name}`}
+                </button>
+              );
+            })}
+          </div>
+          <Btn color="sun" onClick={() => { setSheet(null); onQuick(quickMode); }} className="mt-2 flex w-full flex-col items-center py-3.5">
+            <span className="text-xl leading-tight"><span className="a-hop inline-block">⚡</span> {T.quickPlay}</span>
+            <span className="text-xs font-bold opacity-70">{T.quickHint}</span>
+          </Btn>
+
+          <div className="mt-4 mb-1.5 text-sm font-black">🌍 {T.openTables}</div>
+          <OpenTables onJoin={(c) => { setSheet(null); onJoin(c); }} />
+
+          <div className="my-4 flex items-center gap-3 text-xs font-black text-ink-soft"><span className="h-0.5 flex-1 bg-ink/15" />🔒 {T.privateRoom}<span className="h-0.5 flex-1 bg-ink/15" /></div>
+          <Btn color="coral" onClick={() => { setSheet(null); onHost(); }} className="flex w-full items-center justify-center gap-2 py-3 text-lg">🎉 {T.host}</Btn>
           <p className="mt-1.5 text-center text-xs font-bold text-ink-soft">{T.hostHint}</p>
-          <div className="my-4 flex items-center gap-3 text-xs font-black text-ink-soft"><span className="h-0.5 flex-1 bg-ink/15" />{T.or}<span className="h-0.5 flex-1 bg-ink/15" /></div>
-          <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); const c = cleanCode(code); if (c) { setSheet(null); onJoin(c); } }}>
+          <form className="mt-3 flex gap-2" onSubmit={(e) => { e.preventDefault(); const c = cleanCode(code); if (c) { setSheet(null); onJoin(c); } }}>
             <input value={code} onChange={(e) => setCode(e.target.value)} placeholder={T.joinCode} aria-label={T.joinCode} autoCapitalize="none" spellCheck={false}
               className="comic-sm min-w-0 flex-1 rounded-2xl bg-paper px-4 py-3 font-mono text-lg font-bold lowercase outline-none" />
             <Btn color="mint" type="submit" disabled={!cleanCode(code)}>🔗 {T.join}</Btn>

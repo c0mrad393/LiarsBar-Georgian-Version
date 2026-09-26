@@ -2,14 +2,14 @@
 // throw the picked cards onto the table.
 import { useRef, useState } from "react";
 import { RANKS } from "../i18n.js";
-import { Card } from "./cards.jsx";
+import { Card, CardBack } from "./cards.jsx";
 import { isWild } from "./overlays.jsx";
 
 const TAP = 10; // px of movement before a press counts as a drag
 const FLING = 70; // px upwards to play
 
-export default function Hand({ cards, selected, canPick, onToggle, onPlay, round, tableCard }) {
-  const tc = RANKS[tableCard];
+export default function Hand({ cards, selected, canPick, onToggle, onPlay, round, tableCard, back = "red" }) {
+  const tc = RANKS[tableCard] || RANKS.K;
   const drag = useRef(null);
   const [lift, setLift] = useState(0);
   const n = cards.length;
@@ -60,14 +60,19 @@ export default function Hand({ cards, selected, canPick, onToggle, onPlay, round
             <div
               className={`relative ${lift ? "" : "transition-transform duration-200"} ${canPick && !on ? "hover:-translate-y-3" : ""}`}
               style={{ transform: `translateY(${y}px) rotate(${on && lift ? 0 : off * 6}deg) ${on && lift < -FLING ? "scale(1.08)" : ""}` }}>
-              <Card
-                rank={c.rank}
-                suit={c.suit}
-                size="lg"
-                selected={on}
-                glow={isWild(c.rank) && !on ? (c.rank === "D" ? "#ff5a5f" : "#b57be8") : null}
-                className={canPick ? "" : "saturate-[.6]"}
-              />
+              {c.rank === "?" ? (
+                // Chaos "blind" round: you play your own cards face down too.
+                <CardBack size="lg" back={back} className={`${on ? "outline outline-4 outline-sun" : ""} ${canPick ? "" : "saturate-[.6]"}`} />
+              ) : (
+                <Card
+                  rank={c.rank}
+                  suit={c.suit}
+                  size="lg"
+                  selected={on}
+                  glow={isWild(c.rank) && !on ? (c.rank === "D" ? "#ff5a5f" : "#b57be8") : null}
+                  className={canPick ? "" : "saturate-[.6]"}
+                />
+              )}
               {isWild(c.rank) && (
                 <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border-2 border-ink bg-sun px-1.5 text-[9px] font-black">= {tc.emoji} {tc.geo}</span>
               )}

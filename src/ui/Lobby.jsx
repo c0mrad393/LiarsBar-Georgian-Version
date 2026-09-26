@@ -3,12 +3,28 @@ import { PERSONAS } from "../engine.js";
 import { MODE_INFO, T } from "../i18n.js";
 import { inviteLink } from "../online.js";
 import { sfx } from "../sfx.js";
-import { Logo, ModePicker } from "./Home.jsx";
+import { Logo, MODE_SKIN, ModePicker } from "./Home.jsx";
 import { BOT_LOOKS, BOT_ORDER } from "../shared.js";
 import Character, { seatColor } from "./Character.jsx";
 import { Btn, SoundToggle, Stepper } from "./parts.jsx";
 
-export default function Lobby({ lobby, isHost, setBots, setMode, onStart, onLeave }) {
+/** Seconds until a public table starts by itself. */
+function useStartsIn(lobby) {
+  const [left, setLeft] = useState(null);
+  const at = lobby.startsAt ? lobby.startsAt + (Date.now() - (lobby.now || Date.now())) : null;
+  useEffect(() => {
+    if (!at) { setLeft(null); return; }
+    const tick = () => setLeft(Math.max(0, Math.ceil((at - Date.now()) / 1000)));
+    tick();
+    const t = setInterval(tick, 250);
+    return () => clearInterval(t);
+  }, [lobby.startsAt]); // eslint-disable-line react-hooks/exhaustive-deps
+  return left;
+}
+
+export default function Lobby({ lobby, isHost, setBots, setMode, setPublic, onStart, onLeave }) {
+  const startsIn = useStartsIn(lobby);
+  useEffect(() => { if (startsIn != null && startsIn <= 3 && startsIn > 0) sfx("select"); }, [startsIn]);
   const [copied, setCopied] = useState(false);
   const link = lobby.code ? inviteLink(lobby.code) : "";
   const seats = lobby.seats;
@@ -53,7 +69,14 @@ export default function Lobby({ lobby, isHost, setBots, setMode, onStart, onLeav
 
       <section className="a-pop comic mt-5 rounded-3xl bg-sun p-5 text-center">
         <div className="text-xs font-extrabold uppercase tracking-widest text-ink-soft">{T.roomCode}</div>
-        <div className="font-display text-5xl tracking-[0.2em] text-ink">{lobby.code || "······"}</div>
+        {lobby.public && <div className="mx-auto mb-1 w-fit rounded-full border-2 border-ink bg-paper px-2.5 text-xs font-black">🌍 {T.publicTable}</div>}
+        <div className={`font-display tracking-[0.15em] text-ink ${(lobby.code || "").length > 6 ? "text-4xl" : "text-5xl"}`}>{lobby.code || "······"}</div>
+        {startsIn != null && (
+          <div className="a-pop mx-auto mt-2 flex w-fit items-center gap-2 rounded-full border-[2.5px] border-ink bg-coral px-4 py-1 text-white" style={{ boxShadow: "0 3px 0 #2b1d14" }}>
+            <span className="text-sm font-black">🔥 {T.startsIn}</span>
+            <span key={startsIn} className="a-pop font-display text-2xl tabular-nums">{startsIn}</span>
+          </div>
+        )}
         {isHost && lobby.code && (
           <>
             <div className="mt-3 text-sm font-extrabold">{T.invite}</div>
@@ -69,9 +92,19 @@ export default function Lobby({ lobby, isHost, setBots, setMode, onStart, onLeav
       </section>
 
       {isHost ? (
-        <div className="mt-5"><ModePicker mode={lobby.mode} setMode={setMode} /></div>
+        <>
+          <div className="mt-5"><ModePicker mode={lobby.mode} setMode={setMode} /></div>
+          <label className="comic-sm mt-3 flex cursor-pointer items-center justify-between gap-3 rounded-2xl bg-paper px-4 py-2.5">
+            <span className="min-w-0">
+              <span className="block text-sm font-black">🌍 {T.publicToggle}</span>
+              <span className="block text-[11px] font-bold text-ink-soft">{lobby.public ? T.publicOn : T.publicOff}</span>
+            </span>
+            <input type="checkbox" checked={!!lobby.public} onChange={(e) => { setPublic(e.target.checked); sfx("select"); }} className="peer sr-only" />
+            <span className="relative h-7 w-12 shrink-0 rounded-full border-[2.5px] border-ink bg-cream transition-colors peer-checked:bg-[#0f8277] peer-focus-visible:outline peer-focus-visible:outline-2 after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:border-2 after:border-ink after:bg-paper after:transition-transform peer-checked:after:translate-x-5" aria-hidden="true" />
+          </label>
+        </>
       ) : (
-        <div className={`a-pop mt-5 rounded-2xl border-[2.5px] border-ink px-4 py-2.5 text-center ${lobby.mode === "devil" ? "bg-[#2a0508] text-white" : "bg-paper"}`} style={{ boxShadow: "0 3px 0 #2b1d14" }}>
+        <div className={`a-pop mt-5 rounded-2xl border-[2.5px] border-ink px-4 py-2.5 text-center ${lobby.mode === "classic" ? "bg-paper" : `${MODE_SKIN[lobby.mode]?.[0] || "bg-paper"} text-white`}`} style={{ boxShadow: "0 3px 0 #2b1d14" }}>
           <div className="text-sm font-black">{MODE_INFO[lobby.mode || "classic"].emoji} {MODE_INFO[lobby.mode || "classic"].name}</div>
           <div className="text-[11px] font-semibold opacity-80">{MODE_INFO[lobby.mode || "classic"].hint}</div>
         </div>
@@ -121,11 +154,11 @@ export default function Lobby({ lobby, isHost, setBots, setMode, onStart, onLeav
           </div>
           <Btn color="coral" disabled={!ready} onClick={onStart} className="py-4 text-xl">🔥 {T.start}</Btn>
           {!ready && <p className="text-center text-sm font-bold text-coral">{T.needTwo}</p>}
-          <p className="text-center text-xs font-semibold text-ink-soft">💡 {T.keepOpen}</p>
+          <p className="text-center text-xs font-semibold text-ink-soft">💡 {lobby.public ? T.autoStartHint : T.keepOpen}</p>
         </div>
       ) : (
         <div className="comic mt-6 rounded-2xl bg-paper px-4 py-4 text-center font-extrabold">
-          <span className="a-wiggle inline-block">🍺</span> {T.waitHost}
+          <span className="a-wiggle inline-block">🍺</span> {lobby.public ? T.autoStartHint : T.waitHost}
         </div>
       )}
     </div>

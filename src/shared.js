@@ -6,7 +6,7 @@ import { ALL_AVATARS, FREE_AVATARS, FREE_THROWS } from "./shop.js";
 export { MAX_SEATS, MODES, EMOTES, PHRASES };
 
 export const ONLINE_OPTS = { turnMs: 30000, pullMs: 15000 };
-export const GUEST_ACTIONS = new Set(["play", "call", "pull"]);
+export const GUEST_ACTIONS = new Set(["play", "bid", "call", "pull"]);
 export const CODE_RE = /^[a-z0-9]{4,12}$/;
 /** Account keys: 20 chars of an unambiguous alphabet (~100 bits), shown as XXXX-XXXX-…. */
 export const KEY_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";

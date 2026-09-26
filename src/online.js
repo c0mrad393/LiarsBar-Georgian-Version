@@ -13,6 +13,21 @@ const ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
 const PING_MS = 25000;
 const MAX_RETRIES = 8;
 
+/** Open public tables (for the list on the home screen). */
+export async function fetchTables() {
+  if (!SERVER_HTTP) return [];
+  const res = await fetch(`${SERVER_HTTP}/api/tables`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+  if (!res.ok) throw new Error(`http ${res.status}`);
+  return (await res.json()).tables || [];
+}
+
+/** Ask the matchmaker for a public table: { code, mode }. */
+async function findTable(mode) {
+  const res = await fetch(`${SERVER_HTTP}/api/quick`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ mode }) });
+  if (!res.ok) throw new Error(`http ${res.status}`);
+  return res.json();
+}
+
 export const makeCode = () => Array.from({ length: 6 }, () => ALPHABET[(Math.random() * ALPHABET.length) | 0]).join("");
 
 export function inviteLink(code) {
@@ -42,9 +57,10 @@ export function clientId() {
 /**
  * @param code    room code
  * @param create  true for the player opening the room
+ * @param quick   a mode (or "any"): find a public table instead of using `code`
  * @returns { status: connecting|lobby|game|reconnecting|error, error, code, lobby, view, isHost, act, fx, emote, throwAt, say, ctl }
  */
-export function useOnline({ code: initialCode, create, profile, mode, onCode }) {
+export function useOnline({ code: initialCode, create, quick, profile, mode, onCode }) {
   const [status, setStatus] = useState("connecting");
   const [error, setError] = useState(null);
   const [code, setCode] = useState(initialCode);
@@ -65,9 +81,30 @@ export function useOnline({ code: initialCode, create, profile, mode, onCode }) 
     let everOpen = false;
     let room = initialCode;
     let creating = create; // only the first successful connect creates the room
+    let seeking = !!quick; // quick play: until we're seated, a full/started table means "find another"
+    let quickMode = null;
+    let hops = 0;
+
+    const seek = async () => {
+      try {
+        const t = await findTable(quick);
+        if (stopped) return;
+        room = t.code;
+        quickMode = t.mode;
+        setCode(room);
+        onCode?.(room);
+        connect();
+      } catch {
+        if (stopped) return;
+        setError("serverDown");
+        setStatus("error");
+      }
+    };
 
     const connect = () => {
-      const q = creating ? `?create=1&mode=${encodeURIComponent(mode || "classic")}` : "";
+      const q = seeking
+        ? `?quick=1&mode=${encodeURIComponent(quickMode || "classic")}`
+        : creating ? `?create=1&mode=${encodeURIComponent(mode || "classic")}` : "";
       ws = new WebSocket(`${SERVER}/room/${room}${q}`);
       wsRef.current = ws;
       ws.onopen = () => {
@@ -83,12 +120,14 @@ export function useOnline({ code: initialCode, create, profile, mode, onCode }) 
         try { m = JSON.parse(ev.data); } catch { return; }
         if (m.t === "lobby") {
           creating = false;
+          seeking = false;
           setLobby(m);
           setView(null);
           setIsHost(m.youHost);
           setStatus("lobby");
         } else if (m.t === "state") {
           creating = false;
+          seeking = false;
           setView({ ...m.view, clockOffset: Date.now() - m.hostNow });
           if (m.view.phase !== "gameover") setRewards(null);
           setIsHost(m.host);
@@ -106,6 +145,13 @@ export function useOnline({ code: initialCode, create, profile, mode, onCode }) 
             ws.onclose = null;
             ws.close();
             connect();
+            return;
+          }
+          if (seeking && ["roomFull", "alreadyStarted", "roomMissing"].includes(m.reason) && ++hops <= 4) {
+            // That table filled up or started a moment ago: ask for another.
+            ws.onclose = null;
+            ws.close();
+            seek();
             return;
           }
           stopped = true;
@@ -129,7 +175,8 @@ export function useOnline({ code: initialCode, create, profile, mode, onCode }) 
       };
     };
 
-    connect();
+    if (seeking) seek();
+    else connect();
     // Reconnect right away when the phone wakes up or the network returns.
     const kick = () => {
       if (!stopped && ws && ws.readyState > 1) { clearTimeout(retryTimer); retries = 0; connect(); }
@@ -144,7 +191,7 @@ export function useOnline({ code: initialCode, create, profile, mode, onCode }) 
       document.removeEventListener("visibilitychange", kick);
       ws?.close(1000, "leave");
     };
-  }, [initialCode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [initialCode, quick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const send = useCallback((m) => {
     const ws = wsRef.current;
@@ -160,7 +207,7 @@ export function useOnline({ code: initialCode, create, profile, mode, onCode }) 
     isHost,
     rewards,
     fx,
-    act: useCallback((a) => send({ t: "act", a: { type: a.type, ids: a.ids } }), [send]),
+    act: useCallback((a) => send({ t: "act", a: { type: a.type, ids: a.ids, q: a.q, f: a.f } }), [send]),
     emote: useCallback((e) => send({ t: "emote", e }), [send]),
     throwAt: useCallback((to, item) => send({ t: "throw", to, item }), [send]),
     say: useCallback((i) => send({ t: "say", i }), [send]),

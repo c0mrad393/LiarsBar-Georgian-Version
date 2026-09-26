@@ -12,12 +12,23 @@
 // Devil mode swaps one joker for the devil card: it also counts as any card,
 // and when a call reveals it, everyone except the player who played it faces
 // the revolver, one after another.
+//
+// Chaos mode draws a random event for every round (see CHAOS).
+//
+// Dice mode (Liar's Dice) is a different game on the same table: everyone has
+// 5 hidden dice; players take turns raising a bid "at least Q dice show F"
+// (ones are wild) or call "Liar!" on the last bid. The loser drinks from the
+// wine glasses: one of six is poisoned — the same odds as the revolver.
 
 export const RKEYS = ["K", "Q", "A"];
 export const JOKER = "J";
 export const DEVIL = "D";
 export const WILD = new Set([JOKER, DEVIL]);
-export const MODES = ["classic", "devil"];
+export const MODES = ["classic", "devil", "chaos", "dice"];
+/** Chaos-mode round events. */
+export const CHAOS = ["double", "reverse", "blind", "speed", "jokers", "safe", "single", "duel", "devil"];
+export const DICE = 5;
+const SPEED_MS = 10000;
 export const HAND = 5;
 const SUITS = ["S", "H", "D", "C"]; // cosmetic only
 /** Cards of each rank: enough for everyone to get a full hand. */
@@ -36,7 +47,7 @@ export const PERSONAS = {
 const AUTOPILOT = { bluff: 0.25, call: 0.3 };
 
 // Quip counts per event type; the UI owns the actual text (src/i18n.js).
-export const QUIP_COUNTS = { play: 10, call: 8, truth: 6, bluff: 6, safe: 8, dead: 8, win: 5, devil: 6 };
+export const QUIP_COUNTS = { play: 10, call: 8, truth: 6, bluff: 6, safe: 8, dead: 8, win: 5, devil: 6, bid: 8 };
 
 const TIMING = {
   deal: 1300,
@@ -64,22 +75,32 @@ const shuffle = (a) => {
 const withCards = (s, i) => s.seats[i].alive && s.seats[i].hand.length > 0;
 export const counts = (card, tableCard) => card.rank === tableCard || WILD.has(card.rank);
 
-function nextWhere(s, from, pred) {
+function nextWhere(s, from, pred, dir = 1) {
   const n = s.seats.length;
   for (let k = 1; k <= n; k++) {
-    const i = (from + k) % n;
+    const i = (((from + dir * k) % n) + n) % n;
     if (pred(i)) return i;
   }
   return -1;
 }
-const nextAlive = (s, from) => nextWhere(s, from, (i) => s.seats[i].alive);
+const nextAlive = (s, from, dir = 1) => nextWhere(s, from, (i) => s.seats[i].alive, dir);
+/** Turn order this round (chaos "reverse" flips it). */
+const dirOf = (s) => (s.event === "reverse" ? -1 : 1);
+/** Most cards you may put down at once this round. */
+export const maxPlay = (s) => (s.event === "single" ? 1 : MAX_PLAY);
+export const totalDice = (s) => s.seats.reduce((n, p) => n + (p.alive ? p.dice?.length || 0 : 0), 0);
 
 /** Seat whose "brain" is the engine: bots, and humans who went offline. */
 export const isAuto = (seat) => seat.kind === "bot" || !seat.connected;
 
-/** The player to act has no cards left but a pile to answer, so calling is their only move. */
+/**
+ * Calling is the only move: cards — no cards left but a pile to answer;
+ * dice — the last bid is already the highest possible.
+ */
 export function mustCall(s) {
-  if (s.phase !== "playing" || !s.pile || s.pile.by === s.turn) return false;
+  if (s.phase !== "playing") return false;
+  if (s.kind === "dice") return !!s.bid && s.bid.by !== s.turn && s.bid.q >= totalDice(s) && s.bid.f === 6;
+  if (!s.pile || s.pile.by === s.turn) return false;
   return s.seats[s.turn].hand.length === 0;
 }
 
@@ -97,7 +118,8 @@ function armPull(s, now) {
 function setTurn(s, i, now) {
   s.turn = i;
   const seat = s.seats[i];
-  s.deadline = s.opts.turnMs && seat && !isAuto(seat) ? now + s.opts.turnMs : null;
+  const ms = s.event === "speed" ? SPEED_MS : s.opts.turnMs;
+  s.deadline = ms && seat && !isAuto(seat) ? now + ms : null;
 }
 
 // ------------------------------------------------------------------ setup ---
@@ -119,10 +141,14 @@ export function createGame(seats, opts = {}, now = Date.now()) {
       connected: true,
       alive: true,
       hand: [],
+      dice: [],
       bullet: rnd(6),
       pulls: 0,
     })),
     opts: { turnMs: 0, pullMs: 0, mode: "classic", ...opts },
+    kind: opts.mode === "dice" ? "dice" : "cards",
+    event: null,
+    bid: null,
     phase: "dealing",
     tableCard: "K",
     turn: 0,
@@ -136,8 +162,29 @@ export function createGame(seats, opts = {}, now = Date.now()) {
     log: [],
   };
   pushLog(s, { type: "start" });
-  deal(s, rnd(s.seats.length), now);
+  newRound(s, rnd(s.seats.length), now);
   return s;
+}
+
+const newRound = (s, starter, now) => (s.kind === "dice" ? roll(s, starter, now) : deal(s, starter, now));
+
+/** Dice: everyone rolls five fresh dice. */
+function roll(s, starter) {
+  for (const seat of s.seats) seat.dice = seat.alive ? Array.from({ length: DICE }, () => 1 + rnd(6)) : [];
+  s.bid = null;
+  s.reveal = null;
+  s.roulette = null;
+  s.round += 1;
+  s.phase = "dealing";
+  const first = s.seats[starter]?.alive ? starter : nextAlive(s, starter);
+  s.turn = first;
+  s.deadline = null;
+  pushLog(s, { type: "roll", seat: first, round: s.round });
+}
+
+function pickEvent(s) {
+  const pool = CHAOS.filter((e) => e !== s.event);
+  return pool[rnd(pool.length)];
 }
 
 function deal(s, starter, now) {
@@ -148,6 +195,13 @@ function deal(s, starter, now) {
   deck.push({ id: id++, rank: JOKER }, { id: id++, rank: s.opts.mode === "devil" ? DEVIL : JOKER });
   shuffle(deck);
   for (const seat of s.seats) seat.hand = seat.alive ? deck.splice(0, HAND) : [];
+  s.event = s.opts.mode === "chaos" ? pickEvent(s) : null;
+  const holders = s.seats.filter((p) => p.alive && p.hand.length);
+  if (s.event === "jokers") for (const p of holders) p.hand[rnd(p.hand.length)] = { id: id++, rank: JOKER };
+  if (s.event === "devil" && holders.length) {
+    const p = holders[rnd(holders.length)];
+    p.hand[rnd(p.hand.length)] = { id: id++, rank: DEVIL };
+  }
   s.tableCard = RKEYS[rnd(3)];
   s.pile = null;
   s.reveal = null;
@@ -158,13 +212,14 @@ function deal(s, starter, now) {
   s.turn = first;
   s.deadline = null;
   pushLog(s, { type: "deal", seat: first, rank: s.tableCard, round: s.round });
+  if (s.event) pushLog(s, { type: "chaos", event: s.event });
 }
 
 // ---------------------------------------------------------------- reducer ---
 
 const clone = (s) => ({
   ...s,
-  seats: s.seats.map((p) => ({ ...p, hand: [...p.hand] })),
+  seats: s.seats.map((p) => ({ ...p, hand: [...p.hand], dice: [...(p.dice || [])] })), // snapshots from before dice mode have no dice
   log: s.log,
 });
 
@@ -185,24 +240,52 @@ export function reduce(state, a) {
     }
 
     case "play": {
-      if (state.phase !== "playing" || a.seat !== state.turn || mustCall(state)) return state;
+      if (state.kind === "dice" || state.phase !== "playing" || a.seat !== state.turn || mustCall(state)) return state;
       const ids = Array.isArray(a.ids) ? [...new Set(a.ids)] : [];
       const hand = state.seats[a.seat].hand;
-      if (ids.length < 1 || ids.length > MAX_PLAY || !ids.every((id) => hand.some((c) => c.id === id))) return state;
+      if (ids.length < 1 || ids.length > maxPlay(state) || !ids.every((id) => hand.some((c) => c.id === id))) return state;
       const s = clone(state);
       const me = s.seats[a.seat];
       const played = me.hand.filter((c) => ids.includes(c.id));
       me.hand = me.hand.filter((c) => !ids.includes(c.id));
       s.pile = { by: a.seat, cards: played.map((c) => ({ rank: c.rank })), count: played.length };
       pushLog(s, { type: "play", seat: a.seat, n: played.length, rank: s.tableCard, auto: !!a.auto }, me.kind === "bot" && Math.random() < 0.4 ? "play" : null);
-      let nxt = nextWhere(s, a.seat, (i) => i !== a.seat && withCards(s, i));
-      if (nxt === -1) nxt = nextAlive(s, a.seat); // nobody can answer with cards → forced call
+      const dir = dirOf(s);
+      let nxt = nextWhere(s, a.seat, (i) => i !== a.seat && withCards(s, i), dir);
+      if (nxt === -1) nxt = nextAlive(s, a.seat, dir); // nobody can answer with cards → forced call
       setTurn(s, nxt, now);
+      return s;
+    }
+
+    case "bid": {
+      if (state.kind !== "dice" || state.phase !== "playing" || a.seat !== state.turn) return state;
+      const q = Math.floor(Number(a.q));
+      const f = Math.floor(Number(a.f));
+      const b = state.bid;
+      if (!(f >= 2 && f <= 6 && q >= 1 && q <= totalDice(state))) return state;
+      if (b && !(q > b.q || (q === b.q && f > b.f))) return state;
+      const s = clone(state);
+      s.bid = { by: a.seat, q, f };
+      pushLog(s, { type: "bid", seat: a.seat, q, f, auto: !!a.auto }, s.seats[a.seat].kind === "bot" && Math.random() < 0.35 ? "bid" : null);
+      setTurn(s, nextAlive(s, a.seat), now);
       return s;
     }
 
     case "call": {
       if (state.phase !== "playing" || a.seat !== state.turn) return state;
+      if (state.kind === "dice") {
+        const b = state.bid;
+        if (!b || b.by === a.seat) return state;
+        const s = clone(state);
+        const count = s.seats.reduce((n, p) => n + (p.alive ? p.dice.filter((d) => d === b.f || d === 1).length : 0), 0);
+        const truthful = count >= b.q;
+        s.reveal = { dice: s.seats.map((p) => (p.alive ? [...p.dice] : [])), bid: b, count, truthful, accuser: a.seat, by: b.by };
+        s.bid = null;
+        s.phase = "reveal";
+        s.deadline = null;
+        pushLog(s, { type: "call", seat: a.seat, other: b.by, auto: !!a.auto }, "call");
+        return s;
+      }
       const pile = state.pile;
       if (!pile || pile.by === a.seat) return state;
       const s = clone(state);
@@ -232,9 +315,11 @@ export function reduce(state, a) {
         starter = by;
         pushLog(s, { type: "devil", seat: by, other: accuser }, "devil");
       } else {
-        victims = [truthful ? accuser : by];
-        reason = truthful ? "wrongCall" : "caught";
-        pushLog(s, { type: truthful ? "truth" : "bluff", seat: by, other: accuser }, truthful ? "truth" : "bluff");
+        const loser = truthful ? accuser : by;
+        // Chaos "duel": both sides of the call face the revolver, loser first.
+        victims = s.event === "duel" ? [loser, loser === accuser ? by : accuser] : [loser];
+        reason = s.event === "duel" ? "duel" : truthful ? "wrongCall" : "caught";
+        pushLog(s, { type: truthful ? "truth" : "bluff", seat: by, other: accuser, count: s.reveal.count, q: s.reveal.bid?.q, f: s.reveal.bid?.f }, truthful ? "truth" : "bluff");
       }
       s.roulette = { victim: victims[0], queue: victims.slice(1), reason, starter, spinning: false, result: null };
       s.phase = "roulette";
@@ -256,14 +341,17 @@ export function reduce(state, a) {
       if (state.phase !== "roulette" || !r?.spinning) return state;
       const s = clone(state);
       const v = s.seats[r.victim];
-      const fired = v.pulls === v.bullet;
-      v.pulls += 1;
+      // Chaos: "safe" jams the gun (the chamber doesn't even turn); "double" adds a second bullet.
+      const jam = s.event === "safe";
+      const fired = !jam && (v.pulls === v.bullet || (s.event === "double" && v.pulls < 5 && Math.random() < 1 / (6 - v.pulls)));
+      if (!jam) v.pulls += 1;
       if (fired) {
         v.alive = false;
         v.hand = [];
+        v.dice = [];
       }
-      s.roulette = { ...r, spinning: false, result: fired ? "dead" : "safe", chamber: v.pulls - 1 };
-      pushLog(s, { type: fired ? "dead" : "safe", seat: r.victim }, fired ? "dead" : "safe");
+      s.roulette = { ...r, spinning: false, result: fired ? "dead" : "safe", chamber: jam ? v.pulls : v.pulls - 1, jam };
+      pushLog(s, { type: fired ? "dead" : "safe", seat: r.victim, wine: s.kind === "dice", jam }, fired ? "dead" : "safe");
       return s;
     }
 
@@ -287,7 +375,7 @@ export function reduce(state, a) {
         return s;
       }
       const starter = r.starter ?? (r.result === "dead" ? nextAlive(s, r.victim) : r.victim);
-      deal(s, s.seats[starter].alive ? starter : nextAlive(s, starter), now);
+      newRound(s, s.seats[starter].alive ? starter : nextAlive(s, starter), now);
       return s;
     }
 
@@ -311,9 +399,37 @@ export function reduce(state, a) {
 
 // -------------------------------------------------------------------- bots ---
 
+/** Dice bot: expects a third of unseen dice to match (a face or a wild one). */
+function diceDecide(s, i, pa) {
+  const me = s.seats[i];
+  const auto = me.kind !== "bot";
+  const total = totalDice(s);
+  const others = total - me.dice.length;
+  const mine = (f) => me.dice.filter((d) => d === f || d === 1).length;
+  const expect = (f) => mine(f) + others / 3;
+  const b = s.bid;
+  if (b && b.by !== i) {
+    if (mustCall(s)) return { type: "call", seat: i, auto };
+    const margin = 1.6 - pa.call * 2 + (Math.random() - 0.5) * 0.8;
+    if (b.q - expect(b.f) > margin) return { type: "call", seat: i, auto };
+  }
+  const faces = [2, 3, 4, 5, 6];
+  let f = faces[rnd(5)];
+  for (const x of faces) if (mine(x) > mine(f)) f = x;
+  if (Math.random() < pa.bluff * 0.4) f = faces[rnd(5)];
+  let q = !b ? Math.max(1, Math.round(expect(f) * 0.7)) : f > b.f ? b.q : b.q + 1;
+  if (b && q < expect(f) - 1 && Math.random() < 0.3) q += 1;
+  if (q > total) {
+    if (b) return { type: "call", seat: i, auto };
+    q = total;
+  }
+  return { type: "bid", seat: i, q, f, auto };
+}
+
 export function botDecide(s, i) {
   const me = s.seats[i];
   const pa = me.kind === "bot" ? PERSONAS[me.persona] || AUTOPILOT : AUTOPILOT;
+  if (s.kind === "dice") return diceDecide(s, i, pa);
   const pile = s.pile;
   if (mustCall(s)) return { type: "call", seat: i, auto: me.kind !== "bot" };
   const holdsDevil = me.hand.some((c) => c.rank === DEVIL);
@@ -329,11 +445,11 @@ export function botDecide(s, i) {
   const other = me.hand.filter((c) => !counts(c, s.tableCard));
   const bluff = !match.length || Math.random() < pa.bluff;
   let pool = !bluff ? match : other.length ? other : me.hand;
-  const n = Math.min(pool.length, 1 + rnd(bluff ? 2 : 3));
+  const n = Math.min(pool.length, 1 + rnd(bluff ? 2 : 3), maxPlay(s));
   let toPlay = shuffle([...pool]).slice(0, n);
   // Bait: a bot holding the devil loves to slip it into an honest play.
   const devil = me.hand.find((c) => c.rank === DEVIL);
-  if (devil && !bluff && !toPlay.includes(devil) && Math.random() < 0.6) toPlay = [devil, ...toPlay].slice(0, MAX_PLAY);
+  if (devil && !bluff && !toPlay.includes(devil) && Math.random() < 0.6) toPlay = [devil, ...toPlay].slice(0, maxPlay(s));
   if (!toPlay.length) toPlay = me.hand.slice(0, 1);
   return { type: "play", seat: i, ids: toPlay.map((c) => c.id), auto: me.kind !== "bot" };
 }
@@ -341,6 +457,7 @@ export function botDecide(s, i) {
 /** Timeout fallback for a human who is connected but idle. */
 function afkAction(s) {
   const me = s.seats[s.turn];
+  if (s.kind === "dice") return diceDecide(s, s.turn, AUTOPILOT);
   if (mustCall(s)) return { type: "call", seat: s.turn, auto: true };
   const c = me.hand[rnd(me.hand.length)];
   return { type: "play", seat: s.turn, ids: [c.id], auto: true };
@@ -388,8 +505,14 @@ export function schedule(s, now = Date.now()) {
 
 /** What seat `me` is allowed to see. Hands of others, bullets and face-down cards stay on the host. */
 export function viewFor(s, me) {
+  const blind = s.event === "blind"; // chaos: your own cards stay face down
   return {
     me,
+    kind: s.kind,
+    event: s.event,
+    bid: s.bid,
+    maxPlay: maxPlay(s),
+    totalDice: s.kind === "dice" ? totalDice(s) : 0,
     phase: s.phase,
     tableCard: s.tableCard,
     turn: s.turn,
@@ -411,8 +534,9 @@ export function viewFor(s, me) {
       connected: p.connected,
       alive: p.alive,
       pulls: p.pulls,
-      handCount: p.hand.length,
-      hand: p.idx === me ? p.hand : null,
+      handCount: s.kind === "dice" ? p.dice.length : p.hand.length,
+      hand: p.idx === me ? (blind ? p.hand.map((c) => ({ id: c.id, rank: "?" })) : p.hand) : null,
+      dice: p.idx === me ? p.dice : null,
     })),
   };
 }

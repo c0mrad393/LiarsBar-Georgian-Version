@@ -2,12 +2,13 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useWakeLock } from "../device.js";
 import { ITEMS } from "../shop.js";
 import { MAX_PLAY } from "../engine.js";
-import { EMOTES, MODE_INFO, PHRASES, RANKS, T, describe, quipText } from "../i18n.js";
+import { CHAOS_INFO, EMOTES, MODE_INFO, PHRASES, RANKS, T, describe, quipText } from "../i18n.js";
 import { sfx, unlockAudio } from "../sfx.js";
 import { Card } from "./cards.jsx";
 import Character, { seatColor } from "./Character.jsx";
 import Hand from "./Hand.jsx";
-import { DevilBurst, GameOver, LiarBurst, RevealCards } from "./overlays.jsx";
+import { BidPicker, Die, MyDice, RevealDice } from "./dice.jsx";
+import { ChaosBanner, DevilBurst, GameOver, LiarBurst, RevealCards } from "./overlays.jsx";
 import { Btn, Chambers, Confetti, SoundToggle, Timer } from "./parts.jsx";
 import Roulette from "./Roulette.jsx";
 import Table, { Bubble, Emotes } from "./Table.jsx";
@@ -33,7 +34,7 @@ function Log({ view, nm }) {
       {view.log.map((e) => {
         const text = describe(e, nm);
         if (!text) return null;
-        const tone = { devil: "bg-[#ffd0d0]", call: "bg-[#ffe1e2]", dead: "bg-[#ffe1e2]", bluff: "bg-[#ffe1e2]", truth: "bg-[#d8f5f1]", safe: "bg-[#fff1c7]", win: "bg-[#fff1c7]", deal: "bg-[#e6effd]" }[e.type] || "bg-cream";
+        const tone = { devil: "bg-[#ffd0d0]", call: "bg-[#ffe1e2]", dead: "bg-[#ffe1e2]", bluff: "bg-[#ffe1e2]", truth: "bg-[#d8f5f1]", safe: "bg-[#fff1c7]", win: "bg-[#fff1c7]", deal: "bg-[#e6effd]", roll: "bg-[#e6effd]", chaos: "bg-[#efe3fb]" }[e.type] || "bg-cream";
         return (
           <div key={e.id} className={`a-fade-up rounded-xl px-2.5 py-1.5 text-[12px] font-semibold leading-snug ${tone}`}>
             {text}
@@ -56,6 +57,7 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
   const [burst, setBurst] = useState(null);
   const [devil, setDevil] = useState(null);
   const [confetti, setConfetti] = useState(0);
+  const [chaos, setChaos] = useState(null);
   const [sheet, setSheet] = useState(null); // react | log
   // One-time hint that you can throw things at people.
   const [tip, setTip] = useState(false);
@@ -98,7 +100,12 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
       const q = quipText(ev);
       switch (ev.type) {
         case "deal": sfx("deal"); break;
-        case "play": sfx("card"); if (q) { speak(ev.seat, q); moment(ev.seat, "talk", 1400); } break;
+        case "chaos":
+          sfx("joker");
+          setChaos({ id: ev.id, event: ev.event });
+          setTimeout(() => setChaos((c) => (c?.id === ev.id ? null : c)), 2700);
+          break;
+        case "play": case "bid": sfx("card"); if (q) { speak(ev.seat, q); moment(ev.seat, "talk", 1400); } break;
         case "call":
           sfx("liar");
           setBurst({ id: ev.id, seat: ev.seat });
@@ -158,16 +165,19 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
     else setSelected((s) => s.filter((id) => mine.hand.some((c) => c.id === id)));
   }, [myTurn, handKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const canPick = myTurn && !view.mustCall;
-  const canCall = myTurn && view.pile && view.pile.by !== me;
+  const dice = view.kind === "dice";
+  const maxPlay = view.maxPlay || MAX_PLAY;
+  const ev = view.event && CHAOS_INFO[view.event];
+  const canPick = myTurn && !view.mustCall && !dice;
+  const canCall = myTurn && (dice ? view.bid && view.bid.by !== me : view.pile && view.pile.by !== me);
   const toggle = (id) => {
     if (!canPick) return;
     unlockAudio();
     sfx("select");
-    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : s.length >= MAX_PLAY ? s : [...s, id]));
+    setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : s.length >= maxPlay ? (maxPlay === 1 ? [id] : s) : [...s, id]));
   };
   const play = (ids = selected) => {
-    const pick = ids.slice(0, MAX_PLAY);
+    const pick = ids.slice(0, maxPlay);
     if (canPick && pick.length) { act({ type: "play", ids: pick }); setSelected([]); }
   };
   const call = () => { if (canCall) act({ type: "call" }); };
@@ -175,7 +185,7 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
   const states = {};
   for (const s of view.seats) states[s.idx] = moodOf(view, s.idx, moments);
   const myMood = states[me];
-  const tc = RANKS[view.tableCard];
+  const tc = RANKS[view.tableCard] || RANKS.K;
   const pileKey = view.log.find((e) => e.type === "play")?.id ?? 0;
   const myHit = [...fx].reverse().find((f) => f.kind === "throw" && f.to === me);
   const mySay = [...fx].reverse().find((f) => f.kind === "say" && f.seat === me);
@@ -185,17 +195,17 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
     view.phase === "playing" && up ? (
       <><span className="a-bob inline-block text-xl">{up.avatar}</span><span className="truncate">{up.name} {T.thinking}</span></>
     ) : view.phase === "dealing" ? (
-      <>🃏 {T.round} {view.round}</>
+      <>{dice ? "🎲" : "🃏"} {T.round} {view.round}</>
     ) : view.phase === "reveal" ? (
       <span className="a-wiggle inline-block text-xl">👀</span>
     ) : view.phase === "roulette" && view.roulette ? (
-      <>🔫 {view.seats[view.roulette.victim]?.name} {T.facesGun}</>
+      <>{dice ? "🍷" : "🔫"} {view.seats[view.roulette.victim]?.name} {dice ? T.faceGlass : T.facesGun}</>
     ) : null;
 
   const center = view.reveal ? (
-    <RevealCards reveal={view.reveal} tableCard={view.tableCard} back={backOf(view.seats[view.reveal.by]?.looks)} />
+    dice ? <RevealDice reveal={view.reveal} seats={view.seats} /> : <RevealCards reveal={view.reveal} tableCard={view.tableCard} back={backOf(view.seats[view.reveal.by]?.looks)} />
   ) : view.phase === "dealing" ? (
-    <div className="a-pop font-display text-3xl text-white" style={{ textShadow: "2px 3px 0 #2b1d14" }}>🃏 {T.round} {view.round}!</div>
+    <div className="a-pop font-display text-3xl text-white" style={{ textShadow: "2px 3px 0 #2b1d14" }}>{dice ? <><span className="a-cup inline-block">🎲</span> {T.diceRound}</> : <>🃏 {T.round} {view.round}!</>}</div>
   ) : null;
 
   return (
@@ -208,6 +218,7 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
       {burst && <LiarBurst burst={burst.id} seat={view.seats[burst.seat]} />}
       {devil && <DevilBurst id={devil.id} seat={view.seats[devil.seat]} />}
       {confetti ? <Confetti key={confetti} /> : null}
+      {chaos && <ChaosBanner key={chaos.id} event={chaos.event} />}
 
       <div className="mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-4 px-2 sm:px-4 lg:grid-cols-[1fr_270px]">
         <div className="flex min-w-0 flex-col">
@@ -216,16 +227,32 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
             <button onClick={onLeave} className="comic-sm flex h-10 items-center rounded-full bg-paper px-3 text-sm font-extrabold" aria-label={T.leave}>
               ←<span className="ml-1 hidden sm:inline">{T.leave}</span>
             </button>
-            <div className="comic-sm flex items-center gap-1.5 rounded-full bg-paper py-0.5 pl-0.5 pr-3">
-              <Card key={`${view.round}-${view.tableCard}`} rank={view.tableCard} suit={{ K: "H", Q: "D", A: "S" }[view.tableCard]} size="xs" className="a-pop" />
-              <div className="leading-none">
-                <div className="text-[8px] font-extrabold uppercase tracking-wider text-ink-soft">{T.tableCard}</div>
-                <div className="text-sm font-black" style={{ color: tc.color }}>{tc.emoji} {tc.geo}</div>
+            {dice ? (
+              <div className="comic-sm flex h-10 items-center gap-1.5 rounded-full bg-paper pl-1 pr-3">
+                <Die face={1} size={30} />
+                <div className="leading-none">
+                  <div className="text-[8px] font-extrabold uppercase tracking-wider text-ink-soft">{T.diceTotal}</div>
+                  <div className="text-sm font-black">🎲 {view.totalDice}</div>
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="comic-sm flex items-center gap-1.5 rounded-full bg-paper py-0.5 pl-0.5 pr-3">
+                <Card key={`${view.round}-${view.tableCard}`} rank={view.tableCard} suit={{ K: "H", Q: "D", A: "S" }[view.tableCard]} size="xs" className="a-pop" />
+                <div className="leading-none">
+                  <div className="text-[8px] font-extrabold uppercase tracking-wider text-ink-soft">{T.tableCard}</div>
+                  <div className="text-sm font-black" style={{ color: tc.color }}>{tc.emoji} {tc.geo}</div>
+                </div>
+              </div>
+            )}
             <div className="flex items-center gap-1.5">
               {view.opts?.mode === "devil" && (
                 <span className="comic-sm flex h-10 items-center rounded-full bg-[#2a0508] px-2.5 text-sm font-black text-sun" title={MODE_INFO.devil.hint}>😈</span>
+              )}
+              {ev && (
+                <button key={view.event + view.round} onClick={() => setChaos({ id: Math.random(), event: view.event })} title={`${ev.name} ${ev.desc}`} aria-label={`${ev.name} ${ev.desc}`}
+                  className="a-pop comic-sm flex h-10 items-center gap-1 rounded-full bg-grape px-2.5 text-sm font-black text-white">
+                  <span className="a-wiggle inline-block">{ev.emoji}</span><span className="hidden sm:inline">{ev.name}</span>
+                </button>
               )}
               <span className="comic-sm flex h-10 items-center rounded-full bg-sun px-2.5 text-xs font-black sm:text-sm" title={T.round}>#{view.round}</span>
               <button onClick={() => setSheet(sheet === "log" ? null : "log")} className="comic-sm flex h-10 w-10 items-center justify-center rounded-full bg-paper text-lg lg:hidden" aria-label={T.log}>📜</button>
@@ -265,7 +292,7 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
               <div className="flex items-center gap-2">
                 {myTurn && (
                   <span className={`a-pop flex items-center gap-1.5 rounded-full border-[2.5px] border-ink py-0.5 pl-2.5 pr-1 text-xs font-black ${view.mustCall ? "bg-coral text-white" : "bg-sun"}`}>
-                    <span className="a-hop inline-block">{T.yourTurn}</span>
+                    <span className="a-heartbeat inline-block">{T.yourTurn}</span>
                     <Timer deadline={view.deadline} offset={view.clockOffset} className="!border-0 !px-1" />
                   </span>
                 )}
@@ -289,8 +316,10 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
             </div>
 
             {mine.alive ? (
-              mine.hand.length ? (
-                <Hand cards={mine.hand} selected={selected} canPick={canPick} onToggle={toggle} onPlay={play} round={view.round} tableCard={view.tableCard} />
+              dice ? (
+                <MyDice dice={mine.dice || []} round={view.round} bidFace={view.bid?.f} />
+              ) : mine.hand.length ? (
+                <Hand cards={mine.hand} selected={selected} canPick={canPick} onToggle={toggle} onPlay={play} round={view.round} tableCard={view.tableCard} back={backOf(myLooks)} />
               ) : (
                 <div className="flex min-h-[90px] items-center justify-center text-sm font-extrabold text-ink-soft">🫳 {T.outOfCards}</div>
               )
@@ -301,7 +330,10 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
             {/* actions on your turn; otherwise a calm line saying who's up */}
             {mine.alive && (
               <div className="mt-2 flex min-h-[60px] items-stretch justify-center gap-3 short:mt-1 short:min-h-[50px]">
-                {myTurn ? (
+                {myTurn && dice ? (
+                  <BidPicker bid={view.bid} total={view.totalDice} dice={mine.dice || []} canCall={canCall} mustCall={view.mustCall}
+                    onBid={(q, f) => act({ type: "bid", q, f })} onCall={call} />
+                ) : myTurn ? (
                   <>
                     <Btn color="coral" onClick={call} disabled={!canCall} className={`a-pop flex-1 py-3 short:py-2 sm:flex-none sm:px-8 ${canCall && view.mustCall ? "a-hop" : ""}`}>
                       <span className="block text-lg leading-none">🤥 {T.liar}</span>
@@ -312,7 +344,7 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
                     ) : (
                       <Btn color="sun" onClick={() => play()} disabled={!selected.length} className="a-pop flex-1 py-3 short:py-2 sm:flex-none sm:px-8" style={{ animationDelay: "60ms" }}>
                         <span className="block text-lg leading-none">🃏 {T.play}{selected.length ? ` ×${selected.length}` : ""}</span>
-                        <span className="block text-[11px] font-bold opacity-70">{selected.length ? `${selected.length}× ${tc.emoji} ${tc.geo} · ☝️` : T.pickCards}</span>
+                        <span className="block text-[11px] font-bold opacity-70">{selected.length ? `${selected.length}× ${tc.emoji} ${tc.geo} · ☝️` : maxPlay === 1 ? T.pickOne : T.pickCards}</span>
                       </Btn>
                     )}
                   </>

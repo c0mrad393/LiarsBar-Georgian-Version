@@ -10,9 +10,27 @@ export const RANKS = {
 };
 
 export const MODE_INFO = {
-  classic: { emoji: "🃏", name: "კლასიკური", hint: "2 ჯოკერი: ნებისმიერ კარტად ითვლება" },
-  devil: { emoji: "😈", name: "ეშმაკის რეჟიმი", hint: "ჯოკერი + ეშმაკი: თუ ეშმაკი გაიხსნა, ყველა დანარჩენი რევოლვერთან ჯდება!" },
+  classic: { emoji: "🃏", name: "კლასიკური", hint: "ბლეფი, ჯოკერები და რევოლვერი" },
+  devil: { emoji: "😈", name: "ეშმაკის რეჟიმი", hint: "ეშმაკი გაიხსნა? ყველა დანარჩენი რევოლვერთან!" },
+  chaos: { emoji: "🌀", name: "ქაოსი", hint: "ყოველ რაუნდს შემთხვევითი მოვლენა 🎰" },
+  dice: { emoji: "🎲", name: "კამათელი", hint: "Liar's Dice: ფსონები და მოწამლული ღვინო 🍷" },
 };
+
+/** Chaos-mode round events. */
+export const CHAOS_INFO = {
+  double: { emoji: "💥", name: "ორი ტყვია!", desc: "ამ რაუნდში რევოლვერში ორი ტყვიაა" },
+  reverse: { emoji: "🔄", name: "უკუღმა!", desc: "სვლები საპირისპირო მიმართულებით მიდის" },
+  blind: { emoji: "🙈", name: "ბრმა რაუნდი!", desc: "საკუთარ კარტებსაც ვერ ხედავ" },
+  speed: { emoji: "⚡", name: "ელვა!", desc: "ყოველ სვლაზე მხოლოდ 10 წამი" },
+  jokers: { emoji: "🃏", name: "ჯოკერების წვიმა!", desc: "ყველას ხელში ერთი ჯოკერია" },
+  safe: { emoji: "🛟", name: "გაჭედილი რევოლვერი", desc: "ამ რაუნდში ტყვია არ გავარდება" },
+  single: { emoji: "☝️", name: "თითო კარტი", desc: "ერთ სვლაზე მხოლოდ 1 კარტი" },
+  duel: { emoji: "🤠", name: "დუელი!", desc: "„მატყუარაზე“ ორივე ჯდება რევოლვერთან" },
+  devil: { emoji: "😈", name: "ეშმაკი დასტაში!", desc: "ვიღაცას ეშმაკის კარტი ჩაუვარდა" },
+};
+
+/** Dice faces: 1 is the wild "star". */
+export const FACE_NAMES = { 1: "ერთიანი", 2: "ორიანი", 3: "სამიანი", 4: "ოთხიანი", 5: "ხუთიანი", 6: "ექვსიანი" };
 
 export { FREE_AVATARS as AVATARS } from "./shop.js";
 
@@ -55,6 +73,7 @@ export const T = {
   round: "რაუნდი",
   yourTurn: "შენი სვლაა!",
   pickCards: "აირჩიე 1–3 კარტი",
+  pickOne: "აირჩიე 1 კარტი",
   waitingFor: "სვლა აქვს:",
   play: "დადება",
   liar: "მატყუარა!",
@@ -93,7 +112,7 @@ export const T = {
   replaced: "ეს ადგილი სხვა ტაბში გაიხსნა",
   retry: "თავიდან ცდა",
   roomMissing: "ოთახი ვერ მოიძებნა. შეიძლება დაიხურა ან კოდი არასწორია.",
-  roomFull: "ოთახი სავსეა (მაქს. 4)",
+  roomFull: "ოთახი სავსეა (მაქს. 6)",
   alreadyStarted: "თამაში უკვე დაწყებულია",
   netError: "კავშირის შეცდომა",
   sound: "ხმა",
@@ -188,6 +207,48 @@ export const T = {
   adminLocked: "ძალიან ბევრი მცდელობა, სცადე 1 საათში",
   adminDisabled: "ადმინის პაროლი ჯერ არ არის დაყენებული",
   adminDone: "ჩაირიცხა",
+  // dice
+  bid: "ფსონი",
+  bidEn: "BID!",
+  raise: "აწიე",
+  howMany: "რამდენი",
+  yourDice: "შენი კამათლები",
+  diceTotal: "კამათელი მაგიდაზე",
+  onesWild: "⭐ ერთიანი ნებისმიერ რიცხვად ითვლება",
+  noBid: "ჯერ ფსონი არავის დაუდია",
+  bidSays: "ამბობს:",
+  atLeast: "მინიმუმ",
+  diceRound: "გაგორდა!",
+  counted: "დაითვალეს",
+  wineRoulette: "ღვინის რულეტი",
+  faceGlass: "ღვინის ჭიქასთან",
+  drink: "ვსვამ… 🙈",
+  sipping: "ყლუპ… ყლუპ… 🍷",
+  poisoned: "მოიწამლა!",
+  tasty: "გემრიელია!",
+  holdToDrink: "დააჭირე და დალიე 👆",
+  maxBid: "უფრო მაღალი ფსონი აღარ არსებობს: დაიჭირე!",
+  // chaos
+  chaosRound: "ქაოსი",
+  jammed: "გაიჭედა!",
+  duel: "დუელი: ორივე რევოლვერთან 🤠",
+  // public tables
+  online: "ონლაინ",
+  onlineHint: "სწრაფი თამაში ან მეგობრები",
+  quickPlay: "სწრაფი თამაში",
+  quickHint: "ღია მაგიდასთან ჩაგსვამთ, ლინკის გარეშე",
+  anyMode: "ნებისმიერი",
+  openTables: "ღია მაგიდები",
+  noTables: "ჯერ ღია მაგიდა არ არის. გახსენი პირველი! 👆",
+  sit: "დაჯდომა",
+  privateRoom: "მეგობრებთან (დახურული ოთახი)",
+  finding: "მაგიდას ვეძებთ…",
+  publicTable: "საჯარო მაგიდა",
+  publicToggle: "ყველასთვის ღია",
+  publicOn: "🌍 ნებისმიერს შეუძლია შემოსვლა სწრაფი თამაშით",
+  publicOff: "🔒 მხოლოდ ლინკით",
+  startsIn: "იწყება",
+  autoStartHint: "2+ ადამიანზე თამაში თავისით იწყება",
 };
 
 export const RULES = [
@@ -199,6 +260,8 @@ export const RULES = [
   "რევოლვერში 6 ბუდეა და 1 ტყვია. ყოველ ჯერზე შანსი უარესდება.",
   "იგებს ბოლოს დარჩენილი 🏆",
   "🪙 ონლაინ თამაშში ქოინებს აგროვებ: მონაწილეობა +10, გამარჯვება +50, გადარჩენა +5, ბლეფის დაჭერა +10, ეშმაკი +15. ლიდერბორდში შენი ადგილი ჩანს.",
+  "🌀 ქაოსის რეჟიმი: ყოველ რაუნდს შემთხვევითი მოვლენა აქვს: ორი ტყვია, უკუღმა სვლები, ბრმა კარტები, 10-წამიანი სვლები, დუელი და სხვა.",
+  "🎲 კამათლის რეჟიმი: ყველას 5 ფარული კამათელი აქვს. რიგრიგობით აწევ ფსონს („მაგიდაზე მინიმუმ 4 ხუთიანია“) ან ყვირი „მატყუარა!“. ⭐ ერთიანი ნებისმიერ რიცხვად ითვლება. ვინც შეცდა, ღვინოს სვამს: 6 ჭიქიდან ერთი მოწამლულია 🍷",
   "😈 ეშმაკის რეჟიმი: ერთი ჯოკერის ნაცვლად დასტაშია ეშმაკი. ისიც ნებისმიერ კარტად ითვლება, მაგრამ თუ „მატყუარა!“-ზე გაიხსნა, ვინც ის დადო, გადარჩება და ყველა დანარჩენი რიგრიგობით რევოლვერთან ჯდება!",
 ];
 
@@ -269,6 +332,16 @@ const Q = {
     "Surprise, surprise 😈",
     "ახლა ყველა ილოცეთ 🙏",
   ],
+  bid: [
+    "ეს ფსონი რკინაა 🔩",
+    "აბა, აწიე თუ ბიჭი ხარ 😏",
+    "კამათლები არ ტყუიან… მე კი? 🤔",
+    "Trust the dice 🎲",
+    "ჩემი ჭიქა სავსეა 🍷",
+    "მათემატიკა ჩემს მხარესაა 🤓",
+    "ეს ჯერ დასაწყისია",
+    "ყველაფერს ვდებ! 💰",
+  ],
   win: [
     "Champion! 🏆",
     "ბარი ჩემია!",
@@ -302,12 +375,15 @@ export function describe(ev, nm) {
     case "start": return "🍺 ბარი გაიხსნა. თამაში დაიწყო!";
     case "deal": return `🃏 რაუნდი ${ev.round}: მაგიდაზე ${r.emoji} ${r.geo}. იწყებს ${nm(ev.seat)}.`;
     case "play": return `${nm(ev.seat)}: ${ev.n}× ${r.emoji} ${r.geo}${ev.auto ? " ⏱" : ""}`;
+    case "roll": return `🎲 რაუნდი ${ev.round}: კამათლები გაგორდა! იწყებს ${nm(ev.seat)}.`;
+    case "bid": return `🎲 ${nm(ev.seat)}: ${ev.q} × ${FACE_NAMES[ev.f]}${ev.auto ? " ⏱" : ""}`;
+    case "chaos": return CHAOS_INFO[ev.event] ? `🌀 ${CHAOS_INFO[ev.event].emoji} ${CHAOS_INFO[ev.event].name} ${CHAOS_INFO[ev.event].desc}` : "";
     case "call": return `📢 ${nm(ev.seat)} → „მატყუარა!“ → ${nm(ev.other)}`;
-    case "truth": return `✅ ${nm(ev.seat)} სიმართლეს ამბობდა!`;
-    case "bluff": return `❌ ${nm(ev.seat)} ბლეფობდა!`;
+    case "truth": return `✅ ${nm(ev.seat)} სიმართლეს ამბობდა!${ev.f ? ` (${ev.count} × ${FACE_NAMES[ev.f]})` : ""}`;
+    case "bluff": return `❌ ${nm(ev.seat)} ბლეფობდა!${ev.f ? ` (მხოლოდ ${ev.count} × ${FACE_NAMES[ev.f]})` : ""}`;
     case "devil": return `😈 ეშმაკი! ${nm(ev.seat)}-ს გარდა ყველა რევოლვერთან!`;
-    case "safe": return `😅 ჩხაკ! ${nm(ev.seat)} გადარჩა.`;
-    case "dead": return `💥 BANG! ${nm(ev.seat)} გავარდა.`;
+    case "safe": return ev.jam ? `🛟 რევოლვერი გაიჭედა! ${nm(ev.seat)} გადარჩა.` : ev.wine ? `🍷 ${nm(ev.seat)}-ს ღვინო გემრიელი აღმოჩნდა.` : `😅 ჩხაკ! ${nm(ev.seat)} გადარჩა.`;
+    case "dead": return ev.wine ? `☠️ ${nm(ev.seat)} მოიწამლა!` : `💥 BANG! ${nm(ev.seat)} გავარდა.`;
     case "win": return `🏆 ${nm(ev.seat)} გაიმარჯვა!`;
     case "left": return `📴 ${nm(ev.seat)} გავიდა. ბოტი ჩაენაცვლა`;
     case "back": return `🔌 ${nm(ev.seat)} დაბრუნდა!`;

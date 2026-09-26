@@ -1,5 +1,5 @@
 // Full-screen and table-centre moments: the reveal, LIAR!, the devil, game over.
-import { RANKS, T, quipText } from "../i18n.js";
+import { CHAOS_INFO, RANKS, T, quipText } from "../i18n.js";
 import { sfx } from "../sfx.js";
 import { Card, CardBack } from "./cards.jsx";
 import Character, { seatColor } from "./Character.jsx";
@@ -169,6 +169,25 @@ export function GameOver({ view, nm, rewards, solo, canRestart, onAgain, onLeave
           )}
           {onToLobby && <Btn color="mint" onClick={onToLobby} className="py-2.5 text-sm">👥 {T.lobby}</Btn>}
           <Btn color="paper" onClick={onLeave} className="py-2.5 text-sm">🏠 {T.menu}</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Chaos mode: the round's event spins in over the table. */
+export function ChaosBanner({ event }) {
+  const ev = CHAOS_INFO[event];
+  if (!ev) return null;
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[71] flex items-center justify-center px-6">
+      <div className="a-chaos relative flex h-[300px] w-[300px] items-center justify-center sm:h-[360px] sm:w-[360px]">
+        <Starburst fill="#9b5de5" points={18} className="a-spin-slow absolute inset-0 h-full w-full" />
+        <div className="relative max-w-[210px] text-center text-white">
+          <div className="font-display text-sm tracking-[0.3em] opacity-90">🌀 {T.chaosRound}</div>
+          <div className="a-wiggle my-1 inline-block text-6xl">{ev.emoji}</div>
+          <div className="font-display text-3xl leading-none" style={{ textShadow: "3px 3px 0 #2b1d14" }}>{ev.name}</div>
+          <div className="mt-2 text-sm font-extrabold leading-snug">{ev.desc}</div>
         </div>
       </div>
     </div>

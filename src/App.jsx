@@ -3,7 +3,7 @@ import { AVATARS, T } from "./i18n.js";
 import { useAccount } from "./account.js";
 import { requestTilt } from "./device.js";
 import { makeCode, useOnline } from "./online.js";
-import { cleanAvatar, cleanCode, cleanName } from "./shared.js";
+import { MODES, cleanAvatar, cleanCode, cleanName } from "./shared.js";
 import { useSolo } from "./useGame.js";
 import { FREE_THROWS, ITEMS } from "./shop.js";
 // The table and lobby load separately and are fetched in the background while
@@ -54,12 +54,12 @@ function SoloScreen({ profile, mode, bots, me, onLeave }) {
 
 const throwsOf = (me) => [...FREE_THROWS, ...(me?.owned || []).filter((id) => ITEMS[id]?.cat === "throw")];
 
-function OnlineScreen({ code, create, profile, mode, setMode, me, onLeave, onRetry }) {
-  const o = useOnline({ code, create, profile, mode, onCode: setRoomInUrl });
+function OnlineScreen({ code, create, quick, profile, mode, setMode, me, onLeave, onRetry }) {
+  const o = useOnline({ code, create, quick, profile, mode, onCode: setRoomInUrl });
   const pickMode = (m) => { o.ctl("mode", m); setMode(m); };
   const leave = () => { if (o.status !== "game" || o.view?.phase === "gameover" || window.confirm(T.leaveGameConfirm)) onLeave(); };
 
-  if (o.status === "connecting") return <Notice emoji="📡" title={create ? T.creating : T.connecting} />;
+  if (o.status === "connecting") return <Notice emoji={quick ? "🔎" : "📡"} title={quick ? T.finding : create ? T.creating : T.connecting} />;
   if (o.status === "error")
     return (
       <Notice emoji="😵" title={T[o.error] || T.netError}>
@@ -77,7 +77,7 @@ function OnlineScreen({ code, create, profile, mode, setMode, me, onLeave, onRet
       <>
         {banner}
         {o.lobby ? (
-          <Lobby lobby={o.lobby} isHost={o.isHost} setBots={(v) => o.ctl("bots", v)} setMode={pickMode} onStart={() => o.ctl("start")} onLeave={onLeave} />
+          <Lobby lobby={o.lobby} isHost={o.isHost} setBots={(v) => o.ctl("bots", v)} setMode={pickMode} setPublic={(v) => o.ctl("public", v)} onStart={() => o.ctl("start")} onLeave={onLeave} />
         ) : (
           <Notice emoji="📡" title={T.connecting} />
         )}
@@ -124,7 +124,7 @@ export default function App() {
   const [screen, setScreen] = useState({ name: "home" });
   const [attempt, setAttempt] = useState(0);
   const [mode, setMode] = useState(() => {
-    try { return localStorage.getItem("lb-mode") === "devil" ? "devil" : "classic"; } catch { return "classic"; }
+    try { const m = localStorage.getItem("lb-mode"); return MODES.includes(m) ? m : "classic"; } catch { return "classic"; }
   });
   useEffect(() => {
     try { localStorage.setItem("lb-mode", mode); } catch { /* private mode */ }
@@ -162,9 +162,10 @@ export default function App() {
     return (
       <Suspense fallback={<Loading />}>
       <OnlineScreen
-        key={`${screen.code}-${attempt}`}
+        key={`${screen.code || screen.quick}-${attempt}`}
         code={screen.code}
         create={screen.create && attempt === 0}
+        quick={screen.quick}
         profile={clean}
         mode={mode}
         setMode={setMode}
@@ -187,6 +188,7 @@ export default function App() {
       invite={invite}
       onSolo={() => { requestTilt(); setScreen({ name: "solo" }); }}
       onHost={() => { requestTilt(); const code = makeCode(); setRoomInUrl(code); setAttempt(0); setScreen({ name: "online", code, create: true }); }}
+      onQuick={(m) => { requestTilt(); setAttempt(0); setScreen({ name: "online", quick: m }); }}
       onJoin={(code) => { requestTilt(); setRoomInUrl(code); setAttempt(0); setScreen({ name: "online", code, create: false }); }}
       onDropInvite={home}
     />

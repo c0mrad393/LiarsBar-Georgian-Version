@@ -13,8 +13,12 @@ import { ALL_THROWS, FREE_AVATARS, FREE_THROWS, ITEMS, owns } from "../src/shop.
 import { CODE_RE, EMOTES, FX_GAP, KEY_RE, normKey, GUEST_ACTIONS, MAX_SEATS, MODES, ONLINE_OPTS, PHRASES, botFx, botThrowBack, bots, cleanAvatar, cleanName } from "../src/shared.js";
 
 export { Ledger } from "./ledger.js";
+export { Matchmaker } from "./matchmaker.js";
 
 const ROOM_TTL = 60 * 60 * 1000;
+const AUTO_START_MS = 20 * 1000; // public tables start on their own once 2+ people sit down
+const BACK_TO_LOBBY_MS = 15 * 1000; // …and return to the lobby after a game
+const matchmaker = (env) => env.MATCH.get(env.MATCH.idFromName("global"));
 const EMOTE_GAP = 500;
 const DEFAULT_BOTS = 3;
 const OPEN = 1;
@@ -48,6 +52,10 @@ async function api(req, env, path) {
   if (req.method !== "POST") return json({ error: "method" }, 405);
   let body;
   try { body = JSON.parse((await req.text()).slice(0, 2048)); } catch { return json({ error: "json" }, 400); }
+  // Public tables need no account.
+  if (path === "quick") return json(await matchmaker(env).find(String(body.mode || "any"), MODES, body.test === true));
+  if (path === "tables") return json({ tables: await matchmaker(env).list() });
+
   const ledger = env.LEDGER.get(env.LEDGER.idFromName("global"));
   const key = normKey(body.key);
   const id = KEY_RE.test(key) ? await acctId(key) : null;
@@ -151,6 +159,9 @@ export class Room extends DurableObject {
       bots: m.bots ?? DEFAULT_BOTS,
       mode: m.mode,
       max: MAX_SEATS,
+      public: !!m.public,
+      startsAt: m.startsAt || null,
+      now: Date.now(),
       youHost: m.hostCid === cid,
       seats: m.lobby
         .filter((p) => this.connected(p.cid))
@@ -158,6 +169,8 @@ export class Room extends DurableObject {
     };
   }
   broadcastLobby() {
+    this.autoStart();
+    this.report();
     for (const ws of this.sockets()) {
       const cid = this.cidOf(ws);
       if (cid) this.send(ws, this.lobbyMsg(cid));
@@ -178,6 +191,42 @@ export class Room extends DurableObject {
     else this.broadcastLobby();
   }
 
+  // -------------------------------------------------------- public tables ---
+
+  humans() {
+    return this.meta.lobby.filter((p) => this.connected(p.cid));
+  }
+
+  /** Tell the matchmaker whether this table is open (public, waiting, has room). */
+  report() {
+    const m = this.meta;
+    if (!m || (!m.public && !m.listed)) return;
+    const people = this.game && this.game.phase !== "gameover" ? [] : this.humans();
+    const host = people.find((p) => p.cid === m.hostCid) || people[0];
+    const open = !!m.public && people.length > 0 && people.length < MAX_SEATS;
+    m.listed = open;
+    matchmaker(this.env)
+      .report(m.code, { open, mode: m.mode, host: host?.name || "", avatar: host?.avatar || "", players: people.length, max: MAX_SEATS })
+      .catch((err) => console.error("matchmaker", err));
+  }
+
+  /** Public lobbies count down once two people are seated; the host can still start early. */
+  autoStart() {
+    const m = this.meta;
+    const ready = m.public && !this.game && this.humans().length >= 2;
+    if (!ready) {
+      m.startsAt = null;
+      clearTimeout(this.autoTimer);
+      return;
+    }
+    if (m.startsAt) return;
+    m.startsAt = Date.now() + AUTO_START_MS;
+    clearTimeout(this.autoTimer);
+    this.autoTimer = setTimeout(() => {
+      if (this.meta?.startsAt && !this.game) this.start();
+    }, AUTO_START_MS);
+  }
+
   // --------------------------------------------------------------- engine ---
 
   dispatch(a) {
@@ -192,10 +241,14 @@ export class Room extends DurableObject {
       this.later(botFx(next, ev));
       this.count(ev);
     }
-    if (next.phase === "gameover" && prev.phase !== "gameover") this.finish(next).catch((err) => console.error("finish", err));
+    if (next.phase === "gameover" && prev.phase !== "gameover") {
+      this.finish(next).catch((err) => console.error("finish", err));
+      // Public tables go back to the lobby by themselves, so the next game can gather.
+      if (this.meta.public) setTimeout(() => this.game === next && this.toLobby(), BACK_TO_LOBBY_MS);
+    }
     // Snapshot at round starts and at the end; everything else stays in memory.
     const t = next.log[0]?.type;
-    if (t === "deal" || t === "start" || next.phase === "gameover") this.saveGame();
+    if (t === "deal" || t === "roll" || t === "chaos" || t === "start" || next.phase === "gameover") this.saveGame();
     this.broadcastState();
     this.arm();
     return true;
@@ -289,6 +342,9 @@ export class Room extends DurableObject {
     const seats = roster.map((p) => ({ name: p.name, avatar: p.avatar, looks: p.looks || {}, kind: "human", clientId: p.cid }));
     seats.push(...bots(Math.min(this.meta.bots ?? DEFAULT_BOTS, MAX_SEATS - seats.length)));
     this.game = seats.length >= 2 ? createGame(seats, { ...ONLINE_OPTS, mode: this.meta.mode }) : null;
+    this.meta.startsAt = null;
+    clearTimeout(this.autoTimer);
+    this.report();
     this.meta.gameId = `${this.meta.code}-${Date.now()}`;
     this.tally = {};
     this.rewards = null;
@@ -314,12 +370,22 @@ export class Room extends DurableObject {
     const url = new URL(req.url);
     const code = url.pathname.split("/").pop();
     const create = url.searchParams.get("create") === "1";
+    const quick = url.searchParams.get("quick") === "1";
+    const mode = MODES.includes(url.searchParams.get("mode")) ? url.searchParams.get("mode") : "classic";
     let reject = null;
 
-    if (create) {
+    if (quick) {
+      // Quick play: sit down at this public table, opening it if nobody has yet.
+      if (!this.meta) {
+        this.meta = { code, hostCid: null, bots: DEFAULT_BOTS, mode, public: true, lobby: [] };
+        this.game = null;
+        await this.ctx.storage.deleteAll();
+        await this.saveMeta();
+      }
+    } else if (create) {
       if (this.meta && this.sockets().length) reject = "codeTaken";
       else {
-        this.meta = { code, hostCid: null, bots: DEFAULT_BOTS, mode: MODES.includes(url.searchParams.get("mode")) ? url.searchParams.get("mode") : "classic", lobby: [] };
+        this.meta = { code, hostCid: null, bots: DEFAULT_BOTS, mode, public: false, lobby: [] };
         this.game = null;
         await this.ctx.storage.deleteAll();
         await this.saveMeta();
@@ -363,7 +429,7 @@ export class Room extends DurableObject {
       case "act":
         if (m.a && GUEST_ACTIONS.has(m.a.type)) {
           const seat = this.seatOf(cid);
-          if (seat >= 0) this.dispatch({ type: m.a.type, ids: Array.isArray(m.a.ids) ? m.a.ids.slice(0, 3) : undefined, seat });
+          if (seat >= 0) this.dispatch({ type: m.a.type, ids: Array.isArray(m.a.ids) ? m.a.ids.slice(0, 3) : undefined, q: m.a.q, f: m.a.f, seat });
         }
         break;
       case "emote":
@@ -395,6 +461,9 @@ export class Room extends DurableObject {
         break;
       case "mode":
         if (isHost && !this.game && MODES.includes(m.v)) { this.meta.mode = m.v; this.saveMeta(); this.broadcastLobby(); }
+        break;
+      case "public":
+        if (isHost && !this.game && typeof m.v === "boolean") { this.meta.public = m.v; this.saveMeta(); this.broadcastLobby(); }
         break;
       default:
     }
@@ -478,6 +547,7 @@ export class Room extends DurableObject {
   /** Nobody came back within ROOM_TTL: forget the room. */
   async alarm() {
     if (this.sockets().length) return;
+    if (this.meta?.listed) matchmaker(this.env).report(this.meta.code, { open: false }).catch(() => {});
     this.meta = null;
     this.game = null;
     await this.ctx.storage.deleteAll();

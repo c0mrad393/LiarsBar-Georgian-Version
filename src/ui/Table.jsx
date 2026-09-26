@@ -12,6 +12,7 @@ import { sfx } from "../sfx.js";
 import { Card, CardBack } from "./cards.jsx";
 import Character, { seatColor } from "./Character.jsx";
 import { Chambers } from "./parts.jsx";
+import { BidBadge, Die } from "./dice.jsx";
 
 function useSize(ref) {
   const [size, setSize] = useState({ w: 360, h: 300 });
@@ -63,7 +64,7 @@ export function Emotes({ list }) {
   ));
 }
 
-function Seat({ seat, p, compact, state, point, bubble, emotes, hit, active, holdsPile, onTap, menuOpen, onThrow, throwables }) {
+function Seat({ seat, p, compact, state, point, bubble, emotes, hit, active, holdsPile, onTap, menuOpen, onThrow, throwables, dice }) {
   const dead = !seat.alive;
   const size = compact ? 46 : 58;
   return (
@@ -83,7 +84,7 @@ function Seat({ seat, p, compact, state, point, bubble, emotes, hit, active, hol
           {holdsPile && !dead && <span className="absolute -left-2 top-0 -rotate-12 text-base">🤫</span>}
           {!dead && (
             <span className="absolute -right-2 bottom-1 flex items-center gap-0.5 rounded-full border-2 border-ink bg-paper px-1 text-[10px] font-black leading-4">
-              <CardBack size="xs" back={backOf(seat.looks)} className="!h-[12px] !w-[8px] !rounded-[2px]" />{seat.handCount}
+              {dice ? <Die face={1} size={12} hidden style={{ filter: "none" }} /> : <CardBack size="xs" back={backOf(seat.looks)} className="!h-[12px] !w-[8px] !rounded-[2px]" />}{seat.handCount}
             </span>
           )}
         </button>
@@ -161,7 +162,9 @@ export default function Table({ view, states, bubbles, fx, center, pileKey, onTh
         <div className="felt3d" style={{ left: felt.cx - felt.rx, top: felt.cy - felt.ry, width: felt.rx * 2, height: felt.ry * 2,
           ...(feltColors ? { background: `radial-gradient(60% 55% at 50% 42%, ${feltColors[0]} 0%, ${feltColors[1]} 55%, ${feltColors[2]} 100%)` } : null) }}>
           <div className="absolute inset-0 flex items-center justify-center">
-            {view.pile ? (
+            {view.kind === "dice" ? (
+              !view.reveal && !view.bid && <div className="text-6xl opacity-40" style={{ transform: "rotate(-8deg)" }}>🎲</div>
+            ) : view.pile ? (
               <Pile pile={view.pile} pileKey={pileKey} from={pileFrom} back={backOf(view.seats[view.pile.by]?.looks)} />
             ) : !view.reveal ? (
               <div className="opacity-40" style={{ transform: "rotate(-8deg)" }}>
@@ -189,6 +192,7 @@ export default function Table({ view, states, bubbles, fx, center, pileKey, onTh
               onTap={(e) => { e.stopPropagation(); setMenu(menu === s.idx ? null : s.idx); sfx("select"); }}
               onThrow={(item) => { setMenu(null); onThrow(s.idx, item); }}
               throwables={throwables}
+              dice={view.kind === "dice"}
             />
           ),
         )}
@@ -196,9 +200,9 @@ export default function Table({ view, states, bubbles, fx, center, pileKey, onTh
 
       {/* upright things in the middle of the table */}
       <div className="pointer-events-none absolute z-30 flex items-center justify-center" style={{ left: felt.cx, top: felt.cy, transform: "translate(-50%, -50%)" }}>
-        {center}
+        {center || (view.kind === "dice" && <BidBadge bid={view.bid} seat={view.bid && view.seats[view.bid.by]} total={view.totalDice} />)}
       </div>
-      {view.pile && (
+      {view.pile && view.kind !== "dice" && (
         <div className="a-pop pointer-events-none absolute z-30 whitespace-nowrap rounded-full border-[2.5px] border-ink bg-paper px-3 py-0.5 text-[11px] font-extrabold sm:text-sm"
           style={{ left: felt.cx, top: felt.cy + felt.ry * 0.62, transform: "translateX(-50%)" }} key={pileKey}>
           {view.seats[view.pile.by]?.name} {T.claims} <span style={{ color: tc.color }}>{view.pile.count}× {tc.emoji} {tc.geo}</span>

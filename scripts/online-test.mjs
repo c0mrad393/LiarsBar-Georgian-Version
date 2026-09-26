@@ -12,15 +12,15 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const HTTP = SERVER.replace(/^ws/, "http");
 const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const newKey = () => Array.from({ length: 20 }, () => ALPHA[(Math.random() * ALPHA.length) | 0]).join("");
-const KEYS = { "host-1": newKey(), "guest-1": newKey() };
+const KEYS = { "host-1": newKey(), "guest-1": newKey(), "q-1": newKey(), "q-2": newKey() };
 async function api(path, body) {
   const r = await fetch(`${HTTP}/api/${path}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   return { status: r.status, body: await r.json() };
 }
 
-function client(name, cid, { create = false, room = code, avatar = "🐸" } = {}) {
+function client(name, cid, { create = false, room = code, avatar = "🐸", query = "" } = {}) {
   const c = { name, cid, msgs: [], lobby: null, view: null, host: false, reject: null, closed: false };
-  c.ws = new WebSocket(`${SERVER}/room/${room}${create ? "?create=1&mode=devil" : ""}`);
+  c.ws = new WebSocket(`${SERVER}/room/${room}${create ? "?create=1&mode=devil" : query}`);
   c.ws.onopen = () => c.ws.send(JSON.stringify({ t: "hello", clientId: cid, key: KEYS[cid], name, avatar }));
   c.ws.onmessage = (ev) => {
     const m = JSON.parse(ev.data);
@@ -48,10 +48,16 @@ function autoplay(c) {
   const v = c.view;
   if (!v) return;
   const me = v.seats[v.me];
-  for (const s of v.seats) if (s.idx !== v.me && s.hand) fail(`${c.name} can see ${s.name}'s hand`);
+  for (const s of v.seats) if (s.idx !== v.me && (s.hand || s.dice)) fail(`${c.name} can see ${s.name}'s hand`);
   if (v.pile && v.pile.cards) fail("pile cards leaked");
   if (v.phase === "roulette" && v.roulette?.victim === v.me && !v.roulette.spinning && !v.roulette.result) return c.send({ t: "act", a: { type: "pull" } });
   if (v.phase !== "playing" || v.turn !== v.me || !me.alive) return;
+  if (v.kind === "dice") {
+    if (!me.dice || me.dice.length !== 5) fail(`${c.name} has no dice`);
+    const b = v.bid;
+    if (b && b.by !== v.me && (v.mustCall || b.q >= v.totalDice / 3 + 1 || Math.random() < 0.2)) return c.send({ t: "act", a: { type: "call" } });
+    return c.send({ t: "act", a: b ? { type: "bid", q: b.f < 6 ? b.q : b.q + 1, f: b.f < 6 ? b.f + 1 : 2 } : { type: "bid", q: 1, f: me.dice.find((d) => d > 1) || 6 } });
+  }
   if (v.mustCall || (v.pile && v.pile.by !== v.me && Math.random() < 0.35)) return c.send({ t: "act", a: { type: "call" } });
   if (me.hand?.length) c.send({ t: "act", a: { type: "play", ids: [me.hand[0].id] } });
 }
@@ -204,9 +210,66 @@ log("ok  rematch");
 while (host.view.phase !== "gameover") { autoplay(host); autoplay(guest); await sleep(250); }
 host.send({ t: "toLobby" });
 await until(() => host.lobby && guest.lobby && !guest.view, "back to lobby");
+
+// 8. Liar's Dice: a whole game, with the dice kept secret
+host.send({ t: "mode", v: "dice" });
+await until(() => guest.lobby.mode === "dice", "dice mode");
+host.send({ t: "bots", v: 2 });
+host.send({ t: "start" });
+await until(() => host.view && guest.view && host.view.kind === "dice", "dice game");
+const dt0 = Date.now();
+let bids = 0;
+while (host.view.phase !== "gameover") {
+  if (host.view.bid) bids++;
+  autoplay(host);
+  autoplay(guest);
+  await sleep(250);
+  if (Date.now() - dt0 > 8 * 60 * 1000) fail("dice game did not finish");
+}
+const dtypes = new Set(host.view.log.map((e) => e.type));
+if (!dtypes.has("bid") || !host.view.log.some((e) => e.type === "safe" || e.type === "dead")) fail(`dice game events: ${[...dtypes]}`);
+if (!host.view.log.some((e) => (e.type === "safe" || e.type === "dead") && e.wine)) fail("dice roulette isn't wine");
+log(`ok  dice game finished in ${Math.round((Date.now() - dt0) / 1000)}s, round ${host.view.round}, events: ${[...dtypes].join(",")}`);
+host.send({ t: "toLobby" });
+await until(() => host.lobby && guest.lobby && !guest.view, "back to lobby after dice");
+
 host.ws.close();
 await until(() => guest.host && guest.lobby.seats.length === 1, "host hand-off");
 log("ok  back to lobby, host left → guest is host now");
+
+// 9. quick play: two strangers land at the same public table, which starts by itself
+const q1r = await api("quick", { mode: "chaos", test: !LOCAL });
+if (q1r.status !== 200 || !q1r.body.code || q1r.body.mode !== "chaos") fail(`quick: ${JSON.stringify(q1r)}`);
+const q1 = client("Quick1", "q-1", { room: q1r.body.code, query: "?quick=1&mode=chaos" });
+await until(() => q1.lobby, "quick lobby");
+if (!q1.lobby.public || q1.lobby.mode !== "chaos" || !q1.host) fail(`quick lobby: ${JSON.stringify(q1.lobby)}`);
+if (LOCAL) {
+  const listed = (await api("tables", {})).body.tables;
+  if (!listed.some((t) => t.code === q1r.body.code && t.players === 1 && t.host === "Quick1")) fail(`table not listed: ${JSON.stringify(listed)}`);
+}
+const q2r = await api("quick", { mode: "chaos", test: !LOCAL });
+if (q2r.body.code !== q1r.body.code) fail("second quick player sent to a different table");
+const q2 = client("Quick2", "q-2", { room: q2r.body.code, query: "?quick=1&mode=chaos" });
+await until(() => q2.lobby && q1.lobby.seats.length === 2 && q1.lobby.startsAt, "auto-start countdown");
+log(`ok  quick play: same table ${q1r.body.code}, public lobby, countdown ${Math.round((q1.lobby.startsAt - q1.lobby.now) / 1000)}s`);
+await until(() => q1.view && q2.view, "public table auto-starts", 30000);
+if (q1.view.opts.mode !== "chaos" || !q1.view.event) fail("chaos game has no round event");
+if (LOCAL && (await api("tables", {})).body.tables.some((t) => t.code === q1r.body.code)) fail("started table still listed");
+const events = new Set();
+const qt0 = Date.now();
+while (q1.view.phase !== "gameover" && Date.now() - qt0 < 90 * 1000) {
+  if (q1.view.event) events.add(q1.view.event);
+  autoplay(q1);
+  autoplay(q2);
+  await sleep(250);
+}
+log(`ok  public table started by itself, chaos events seen: ${[...events].join(",")}`);
+q1.ws.close();
+q2.ws.close();
+if (LOCAL) {
+  await sleep(500);
+  if ((await api("tables", {})).body.tables.some((t) => t.code === q1r.body.code)) fail("empty table still listed");
+}
 
 guest.ws.close();
 ghost.ws.close();

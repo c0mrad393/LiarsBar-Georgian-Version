@@ -7,7 +7,7 @@ import { Starburst, Timer } from "./parts.jsx";
 const HOLD_MS = 1300;
 
 /** Press and hold to squeeze the trigger; letting go early backs out. */
-function HoldToPull({ onPull }) {
+function HoldToPull({ onPull, wine }) {
   const [p, setP] = useState(0);
   const [hint, setHint] = useState(false);
   const run = useRef(null);
@@ -59,9 +59,9 @@ function HoldToPull({ onPull }) {
         className={`btn relative z-[62] w-full select-none overflow-hidden rounded-2xl bg-coral py-4 text-lg text-white ${p ? "a-heartbeat" : "a-hop"}`}
         style={{ WebkitTouchCallout: "none" }}>
         <span className="absolute inset-y-0 left-0 bg-[#b3202a]" style={{ width: `${p * 100}%` }} />
-        <span className="relative">{p ? `${T.pull} ${Math.round(p * 100)}%` : T.pull}</span>
+        <span className="relative">{p ? `${wine ? T.drink : T.pull} ${Math.round(p * 100)}%` : wine ? T.drink : T.pull}</span>
       </button>
-      <div className={`relative z-[62] text-xs font-extrabold ${hint ? "a-wiggle text-coral" : "text-ink-soft"}`}>{T.holdToPull}</div>
+      <div className={`relative z-[62] text-xs font-extrabold ${hint ? "a-wiggle text-coral" : "text-ink-soft"}`}>{wine ? T.holdToDrink : T.holdToPull}</div>
     </>
   );
 }
@@ -114,6 +114,35 @@ function Cylinder({ spinning, result, pulls, chamber }) {
   );
 }
 
+/** Dice mode: six glasses of wine, one of them poisoned. Tried glasses stand empty. */
+function Glasses({ spinning, result, pulls, chamber }) {
+  const tried = (i) => i < pulls || (result && i === chamber);
+  return (
+    <div className="relative mx-auto flex h-36 w-64 items-end justify-center">
+      <div className="absolute inset-x-2 bottom-1 h-8 rounded-[50%] bg-[#7a4a2c]" style={{ boxShadow: "0 5px 0 #2b1d14" }} />
+      {Array.from({ length: 6 }).map((_, i) => {
+        const a = ((i - 2.5) / 2.5) * 0.9;
+        const now = !result && i === pulls;
+        const drinking = spinning && i === pulls;
+        const poison = result === "dead" && i === chamber;
+        const empty = tried(i) && !poison;
+        return (
+          <div key={i} className={`relative mx-0.5 ${now && !spinning ? "a-hop" : ""}`} style={{ transform: `translateY(${-Math.cos(a) * 26}px)` }}>
+            <svg viewBox="0 0 40 70" width="36" height="63" className={drinking ? "a-sip" : now ? "a-slosh" : ""}>
+              <path d="M6 4 H34 Q35 26 20 34 Q5 26 6 4 Z" fill="#fffdf8" fillOpacity="0.8" stroke="#2b1d14" strokeWidth="3" strokeLinejoin="round" />
+              {!empty && <path d="M8 12 H32 Q31 27 20 31 Q9 27 8 12 Z" fill={poison ? "#57cc3b" : "#b3202a"} />}
+              <path d="M20 34 V60" stroke="#2b1d14" strokeWidth="3" />
+              <path d="M9 64 H31" stroke="#2b1d14" strokeWidth="4" strokeLinecap="round" />
+              <path d="M11 8 Q10 16 13 22" stroke="#fff" strokeWidth="2.5" fill="none" opacity="0.8" strokeLinecap="round" />
+            </svg>
+            {poison && <span className="a-pop absolute -top-5 left-1/2 -translate-x-1/2 text-2xl">☠️</span>}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function Roulette({ view, nm, onPull }) {
   const r = view.roulette;
   const v = view.seats[r.victim];
@@ -121,6 +150,8 @@ export default function Roulette({ view, nm, onPull }) {
   const dead = r.result === "dead";
   const safe = r.result === "safe";
   const devil = r.reason === "devil";
+  const wine = view.kind === "dice";
+  const event = view.event; // chaos: "double" = two bullets, "safe" = jammed gun
   const pullsBefore = r.result ? r.chamber : v.pulls;
   const odds = 6 - pullsBefore;
   const ev = r.result && view.log.find((e) => (e.type === "dead" || e.type === "safe") && e.seat === r.victim);
@@ -129,12 +160,12 @@ export default function Roulette({ view, nm, onPull }) {
   return (
     <div className="a-fade-up fixed inset-0 z-[60] flex items-center justify-center bg-ink/45 px-4 backdrop-blur-[3px]">
       <div key={r.victim} className={`a-pop comic relative w-full max-w-sm rounded-[2rem] px-6 pb-6 pt-5 text-center ${dead ? "a-shake" : ""} ${devil ? "bg-[#fff0ee]" : "bg-paper"}`}>
-        <div className={`font-display text-sm tracking-widest ${devil ? "text-[#b3202a]" : "text-coral"}`}>{devil ? `😈 ${T.devilRoulette}` : `🔫 ${T.roulette}`}</div>
+        <div className={`font-display text-sm tracking-widest ${devil ? "text-[#b3202a]" : wine ? "text-grape" : "text-coral"}`}>{devil ? `😈 ${T.devilRoulette}` : wine ? `🍷 ${T.wineRoulette}` : `🔫 ${T.roulette}`}</div>
 
         <div className="relative mx-auto mt-3 flex w-fit justify-center">
           <Character avatar={v.avatar} looks={v.looks} color={seatColor(r.victim)} size={86} state={dead ? "dead" : safe ? "happy" : "nervous"} />
         </div>
-        <h2 className="mt-1 text-xl font-black">{mine ? T.you : v.name} · {T.facesGun}</h2>
+        <h2 className="mt-1 text-xl font-black">{mine ? T.you : v.name} · {wine ? T.faceGlass : T.facesGun}</h2>
         <p className="text-xs font-bold text-ink-soft">{T[r.reason]}</p>
         {r.queue?.length > 0 && (
           <div className="mt-2 inline-flex items-center gap-1 rounded-full border-2 border-ink bg-cream px-2.5 py-0.5 text-xs font-extrabold">
@@ -143,13 +174,17 @@ export default function Roulette({ view, nm, onPull }) {
         )}
 
         <div className="relative mt-4">
-          <Cylinder spinning={r.spinning} result={r.result} pulls={v.pulls} chamber={r.chamber} />
+          {wine ? (
+            <Glasses spinning={r.spinning} result={r.result} pulls={v.pulls} chamber={r.chamber} />
+          ) : (
+            <Cylinder spinning={r.spinning} result={r.result} pulls={v.pulls} chamber={r.chamber} />
+          )}
           {r.result && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
               <div className="a-pop relative flex items-center justify-center" style={{ width: dead ? 250 : 170, height: dead ? 250 : 170 }}>
                 <Starburst fill={dead ? "#ff5a5f" : "#ffc83d"} points={dead ? 16 : 11} className={`absolute inset-0 h-full w-full ${dead ? "a-spin-slow" : ""}`} />
                 <span className={`relative font-display ${dead ? "text-5xl text-white" : "text-3xl text-ink"}`} style={{ textShadow: dead ? "3px 3px 0 #2b1d14" : "none" }}>
-                  {dead ? T.bang : T.click}
+                  {dead ? (wine ? `☠️ ${T.poisoned}` : T.bang) : r.jam ? `🛟 ${T.jammed}` : wine ? `🍷 ${T.tasty}` : T.click}
                 </span>
               </div>
             </div>
@@ -157,7 +192,11 @@ export default function Roulette({ view, nm, onPull }) {
         </div>
 
         <div className="mt-3 text-sm font-extrabold text-ink-soft">
-          {T.chance}: <span className="text-coral">1 / {odds}</span> {odds <= 2 && !r.result ? "😱" : ""}
+          {event === "safe" ? (
+            <>🛟 {T.chance}: <span className="text-[#0f8277]">0</span></>
+          ) : (
+            <>{T.chance}: <span className="text-coral">{event === "double" && odds > 1 ? `2 / ${odds}` : `1 / ${odds}`}</span> {(odds <= 2 || event === "double") && !r.result ? "😱" : ""}</>
+          )}
         </div>
 
         <div className="mt-4 min-h-[56px]">
@@ -168,12 +207,12 @@ export default function Roulette({ view, nm, onPull }) {
             </div>
           ) : mine && !r.spinning ? (
             <div className="flex flex-col items-center gap-2">
-              <HoldToPull onPull={onPull} />
+              <HoldToPull onPull={onPull} wine={wine} />
               <Timer deadline={view.deadline} offset={view.clockOffset} className="relative z-[62]" />
             </div>
           ) : (
             <div className="rounded-2xl border-[3px] border-dashed border-ink/40 px-4 py-3 font-extrabold">
-              {r.spinning ? <span className="a-wiggle inline-block">{T.pulling}</span> : <>🤞 {v.name}…</>}
+              {r.spinning ? <span className="a-wiggle inline-block">{wine ? T.sipping : T.pulling}</span> : <>🤞 {v.name}…</>}
               {!r.spinning && <Timer deadline={view.deadline} offset={view.clockOffset} className="ml-2" />}
             </div>
           )}
