@@ -56,7 +56,18 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
   const [burst, setBurst] = useState(null);
   const [devil, setDevil] = useState(null);
   const [confetti, setConfetti] = useState(0);
-  const [sheet, setSheet] = useState(null); // emote | chat | log
+  const [sheet, setSheet] = useState(null); // react | log
+  // One-time hint that you can throw things at people.
+  const [tip, setTip] = useState(false);
+  useEffect(() => {
+    if (view.phase !== "playing") return;
+    let seen = true;
+    try { seen = localStorage.getItem("lb-tip-throw") === "1"; localStorage.setItem("lb-tip-throw", "1"); } catch { /* private mode */ }
+    if (seen) return;
+    setTip(true);
+    const t = setTimeout(() => setTip(false), 6000);
+    return () => clearTimeout(t);
+  }, [view.phase === "playing"]); // eslint-disable-line react-hooks/exhaustive-deps
   const [, tick] = useState(0);
   const lastSeen = useRef(null);
   const seenFx = useRef(new Set());
@@ -169,11 +180,17 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
   const myHit = [...fx].reverse().find((f) => f.kind === "throw" && f.to === me);
   const mySay = [...fx].reverse().find((f) => f.kind === "say" && f.seat === me);
 
-  let status;
-  if (!mine.alive) status = T.youDead;
-  else if (myTurn) status = view.mustCall ? T.mustCall : T.yourTurn;
-  else if (view.phase === "playing") status = `${T.waitingFor} ${view.seats[view.turn]?.name}`;
-  else status = "…";
+  const up = view.seats[view.turn];
+  const waiting =
+    view.phase === "playing" && up ? (
+      <><span className="a-bob inline-block text-xl">{up.avatar}</span><span className="truncate">{up.name} {T.thinking}</span></>
+    ) : view.phase === "dealing" ? (
+      <>🃏 {T.round} {view.round}</>
+    ) : view.phase === "reveal" ? (
+      <span className="a-wiggle inline-block text-xl">👀</span>
+    ) : view.phase === "roulette" && view.roulette ? (
+      <>🔫 {view.seats[view.roulette.victim]?.name} {T.facesGun}</>
+    ) : null;
 
   const center = view.reveal ? (
     <RevealCards reveal={view.reveal} tableCard={view.tableCard} back={backOf(view.seats[view.reveal.by]?.looks)} />
@@ -211,6 +228,7 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
                 <span className="comic-sm flex h-10 items-center rounded-full bg-[#2a0508] px-2.5 text-sm font-black text-sun" title={MODE_INFO.devil.hint}>😈</span>
               )}
               <span className="comic-sm flex h-10 items-center rounded-full bg-sun px-2.5 text-xs font-black sm:text-sm" title={T.round}>#{view.round}</span>
+              <button onClick={() => setSheet(sheet === "log" ? null : "log")} className="comic-sm flex h-10 w-10 items-center justify-center rounded-full bg-paper text-lg lg:hidden" aria-label={T.log}>📜</button>
               <SoundToggle />
             </div>
           </header>
@@ -231,23 +249,43 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
 
           {/* me */}
           <div className="safe-b relative mt-2 short:mt-0">
-            <div className="flex items-center justify-between gap-2">
-              <div className="relative flex items-center gap-2">
+            <div className="relative flex items-center justify-between gap-2">
+              <div className="relative flex min-w-0 items-center gap-2">
                 <div className="relative">
                   <Emotes list={fx.filter((f) => f.kind === "emote" && f.seat === me)} />
                   <Character avatar={mine.avatar} looks={mine.looks} color={seatColor(me)} size={54} state={myMood.state} hit={myHit?.item} hitKey={myHit?.id} hitDelay={650}
                     point={myMood.point != null ? -60 : null} />
                   <Bubble text={bubbles[me]?.text || (mySay && PHRASES[mySay.i])} />
                 </div>
-                <div>
-                  <div className="max-w-[110px] truncate text-sm font-black">{mine.name}</div>
+                <div className="min-w-0">
+                  <div className="max-w-[140px] truncate text-sm font-black">{mine.name}</div>
                   <Chambers pulls={mine.pulls} dead={!mine.alive} small />
                 </div>
               </div>
-              <div className={`flex items-center gap-1.5 rounded-full border-[2.5px] border-ink px-3 py-1 text-xs font-black sm:text-sm ${myTurn ? (view.mustCall ? "a-hop bg-coral text-white" : "a-hop bg-sun") : "bg-paper"}`}>
-                <span className="max-w-[150px] truncate sm:max-w-none">{status}</span>
-                {myTurn && <Timer deadline={view.deadline} offset={view.clockOffset} />}
+              <div className="flex items-center gap-2">
+                {myTurn && (
+                  <span className={`a-pop flex items-center gap-1.5 rounded-full border-[2.5px] border-ink py-0.5 pl-2.5 pr-1 text-xs font-black ${view.mustCall ? "bg-coral text-white" : "bg-sun"}`}>
+                    <span className="a-hop inline-block">{T.yourTurn}</span>
+                    <Timer deadline={view.deadline} offset={view.clockOffset} className="!border-0 !px-1" />
+                  </span>
+                )}
+                <button onClick={() => setSheet(sheet === "react" ? null : "react")} aria-label={T.react} aria-expanded={sheet === "react"}
+                  className={`comic-sm flex h-11 w-11 items-center justify-center rounded-full text-xl transition-transform active:scale-90 ${sheet === "react" ? "bg-sun" : "bg-paper"}`}>😀</button>
               </div>
+              {sheet === "react" && (
+                <div className="a-pop comic absolute bottom-full right-0 z-50 mb-2 w-[min(92vw,340px)] rounded-3xl bg-paper p-2.5">
+                  <div className="grid grid-cols-8 gap-0.5">
+                    {EMOTES.map((e) => (
+                      <button key={e} onClick={() => { unlockAudio(); emote(e); setSheet(null); }} className="flex aspect-square items-center justify-center rounded-xl text-xl transition-transform hover:bg-cream active:scale-90" aria-label={e}>{e}</button>
+                    ))}
+                  </div>
+                  <div className="mt-2 grid grid-cols-2 gap-1.5 border-t-2 border-dashed border-ink/15 pt-2">
+                    {PHRASES.map((p, i) => (
+                      <button key={i} onClick={() => { unlockAudio(); say(i); setSheet(null); }} className="rounded-xl bg-cream px-2 py-1.5 text-left text-xs font-extrabold transition-transform active:scale-95">{p}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {mine.alive ? (
@@ -257,56 +295,47 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
                 <div className="flex min-h-[90px] items-center justify-center text-sm font-extrabold text-ink-soft">🫳 {T.outOfCards}</div>
               )
             ) : (
-              <div className="flex min-h-[70px] items-center justify-center text-sm font-extrabold text-ink-soft">👻</div>
+              <div className="flex min-h-[90px] flex-col items-center justify-center gap-1 text-sm font-extrabold text-ink-soft"><span className="a-bob inline-block text-3xl">👻</span>{T.youDead}</div>
             )}
 
+            {/* actions on your turn; otherwise a calm line saying who's up */}
             {mine.alive && (
-              <div className="mt-2 flex items-stretch justify-center gap-3 short:mt-1">
-                <Btn color="coral" onClick={call} disabled={!canCall} className={`flex-1 py-3 short:py-2 sm:flex-none sm:px-8 ${canCall && view.mustCall ? "a-hop" : ""}`}>
-                  <span className="block text-lg leading-none">🤥 {T.liar}</span>
-                  <span className="block font-display text-xs tracking-wider opacity-80">{T.liarEn}</span>
-                </Btn>
-                <Btn color="sun" onClick={() => play()} disabled={!canPick || !selected.length} className="flex-1 py-3 short:py-2 sm:flex-none sm:px-8">
-                  <span className="block text-lg leading-none">🃏 {T.play}{selected.length ? ` ×${selected.length}` : ""}</span>
-                  <span className="block text-[11px] font-bold opacity-70">{canPick ? (selected.length ? `${selected.length}× ${tc.emoji} ${tc.geo} · ☝️` : T.pickCards) : " "}</span>
-                </Btn>
+              <div className="mt-2 flex min-h-[60px] items-stretch justify-center gap-3 short:mt-1 short:min-h-[50px]">
+                {myTurn ? (
+                  <>
+                    <Btn color="coral" onClick={call} disabled={!canCall} className={`a-pop flex-1 py-3 short:py-2 sm:flex-none sm:px-8 ${canCall && view.mustCall ? "a-hop" : ""}`}>
+                      <span className="block text-lg leading-none">🤥 {T.liar}</span>
+                      <span className="block font-display text-xs tracking-wider opacity-80">{T.liarEn}</span>
+                    </Btn>
+                    {view.mustCall ? (
+                      <div className="a-pop flex flex-1 items-center justify-center rounded-2xl border-[2.5px] border-dashed border-coral px-2 text-center text-xs font-black text-coral sm:flex-none sm:px-6">{T.mustCall}</div>
+                    ) : (
+                      <Btn color="sun" onClick={() => play()} disabled={!selected.length} className="a-pop flex-1 py-3 short:py-2 sm:flex-none sm:px-8" style={{ animationDelay: "60ms" }}>
+                        <span className="block text-lg leading-none">🃏 {T.play}{selected.length ? ` ×${selected.length}` : ""}</span>
+                        <span className="block text-[11px] font-bold opacity-70">{selected.length ? `${selected.length}× ${tc.emoji} ${tc.geo} · ☝️` : T.pickCards}</span>
+                      </Btn>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-ink/5 px-3 text-sm font-extrabold text-ink-soft">{waiting}</div>
+                )}
               </div>
             )}
 
-            {/* toolbar */}
-            <div className="relative mt-3 flex items-center justify-center gap-2 pb-1 short:mt-1.5">
-              {[["emote", "😀"], ["chat", "💬"], ["log", "📜"]].map(([k, icon]) => (
-                <button key={k} onClick={() => setSheet(sheet === k ? null : k)}
-                  className={`comic-sm flex h-11 w-11 items-center justify-center rounded-full text-xl transition-transform active:scale-90 short:h-10 short:w-10 short:text-lg ${sheet === k ? "bg-sun" : "bg-paper"} ${k === "log" ? "lg:hidden" : ""}`}
-                  aria-label={k === "emote" ? "emoji" : k === "chat" ? T.chat : T.log} aria-expanded={sheet === k}>
-                  {icon}
-                </button>
-              ))}
-              <span className="max-w-[120px] text-[10px] font-bold leading-tight text-ink-soft">🍅 {T.throwHint}</span>
-              {sheet === "emote" && (
-                <div className="a-sheet comic absolute bottom-14 left-1/2 z-50 grid -translate-x-1/2 grid-cols-4 gap-1.5 rounded-3xl bg-paper p-2.5">
-                  {EMOTES.map((e) => (
-                    <button key={e} onClick={() => { unlockAudio(); emote(e); setSheet(null); }} className="flex h-12 w-12 items-center justify-center rounded-2xl text-2xl transition-transform hover:bg-cream active:scale-90" aria-label={e}>{e}</button>
-                  ))}
+            {tip && (
+              <div className="a-pop pointer-events-none absolute -top-12 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border-[2.5px] border-ink bg-sun px-3 py-1 text-xs font-black" style={{ boxShadow: "0 3px 0 #2b1d14" }}>
+                {T.tipThrow}
+              </div>
+            )}
+            {sheet === "log" && (
+              <div className="a-sheet comic fixed inset-x-2 bottom-2 z-[55] flex max-h-[60dvh] flex-col rounded-3xl bg-paper p-3 lg:hidden">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-sm font-black">📜 {T.log}</span>
+                  <button onClick={() => setSheet(null)} className="rounded-full border-2 border-ink px-2 text-sm font-black" aria-label={T.close}>✕</button>
                 </div>
-              )}
-              {sheet === "chat" && (
-                <div className="a-sheet comic absolute bottom-14 left-1/2 z-50 grid w-[min(92vw,360px)] -translate-x-1/2 grid-cols-2 gap-1.5 rounded-3xl bg-paper p-2.5">
-                  {PHRASES.map((p, i) => (
-                    <button key={i} onClick={() => { unlockAudio(); say(i); setSheet(null); }} className="rounded-2xl border-2 border-ink bg-cream px-2 py-2 text-left text-xs font-extrabold transition-transform active:scale-95">{p}</button>
-                  ))}
-                </div>
-              )}
-              {sheet === "log" && (
-                <div className="a-sheet comic fixed inset-x-2 bottom-2 z-[55] flex max-h-[60dvh] flex-col rounded-3xl bg-paper p-3 lg:hidden">
-                  <div className="mb-2 flex items-center justify-between">
-                    <span className="text-sm font-black">📜 {T.log}</span>
-                    <button onClick={() => setSheet(null)} className="rounded-full border-2 border-ink px-2 text-sm font-black" aria-label="close">✕</button>
-                  </div>
-                  <Log view={view} nm={nm} />
-                </div>
-              )}
-            </div>
+                <Log view={view} nm={nm} />
+              </div>
+            )}
           </div>
         </div>
 

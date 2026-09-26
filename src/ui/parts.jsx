@@ -168,3 +168,24 @@ export function CoinChip({ coins, onClick, className = "" }) {
     </button>
   );
 }
+
+/** A bottom sheet on phones (centred card on wider screens). */
+export function Sheet({ title, onClose, children }) {
+  useEffect(() => {
+    const h = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [onClose]);
+  return (
+    <div className="a-fade-up fixed inset-0 z-[80] flex items-end justify-center bg-ink/40 sm:items-center sm:px-4" onClick={onClose}>
+      <div className="a-sheet comic safe-b flex max-h-[88dvh] w-full max-w-md flex-col rounded-t-[2rem] bg-paper px-5 pb-4 pt-3 sm:rounded-[2rem]" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={title}>
+        <div className="mx-auto mb-2 h-1.5 w-12 rounded-full bg-ink/20 sm:hidden" aria-hidden="true" />
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-xl font-black">{title}</h2>
+          <button onClick={onClose} className="comic-sm flex h-9 w-9 items-center justify-center rounded-full bg-cream font-black" aria-label={T.close}>✕</button>
+        </div>
+        <div className="no-scrollbar -mx-1 overflow-y-auto px-1 pb-1">{children}</div>
+      </div>
+    </div>
+  );
+}
