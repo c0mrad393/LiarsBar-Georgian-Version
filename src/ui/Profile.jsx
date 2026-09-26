@@ -5,6 +5,7 @@ import { T } from "../i18n.js";
 import { fmtKey } from "../shared.js";
 import { sfx } from "../sfx.js";
 import Character, { seatColor } from "./Character.jsx";
+import { Face } from "./heads.jsx";
 import { Btn } from "./parts.jsx";
 
 function Modal({ title, onClose, children }) {
@@ -182,7 +183,7 @@ export function Leaderboard({ onClose }) {
   const Row = ({ r, highlight }) => (
     <div className={`flex items-center gap-2.5 rounded-2xl border-2 px-2.5 py-1.5 ${highlight ? "border-ink bg-sun" : "border-transparent bg-cream"}`}>
       <span className="w-8 text-center text-lg font-black tabular-nums">{MEDAL[r.rank - 1] || r.rank}</span>
-      <span className="text-2xl">{r.avatar}</span>
+      <Face id={r.avatar} size={30} />
       <span className="min-w-0 flex-1 truncate text-sm font-black">{r.name}{highlight ? ` (${T.you})` : ""}</span>
       <span className="text-xs font-bold text-ink-soft">🏆 {r.wins}</span>
       <span className="min-w-[4.5ch] text-right text-sm font-black tabular-nums">🪙 {r.score}</span>

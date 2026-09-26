@@ -80,7 +80,8 @@ function Seat({ seat, p, compact, state, point, bubble, emotes, hit, active, hol
           </div>
         )}
         <button onClick={onTap} className="touch relative rounded-full focus:outline-none" aria-label={`${seat.name}: ${T.throwAt}`}>
-          <Character avatar={seat.avatar} looks={seat.looks} color={seatColor(seat.idx)} size={size} state={state} point={point} hit={hit?.item} hitKey={hit?.id} hitDelay={650} />
+          <Character avatar={seat.avatar} looks={seat.looks} color={seatColor(seat.idx)} size={size} state={state} point={point} hit={hit?.item} hitKey={hit?.id} hitDelay={650}
+            blush={dice ? seat.pulls / 5 : 0} />
           {holdsPile && !dead && <span className="absolute -left-2 top-0 -rotate-12 text-base">🤫</span>}
           {!dead && (
             <span className="absolute -right-2 bottom-1 flex items-center gap-0.5 rounded-full border-2 border-ink bg-paper px-1 text-[10px] font-black leading-4">
@@ -203,9 +204,11 @@ export default function Table({ view, states, bubbles, fx, center, pileKey, onTh
         {center || (view.kind === "dice" && <BidBadge bid={view.bid} seat={view.bid && view.seats[view.bid.by]} total={view.totalDice} />)}
       </div>
       {view.pile && view.kind !== "dice" && (
-        <div className="a-pop pointer-events-none absolute z-30 whitespace-nowrap rounded-full border-[2.5px] border-ink bg-paper px-3 py-0.5 text-[11px] font-extrabold sm:text-sm"
-          style={{ left: felt.cx, top: felt.cy + felt.ry * 0.62, transform: "translateX(-50%)" }} key={pileKey}>
-          {view.seats[view.pile.by]?.name} {T.claims} <span style={{ color: tc.color }}>{view.pile.count}× {tc.emoji} {tc.geo}</span>
+        <div className="pointer-events-none absolute z-30" style={{ left: felt.cx, top: felt.cy + felt.ry * 0.62, transform: "translateX(-50%)" }}>
+          {/* the pop animation lives on the inner box: its transform would undo the centring */}
+          <div key={pileKey} className="a-pop whitespace-nowrap rounded-full border-[2.5px] border-ink bg-paper px-3 py-0.5 text-[11px] font-extrabold sm:text-sm">
+            {view.seats[view.pile.by]?.name} {T.claims} <span style={{ color: tc.color }}>{view.pile.count}× {tc.emoji} {tc.geo}</span>
+          </div>
         </div>
       )}
       <Throws list={fx.filter((f) => f.kind === "throw")} pos={pos} />

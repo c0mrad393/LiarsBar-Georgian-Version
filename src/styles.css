@@ -351,7 +351,8 @@ button:hover .card-sheen,
 .chr-face { line-height: 1; filter: drop-shadow(0 2px 0 #2b1d1455); }
 .chr-acc { position: absolute; left: 50%; line-height: 1; pointer-events: none; }
 .chr-hand {
-  position: absolute; bottom: 8%; border-radius: 50%; background: #fffdf8;
+  position: absolute; bottom: 8%; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--paw-lit, #fff) 0 22%, var(--paw, #fffdf8) 60%);
   border: 2px solid var(--color-ink); transition: transform 0.25s ease;
 }
 .chr-hand-l { left: 4%; }
@@ -509,7 +510,6 @@ button, .touch { touch-action: manipulation; }
 .anim-sparkle { animation: shine 0.9s ease-in-out infinite; }
 .anim-orbit { animation: orbit 2.4s linear infinite; --r: 26px; }
 @keyframes blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.2); } }
-.chr-face-in { display: inline-block; animation: blink 4.5s ease-in-out infinite; transform-origin: 50% 40%; }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
@@ -555,3 +555,48 @@ button, .touch { touch-action: manipulation; }
 @media (prefers-reduced-motion: reduce) {
   .a-roll, .a-cup, .a-chaos, .a-slosh, .a-sip { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
 }
+
+/* drawn heads (src/ui/heads.jsx) */
+.hd-blink { animation: blink 4.5s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes hdTalk { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(0.35); } }
+.hd-talk { animation: hdTalk 0.22s ease-in-out infinite; transform-box: fill-box; transform-origin: 50% 0; }
+@keyframes noseGrow { 0% { transform: scaleX(0); } 60% { transform: scaleX(1.12); } 75% { transform: scaleX(0.95); } 100% { transform: scaleX(1); } }
+.hd-nose { animation: noseGrow 0.9s cubic-bezier(0.3, 0.9, 0.3, 1.2) both; transform-box: fill-box; transform-origin: 0 50%; }
+@keyframes steam { 0% { opacity: 0; transform: translateY(6px) scaleY(0.6); } 40% { opacity: 0.85; } 100% { opacity: 0; transform: translateY(-10px) scaleY(1.1); } }
+.hd-steam { animation: steam 2.2s ease-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+@keyframes hdSpin { to { transform: rotate(360deg); } }
+.hd-spin { animation: hdSpin 1.1s linear infinite; transform-box: fill-box; transform-origin: center; }
+.hd-dead { filter: grayscale(0.85) brightness(1.15); opacity: 0.8; }
+.chr-busted .chr-head { animation: none; transform: translateX(-50%) rotate(-8deg); transition: transform 0.3s; }
+.chr-busted .chr-hand-l { transform: translate(40%, -250%); }
+@keyframes tipsy { 0%, 100% { transform: rotate(-7deg) translateX(-3%); } 50% { transform: rotate(7deg) translateX(3%); } }
+.chr-tipsy { animation: tipsy 1.3s ease-in-out infinite; transform-origin: 50% 100%; }
+.chr-tipsy .chr-head { animation: sway 0.9s ease-in-out infinite; }
+
+/* the bar around the table (src/ui/BarScene.jsx) */
+@keyframes lampSway { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg); } }
+.bar-lamp { animation: lampSway 4.2s ease-in-out infinite; transform-origin: 50% 0; }
+@keyframes stringSway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
+.bar-sway { animation: stringSway 3.6s ease-in-out infinite; transform-origin: 50% 0; }
+@keyframes glowPulse { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
+.bar-glow { animation: glowPulse 3s ease-in-out infinite; }
+@keyframes lampFlicker { 0%, 30%, 60% { opacity: 0.15; } 15%, 45%, 100% { opacity: 1; } }
+.bar-flicker .bar-glow, .bar-flicker .bar-bulb { animation: lampFlicker 0.8s steps(2, end) 1; }
+@keyframes roomDim { 0% { opacity: 0; } 10% { opacity: 0.5; } 25% { opacity: 0.1; } 40% { opacity: 0.4; } 100% { opacity: 0; } }
+.bar-dim { background: #1a0d05; animation: roomDim 0.9s ease-out both; }
+@keyframes neon { 0% { filter: hue-rotate(0deg); } 100% { filter: hue-rotate(360deg); } }
+.bar-chaos .bar-glow { animation: glowPulse 1.2s ease-in-out infinite, neon 6s linear infinite; }
+
+/* slow motion (dramatic pulls) and the final duel */
+@keyframes barIn { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+@keyframes barInB { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.slowmo-bar { animation: barIn 0.5s cubic-bezier(0.2, 0.9, 0.3, 1) both; }
+.slowmo-bar-b { animation-name: barInB; }
+@keyframes slowZoom { from { transform: scale(1); } to { transform: scale(1.1); } }
+.slowmo-zoom { animation: slowZoom 2.8s cubic-bezier(0.3, 0, 0.2, 1) both; }
+@keyframes duelL { 0% { transform: translateX(-105%); } 14%, 86% { transform: translateX(0); } 100% { transform: translateX(-105%); } }
+@keyframes duelR { 0% { transform: translateX(105%); } 14%, 86% { transform: translateX(0); } 100% { transform: translateX(105%); } }
+@keyframes duelVs { 0%, 12% { transform: scale(0) rotate(-90deg); } 22%, 84% { transform: scale(1) rotate(0); } 100% { transform: scale(0); } }
+.duel-l { animation: duelL 2.6s cubic-bezier(0.2, 0.9, 0.3, 1) both; clip-path: polygon(0 0, 62% 0, 38% 100%, 0 100%); }
+.duel-r { animation: duelR 2.6s cubic-bezier(0.2, 0.9, 0.3, 1) both; clip-path: polygon(62% 0, 100% 0, 100% 100%, 38% 100%); }
+.duel-vs { animation: duelVs 2.6s cubic-bezier(0.2, 0.9, 0.3, 1.3) both; }

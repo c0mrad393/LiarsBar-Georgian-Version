@@ -18,7 +18,7 @@ async function api(path, body) {
   return { status: r.status, body: await r.json() };
 }
 
-function client(name, cid, { create = false, room = code, avatar = "🐸", query = "" } = {}) {
+function client(name, cid, { create = false, room = code, avatar = "av_pig", query = "" } = {}) {
   const c = { name, cid, msgs: [], lobby: null, view: null, host: false, reject: null, closed: false };
   c.ws = new WebSocket(`${SERVER}/room/${room}${create ? "?create=1&mode=devil" : query}`);
   c.ws.onopen = () => c.ws.send(JSON.stringify({ t: "hello", clientId: cid, key: KEYS[cid], name, avatar }));
@@ -73,7 +73,7 @@ log("ok  unknown room → roomMissing");
 if (LOCAL) {
   const fs = await import("node:fs");
   const token = process.env.ADMIN_TOKEN || (fs.readFileSync(new URL("../server/.dev.vars", import.meta.url), "utf8").match(/ADMIN_TOKEN=(.*)/)?.[1] ?? "").trim();
-  await api("profile", { key: KEYS["host-1"], name: "Host", avatar: "🐸" });
+  await api("profile", { key: KEYS["host-1"], name: "Host", avatar: "🐸" }); // an old emoji head → a drawn character
   await api("profile", { key: KEYS["guest-1"], name: "Guest", avatar: "🐸" });
   if ((await api("admin", { key: KEYS["host-1"], token: "wrong", amount: 5 })).status !== 403) fail("wrong admin password accepted");
   const g = await api("admin", { key: KEYS["host-1"], token, amount: 5000 });
@@ -83,28 +83,28 @@ if (LOCAL) {
   if ((await api("buy", { key: KEYS["host-1"], item: "hat_crown" })).body.error !== "owned") fail("double buy");
   if ((await api("buy", { key: KEYS["guest-1"], item: "hat_crown" })).body.error !== "poor") fail("buy without coins");
   if ((await api("buy", { key: KEYS["host-1"], item: "nope" })).status !== 404) fail("unknown item");
-  for (const item of ["🥟", "💩", "o_chokha"]) if (!(await api("buy", { key: KEYS["host-1"], item })).body.ok) fail(`buy ${item}`);
-  const eq = await api("equip", { key: KEYS["host-1"], looks: { hat: "hat_crown", eyes: "eye_laser", outfit: "o_chokha", neck: "hat_top", cards: "c_blue" }, avatar: "🥟" });
+  for (const item of ["💩", "o_chokha"]) if (!(await api("buy", { key: KEYS["host-1"], item })).body.ok) fail(`buy ${item}`);
+  const eq = await api("equip", { key: KEYS["host-1"], looks: { hat: "hat_crown", eyes: "eye_laser", outfit: "o_chokha", neck: "hat_top", cards: "c_blue" }, avatar: "av_fox" });
   const L = eq.body.profile.looks;
-  if (L.hat !== "hat_crown" || L.outfit !== "o_chokha" || L.cards !== "c_blue" || L.eyes || L.neck || eq.body.profile.avatar !== "🥟") fail(`equip: ${JSON.stringify(eq.body.profile)}`);
+  if (L.hat !== "hat_crown" || L.outfit !== "o_chokha" || L.cards !== "c_blue" || L.eyes || L.neck || eq.body.profile.avatar !== "av_fox") fail(`equip: ${JSON.stringify(eq.body.profile)}`);
   const cheat = await api("equip", { key: KEYS["guest-1"], looks: { hat: "hat_crown" }, avatar: "🥟" });
-  if (cheat.body.profile.looks.hat || cheat.body.profile.avatar === "🥟") fail("guest wore gear they don't own");
-  log("ok  shop: admin grant (not on board), buy, owned/poor/unknown, equip drops unowned/wrong-slot, premium head");
+  if (cheat.body.profile.looks.hat || !cheat.body.profile.avatar.startsWith("av_")) fail(`guest wore gear they don't own / bad head: ${JSON.stringify(cheat.body.profile)}`);
+  log("ok  shop: admin grant (not on board), buy, owned/poor/unknown, equip drops unowned/wrong-slot, character heads");
 }
 
 // 3. host creates, guest joins
-const host = client("Host", "host-1", { create: true, avatar: LOCAL ? "🥟" : "🐸" });
+const host = client("Host", "host-1", { create: true, avatar: "av_fox" });
 await until(() => host.lobby, "host lobby");
 if (!host.host) fail("creator is not host");
 if (host.lobby.mode !== "devil") fail("mode from create param not applied");
-let guest = client("Guest", "guest-1", { avatar: "🥟" });
+let guest = client("Guest", "guest-1", { avatar: "🐸" });
 await until(() => guest.lobby && host.lobby.seats.length === 2, "guest in lobby");
 if (LOCAL) {
   const hs = guest.lobby.seats.find((p) => p.host);
   const gs = guest.lobby.seats.find((p) => p.you);
-  if (hs.avatar !== "🥟" || hs.looks?.hat !== "hat_crown" || hs.looks?.outfit !== "o_chokha") fail(`host gear not visible: ${JSON.stringify(hs)}`);
-  if (gs.avatar === "🥟") fail("guest got a premium head without owning it");
-  log("ok  room shows owned gear and refuses unowned heads");
+  if (hs.avatar !== "av_fox" || hs.looks?.hat !== "hat_crown" || hs.looks?.outfit !== "o_chokha") fail(`host gear not visible: ${JSON.stringify(hs)}`);
+  if (!gs.avatar.startsWith("av_")) fail(`guest head not mapped to a character: ${gs.avatar}`);
+  log("ok  room shows owned gear; old emoji heads become characters");
 }
 if (guest.host) fail("guest became host");
 log("ok  create + join, host flag, devil mode");

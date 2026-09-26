@@ -2,13 +2,21 @@
 // Durable Object (a single global instance). Players are identified by the
 // SHA-256 of their secret key; the key itself never reaches storage.
 import { DurableObject } from "cloudflare:workers";
-import { ALL_AVATARS, FREE_AVATARS, ITEMS, cleanLooks, owns } from "../src/shop.js";
+import { ALL_AVATARS, FREE_AVATARS, ITEMS, cleanLooks, headOf, owns } from "../src/shop.js";
 
 export const REWARD = { seat: 10, win: 50, safe: 5, catch: 10, devil: 15 };
 export const DAILY_BONUS = 25;
 export const DAILY_CAP = 600; // most coins one player can earn from games per UTC day
 const ADMIN_MAX_FAILS = 5; // wrong admin passwords per hour before the door locks
 const BOARD_SIZE = 50;
+
+// Premium emoji heads sold before the drawn characters replaced them (2026-09-26).
+// Owners get the coins back once; see migrateHeads().
+const LEGACY_HEAD_PRICES = {
+  "🦝": 60, "🐌": 60, "🦀": 80, "🦥": 80, "🦩": 90, "🐳": 100, "🦦": 100, "🦒": 100, "🎃": 110, "🐺": 120,
+  "🦈": 120, "👽": 130, "🤖": 130, "🐲": 160, "🤡": 160, "🧟": 170, "🧛": 170, "🥔": 180, "🧀": 200, "🍷": 200,
+  "🤠": 220, "🥸": 240, "🎅": 250, "🦨": 260, "🥷": 280, "🧙": 300, "🦸": 320, "👹": 350, "🥟": 400, "🦹": 450,
+};
 
 const today = (t = Date.now()) => new Date(t).toISOString().slice(0, 10);
 /** ISO week, e.g. "2026-W39" (weeks start Monday 00:00 UTC). */
@@ -53,6 +61,28 @@ export class Ledger extends DurableObject {
     `);
     const cols = this.sql.exec("PRAGMA table_info(players)").toArray().map((c) => c.name);
     if (!cols.includes("looks")) this.sql.exec("ALTER TABLE players ADD COLUMN looks TEXT NOT NULL DEFAULT '{}'");
+    this.migrateHeads();
+  }
+
+  /**
+   * Emoji heads → drawn characters: refund every premium head that was bought
+   * (spendable coins only, leaderboards untouched) and move everyone onto a
+   * character. Runs once; the kv flag and the deleted rows make it idempotent.
+   */
+  migrateHeads() {
+    if (this.sql.exec("SELECT 1 FROM kv WHERE k = 'heads_v2'").toArray().length) return;
+    this.ctx.storage.transactionSync(() => {
+      for (const [item, price] of Object.entries(LEGACY_HEAD_PRICES)) {
+        for (const { player } of this.sql.exec("SELECT player FROM owned WHERE item = ?", item).toArray()) {
+          this.sql.exec("UPDATE players SET coins = coins + ? WHERE id = ?", price, player);
+        }
+        this.sql.exec("DELETE FROM owned WHERE item = ?", item);
+      }
+      for (const { avatar } of this.sql.exec("SELECT DISTINCT avatar FROM players").toArray()) {
+        if (headOf(avatar) !== avatar) this.sql.exec("UPDATE players SET avatar = ? WHERE avatar = ?", headOf(avatar), avatar);
+      }
+      this.sql.exec("INSERT INTO kv (k, v) VALUES ('heads_v2', ?)", String(Date.now()));
+    });
   }
 
   ownedBy(id) {
@@ -94,7 +124,7 @@ export class Ledger extends DurableObject {
   upsert(id, name, avatar) {
     const now = Date.now();
     const old = this.row(id);
-    avatar = this.validAvatar(avatar, old ? this.ownedBy(id) : [], old?.avatar || FREE_AVATARS[0]);
+    avatar = this.validAvatar(avatar, old ? this.ownedBy(id) : [], headOf(old?.avatar || FREE_AVATARS[0]));
     this.sql.exec(
       `INSERT INTO players (id, name, avatar, created, updated) VALUES (?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET name = excluded.name, avatar = excluded.avatar, updated = excluded.updated`,

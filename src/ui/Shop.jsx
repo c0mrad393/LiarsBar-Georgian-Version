@@ -11,14 +11,14 @@ import { Btn, Confetti } from "./parts.jsx";
 const slotOfCat = (cat) => CATS.find((c) => c.id === cat)?.slot;
 
 function Preview({ item, size = 50 }) {
-  if (item.cat === "head") return <span style={{ fontSize: size * 0.72 }}>{item.id}</span>;
+  if (item.cat === "head") return <Character avatar={item.id} color="#cfd6e3" size={size} />;
   if (item.cat === "throw") return <span style={{ fontSize: size * 0.62 }}>{item.id}</span>;
   if (item.cat === "cards") return <CardBack size="sm" back={item.back} />;
   if (item.cat === "felt") {
     const [a, b, c] = item.felt;
     return <span className="block rounded-[50%] border-[3px] border-[#c07d3f]" style={{ width: size, height: size * 0.62, background: `radial-gradient(circle at 50% 40%, ${a}, ${b} 55%, ${c})`, boxShadow: "0 0 0 2px #2b1d14" }} />;
   }
-  return <Character avatar="🙂" looks={{ [slotOfCat(item.cat)]: item.id }} color="#cfd6e3" size={size} />;
+  return <Character avatar="av_khinkali" looks={{ [slotOfCat(item.cat)]: item.id }} color="#cfd6e3" size={size} />;
 }
 
 function ItemCard({ item, owned, equipped, selected, onClick }) {

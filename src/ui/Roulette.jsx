@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { T, quipText } from "../i18n.js";
 import { sfx, unlockAudio } from "../sfx.js";
 import Character, { seatColor } from "./Character.jsx";
+import { Face } from "./heads.jsx";
 import { Starburst, Timer } from "./parts.jsx";
 
 const HOLD_MS = 1300;
@@ -66,7 +67,7 @@ function HoldToPull({ onPull, wine }) {
   );
 }
 
-function Cylinder({ spinning, result, pulls, chamber }) {
+function Cylinder({ spinning, result, pulls, chamber, slow }) {
   // Accumulate rotation so each spin keeps turning the same way; land the
   // chamber that was just tried under the hammer (top).
   const [deg, setDeg] = useState(0);
@@ -88,7 +89,7 @@ function Cylinder({ spinning, result, pulls, chamber }) {
       <div
         key={deg}
         className={spinning ? "a-cylinder h-full w-full" : "h-full w-full"}
-        style={{ "--to": `${to}deg`, transform: spinning ? undefined : `rotate(${to}deg)`, filter: "drop-shadow(0 6px 0 #6b5646)" }}>
+        style={{ "--to": `${to}deg`, transform: spinning ? undefined : `rotate(${to}deg)`, filter: "drop-shadow(0 6px 0 #6b5646)", animationDuration: slow ? "2.7s" : undefined }}>
         <svg viewBox="0 0 200 200" className="h-full w-full">
           <circle cx={cx} cy={cy} r="94" fill="#c9c3bb" stroke="#2b1d14" strokeWidth="5" />
           <circle cx={cx} cy={cy} r="80" fill="#dcd6ce" stroke="#2b1d14" strokeWidth="2" strokeDasharray="6 7" />
@@ -115,7 +116,7 @@ function Cylinder({ spinning, result, pulls, chamber }) {
 }
 
 /** Dice mode: six glasses of wine, one of them poisoned. Tried glasses stand empty. */
-function Glasses({ spinning, result, pulls, chamber }) {
+function Glasses({ spinning, result, pulls, chamber, slow }) {
   const tried = (i) => i < pulls || (result && i === chamber);
   return (
     <div className="relative mx-auto flex h-36 w-64 items-end justify-center">
@@ -128,7 +129,7 @@ function Glasses({ spinning, result, pulls, chamber }) {
         const empty = tried(i) && !poison;
         return (
           <div key={i} className={`relative mx-0.5 ${now && !spinning ? "a-hop" : ""}`} style={{ transform: `translateY(${-Math.cos(a) * 26}px)` }}>
-            <svg viewBox="0 0 40 70" width="36" height="63" className={drinking ? "a-sip" : now ? "a-slosh" : ""}>
+            <svg viewBox="0 0 40 70" width="36" height="63" className={drinking ? "a-sip" : now ? "a-slosh" : ""} style={drinking && slow ? { animationDuration: "2.7s" } : undefined}>
               <path d="M6 4 H34 Q35 26 20 34 Q5 26 6 4 Z" fill="#fffdf8" fillOpacity="0.8" stroke="#2b1d14" strokeWidth="3" strokeLinejoin="round" />
               {!empty && <path d="M8 12 H32 Q31 27 20 31 Q9 27 8 12 Z" fill={poison ? "#57cc3b" : "#b3202a"} />}
               <path d="M20 34 V60" stroke="#2b1d14" strokeWidth="3" />
@@ -151,6 +152,14 @@ export default function Roulette({ view, nm, onPull }) {
   const safe = r.result === "safe";
   const devil = r.reason === "devil";
   const wine = view.kind === "dice";
+  const slow = view.dramatic; // 1-in-2 odds or the final two: slow motion
+  // The heart pounds through a slow-motion pull.
+  useEffect(() => {
+    if (!slow || !r.spinning) return;
+    sfx("heart");
+    const t = setInterval(() => sfx("heart"), 430);
+    return () => clearInterval(t);
+  }, [slow, r.spinning]);
   const event = view.event; // chaos: "double" = two bullets, "safe" = jammed gun
   const pullsBefore = r.result ? r.chamber : v.pulls;
   const odds = 6 - pullsBefore;
@@ -158,26 +167,36 @@ export default function Roulette({ view, nm, onPull }) {
   const quip = ev && quipText(ev);
 
   return (
-    <div className="a-fade-up fixed inset-0 z-[60] flex items-center justify-center bg-ink/45 px-4 backdrop-blur-[3px]">
+    <div className={`a-fade-up fixed inset-0 z-[60] flex items-center justify-center px-4 backdrop-blur-[3px] ${slow ? "bg-ink/70" : "bg-ink/45"}`}>
+      {slow && (
+        <>
+          <div className="slowmo-bar pointer-events-none fixed inset-x-0 top-0 z-[63] h-[9vh] bg-black" />
+          <div className="slowmo-bar slowmo-bar-b pointer-events-none fixed inset-x-0 bottom-0 z-[63] h-[9vh] bg-black" />
+          <div className="vignette pointer-events-none fixed inset-0 z-[61]" style={{ opacity: 0.8 }} />
+        </>
+      )}
       <div key={r.victim} className={`a-pop comic relative w-full max-w-sm rounded-[2rem] px-6 pb-6 pt-5 text-center ${dead ? "a-shake" : ""} ${devil ? "bg-[#fff0ee]" : "bg-paper"}`}>
+        <div className={slow && r.spinning ? "slowmo-zoom" : ""}>
         <div className={`font-display text-sm tracking-widest ${devil ? "text-[#b3202a]" : wine ? "text-grape" : "text-coral"}`}>{devil ? `😈 ${T.devilRoulette}` : wine ? `🍷 ${T.wineRoulette}` : `🔫 ${T.roulette}`}</div>
+        {slow && !r.result && <div className="a-pop mx-auto mt-1 w-fit rounded-full border-2 border-ink bg-ink px-2.5 text-[11px] font-black tracking-wide text-sun">🎬 {T.clutch}</div>}
 
         <div className="relative mx-auto mt-3 flex w-fit justify-center">
-          <Character avatar={v.avatar} looks={v.looks} color={seatColor(r.victim)} size={86} state={dead ? "dead" : safe ? "happy" : "nervous"} />
+          <Character avatar={v.avatar} looks={v.looks} color={seatColor(r.victim)} size={86} state={dead ? "dead" : safe ? (wine ? "tipsy" : "happy") : "nervous"}
+            blush={wine ? (r.result ? r.chamber + 1 : v.pulls) / 5 : 0} />
         </div>
         <h2 className="mt-1 text-xl font-black">{mine ? T.you : v.name} · {wine ? T.faceGlass : T.facesGun}</h2>
         <p className="text-xs font-bold text-ink-soft">{T[r.reason]}</p>
         {r.queue?.length > 0 && (
           <div className="mt-2 inline-flex items-center gap-1 rounded-full border-2 border-ink bg-cream px-2.5 py-0.5 text-xs font-extrabold">
-            {T.queue}: {r.queue.map((i) => <span key={i} className="text-base" title={view.seats[i].name}>{view.seats[i].avatar}</span>)}
+            {T.queue}: {r.queue.map((i) => <span key={i} title={view.seats[i].name}><Face id={view.seats[i].avatar} size={20} /></span>)}
           </div>
         )}
 
         <div className="relative mt-4">
           {wine ? (
-            <Glasses spinning={r.spinning} result={r.result} pulls={v.pulls} chamber={r.chamber} />
+            <Glasses spinning={r.spinning} result={r.result} pulls={v.pulls} chamber={r.chamber} slow={slow} />
           ) : (
-            <Cylinder spinning={r.spinning} result={r.result} pulls={v.pulls} chamber={r.chamber} />
+            <Cylinder spinning={r.spinning} result={r.result} pulls={v.pulls} chamber={r.chamber} slow={slow} />
           )}
           {r.result && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -216,6 +235,7 @@ export default function Roulette({ view, nm, onPull }) {
               {!r.spinning && <Timer deadline={view.deadline} offset={view.clockOffset} className="ml-2" />}
             </div>
           )}
+        </div>
         </div>
       </div>
     </div>

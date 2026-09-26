@@ -5,7 +5,7 @@
 // price 0 = free for everyone, no purchase needed.
 
 export const CATS = [
-  { id: "head", slot: "avatar", name: "ავატარები", icon: "😺" },
+  { id: "head", slot: "avatar", name: "პერსონაჟები", icon: "🥟" },
   { id: "hat", slot: "hat", name: "ქუდები", icon: "🎩" },
   { id: "eyes", slot: "eyes", name: "სათვალეები", icon: "🕶️" },
   { id: "mouth", slot: "mouth", name: "სახე", icon: "👄" },
@@ -32,20 +32,9 @@ const rarity = (price) => (price === 0 ? "free" : price < 150 ? "rare" : price <
 // [id, name, price, render]
 const RAW = {
   head: [
-    // free heads (also the avatar picker on the home screen); smileys first: every accessory fits them
-    ["🙂", "ღიმილა", 0], ["😀", "მხიარული", 0], ["😁", "კბილებიანი", 0], ["😜", "ენიანი", 0], ["🤪", "გიჟი", 0],
-    ["😏", "ეშმაკური", 0], ["😇", "ანგელოზი", 0], ["🥳", "ზეიმი", 0], ["😎", "მაგარი", 0], ["🤓", "ნერდი", 0],
-    ["🐸", "ბაყაყი", 0], ["🐵", "მაიმუნი", 0], ["🐼", "პანდა", 0], ["🐔", "ქათამი", 0], ["🦁", "ლომი", 0],
-    ["🐨", "კოალა", 0], ["🐙", "რვაფეხა", 0], ["🦄", "ერთრქა", 0], ["🐧", "პინგვინი", 0], ["🦖", "დინო", 0],
-    ["🐶", "ძაღლი", 0], ["🐹", "ზაზუნა", 0], ["🐰", "კურდღელი", 0], ["🐭", "თაგვი", 0], ["🐯", "ვეფხვი", 0],
-    ["🐮", "ძროხა", 0], ["🦉", "ბუ", 0], ["🦆", "იხვი", 0], ["🐢", "კუ", 0], ["🦔", "ზღარბი", 0],
-    // premium
-    ["🦝", "ენოტი", 60], ["🐌", "ლოკოკინა", 60], ["🦀", "კიბორჩხალა", 80], ["🦥", "ზარმაცა", 80], ["🦩", "ფლამინგო", 90],
-    ["🐳", "ვეშაპი", 100], ["🦦", "წავი", 100], ["🦒", "ჟირაფი", 100], ["🎃", "გოგრა", 110], ["🐺", "მგელი", 120],
-    ["🦈", "ზვიგენი", 120], ["👽", "უცხოპლანეტელი", 130], ["🤖", "რობოტი", 130], ["🐲", "დრაკონი", 160], ["🤡", "კლოუნი", 160],
-    ["🧟", "ზომბი", 170], ["🧛", "ვამპირი", 170], ["🥔", "კარტოფილი", 180], ["🧀", "სულგუნი", 200], ["🍷", "ღვინო", 200],
-    ["🤠", "კოვბოი", 220], ["🥸", "შენიღბული", 240], ["🎅", "თოვლის ბაბუა", 250], ["🦨", "სკუნსი", 260], ["🥷", "ნინძა", 280],
-    ["🧙", "ჯადოქარი", 300], ["🦸", "სუპერგმირი", 320], ["👹", "დევი", 350], ["🥟", "ხინკალი", 400], ["🦹", "ბოროტმოქმედი", 450],
+    // Hand-drawn SVG characters (src/ui/heads.jsx). Their faces all share the
+    // same geometry, so every accessory fits every head.
+    ["av_khinkali", "ხინკალა", 0], ["av_pig", "გოჭა", 0], ["av_fox", "მელია", 0], ["av_bear", "დათუნა", 0], ["av_tur", "ჯიხვი", 0],
   ],
   hat: [
     ["hat_cap", "კეპი", 0, { e: "🧢" }], ["hat_sun", "პანამა", 0, { e: "👒" }], ["hat_bow", "ბაფთა", 0, { e: "🎀", s: 0.5 }],
@@ -138,22 +127,22 @@ const RAW = {
   ],
 };
 
-/**
- * Where the face is on each head emoji, so gear lands on it: x/y shift the face
- * centre (fractions of the head box, +y is down), s scales face gear. Tuned to
- * sit well on both Apple and Google (Android) emoji; missing = a plain face.
- */
-export const FACE_FIT = {
-  "🐰": { y: 0.08, s: 0.9 }, "🐭": { y: 0.04 }, "🐔": { x: 0.03, s: 0.9 }, "🦄": { x: 0.04, y: 0.02, s: 0.85 },
-  "🦉": { y: -0.04, s: 0.85 }, "🐸": { y: -0.03 },
-  "🐧": { y: -0.14, s: 0.68 }, "🦖": { x: -0.12, y: -0.14, s: 0.62 }, "🦆": { x: -0.14, y: -0.18, s: 0.6 },
-  "🐢": { y: -0.04, s: 0.6 }, "🦔": { x: -0.18, y: 0.04, s: 0.58 },
-  "🦝": { y: -0.04, s: 0.8 }, "🐌": { x: 0.18, y: -0.06, s: 0.52 }, "🦀": { y: -0.1, s: 0.78 }, "🦥": { s: 0.8 },
-  "🦩": { y: -0.3, s: 0.48 }, "🐳": { y: 0.02, s: 0.66 }, "🦦": { x: -0.1, s: 0.7 }, "🦒": { y: -0.16, s: 0.62 },
-  "🐺": { s: 0.9 }, "🦈": { s: 0.68 }, "🧟": { y: -0.13, s: 0.66 }, "🧛": { y: -0.12, s: 0.68 },
-  "🍷": { y: -0.16, s: 0.66 }, "🎅": { y: -0.03, s: 0.84 }, "🦨": { y: -0.04, s: 0.66 }, "🥷": { y: -0.08, s: 0.74 },
-  "🧙": { y: 0.02, s: 0.72 }, "🦸": { y: -0.2, s: 0.52 }, "🦹": { y: -0.2, s: 0.52 }, "🥟": { y: 0.06, s: 0.86 },
-  "🥔": { s: 0.86 }, "🧀": { y: 0.04, s: 0.84 }, "🤠": { y: 0.05, s: 0.9 },
+/** Per-head gear offsets (x/y shift of the face centre, s = scale). All current heads use the standard face. */
+export const FACE_FIT = {};
+
+/** How each head is drawn: species and its three fur tones (lit, base, shadow). */
+export const HEAD_INFO = {
+  av_khinkali: { kind: "khinkali", colors: { light: "#fffaf0", fur: "#f4e2bd", dark: "#cfae74" } },
+  av_pig: { kind: "pig", colors: { light: "#ffe6ee", fur: "#ffb3c7", dark: "#e37d9b" } },
+  av_fox: { kind: "fox", colors: { light: "#ffd29e", fur: "#ff9a3c", dark: "#d0601a" } },
+  av_bear: { kind: "bear", colors: { light: "#d9a474", fur: "#a86b3c", dark: "#6c3f1f" } },
+  av_tur: { kind: "tur", colors: { light: "#dcb98c", fur: "#b08457", dark: "#7a5330" } },
+};
+
+// Emoji heads from before the drawn characters: the closest match, otherwise a stable pick.
+const LEGACY_HEAD = {
+  "🐷": "av_pig", "🐽": "av_pig", "🦊": "av_fox", "🐻": "av_bear", "🐼": "av_bear", "🐨": "av_bear",
+  "🐂": "av_tur", "🐮": "av_tur", "🐐": "av_tur", "🦌": "av_tur", "🥟": "av_khinkali", "🙂": "av_khinkali",
 };
 
 export const ITEMS = {};
@@ -167,6 +156,14 @@ for (const [cat, list] of Object.entries(RAW)) {
 }
 
 export const FREE_AVATARS = BY_CAT.head.filter((i) => i.price === 0).map((i) => i.id);
+/** Any stored or sent head → one we can draw (old emoji heads map to a character). */
+export function headOf(a) {
+  if (HEAD_INFO[a]) return a;
+  if (LEGACY_HEAD[a]) return LEGACY_HEAD[a];
+  let h = 0;
+  for (const ch of String(a || "")) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+  return FREE_AVATARS[h % FREE_AVATARS.length];
+}
 export const ALL_AVATARS = BY_CAT.head.map((i) => i.id);
 export const FREE_THROWS = BY_CAT.throw.filter((i) => i.price === 0).map((i) => i.id);
 export const ALL_THROWS = BY_CAT.throw.map((i) => i.id);

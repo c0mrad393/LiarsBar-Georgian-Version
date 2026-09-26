@@ -37,11 +37,11 @@ export const MAX_SEATS = 6;
 export const MAX_PLAY = 3;
 
 export const PERSONAS = {
-  pig: { name: "სკაბი", avatar: "🐷", bluff: 0.5, call: 0.34, desc: "აგრესიული" },
-  fox: { name: "ფოქსი", avatar: "🦊", bluff: 0.3, call: 0.55, desc: "ეშმაკი" },
-  bull: { name: "ტოარი", avatar: "🐂", bluff: 0.12, call: 0.24, desc: "ფრთხილი" },
-  cat: { name: "მურკა", avatar: "🐱", bluff: 0.38, call: 0.42, desc: "ცბიერი" },
-  bear: { name: "ბერა", avatar: "🐻", bluff: 0.22, call: 0.46, desc: "მოუთმენელი" },
+  pig: { name: "სკაბი", avatar: "av_pig", bluff: 0.5, call: 0.34, desc: "აგრესიული" },
+  fox: { name: "ფოქსი", avatar: "av_fox", bluff: 0.3, call: 0.55, desc: "ეშმაკი" },
+  bull: { name: "ჯიქა", avatar: "av_tur", bluff: 0.12, call: 0.24, desc: "ფრთხილი" },
+  cat: { name: "ხინკალა", avatar: "av_khinkali", bluff: 0.38, call: 0.42, desc: "ცბიერი" },
+  bear: { name: "ბერა", avatar: "av_bear", bluff: 0.22, call: 0.46, desc: "მოუთმენელი" },
 };
 // Stand-in brain for a human who dropped offline mid-game.
 const AUTOPILOT = { bluff: 0.25, call: 0.3 };
@@ -53,6 +53,7 @@ const TIMING = {
   deal: 1300,
   reveal: 3600,
   spin: 1400,
+  spinSlow: 2800, // dramatic pulls play in slow motion
   afterSafe: 1700,
   afterDead: 2600,
   botMin: 1100,
@@ -89,6 +90,16 @@ const dirOf = (s) => (s.event === "reverse" ? -1 : 1);
 /** Most cards you may put down at once this round. */
 export const maxPlay = (s) => (s.event === "single" ? 1 : MAX_PLAY);
 export const totalDice = (s) => s.seats.reduce((n, p) => n + (p.alive ? p.dice?.length || 0 : 0), 0);
+
+/**
+ * A pull worth slowing down for: the odds are 1 in 2 or worse, or only two
+ * players are left. The engine waits longer so every client can play it slow.
+ */
+export function dramatic(s) {
+  const r = s.roulette;
+  if (!r || !s.seats[r.victim]) return false;
+  return s.seats[r.victim].pulls >= 4 || s.seats.filter((p) => p.alive).length === 2;
+}
 
 /** Seat whose "brain" is the engine: bots, and humans who went offline. */
 export const isAuto = (seat) => seat.kind === "bot" || !seat.connected;
@@ -489,7 +500,7 @@ export function schedule(s, now = Date.now()) {
     case "roulette": {
       const r = s.roulette;
       if (!r) return null;
-      if (r.spinning) return { delay: TIMING.spin, make: () => ({ type: "resolvePull" }) };
+      if (r.spinning) return { delay: dramatic(s) ? TIMING.spinSlow : TIMING.spin, make: () => ({ type: "resolvePull" }) };
       if (r.result) return { delay: r.result === "dead" ? TIMING.afterDead : TIMING.afterSafe, make: () => ({ type: "afterRoulette" }) };
       const v = s.seats[r.victim];
       if (isAuto(v)) return { delay: TIMING.botPull, make: () => ({ type: "pull", seat: r.victim }) };
@@ -524,6 +535,7 @@ export function viewFor(s, me) {
     pile: s.pile && { by: s.pile.by, count: s.pile.count },
     reveal: s.reveal,
     roulette: s.roulette,
+    dramatic: s.phase === "roulette" && dramatic(s),
     log: s.log,
     seats: s.seats.map((p) => ({
       idx: p.idx,

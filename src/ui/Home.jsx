@@ -6,6 +6,7 @@ import { fetchTables } from "../online.js";
 import { sfx } from "../sfx.js";
 import { Card } from "./cards.jsx";
 import Character, { seatColor } from "./Character.jsx";
+import { Face } from "./heads.jsx";
 import { Btn, CoinChip, Sheet, SoundToggle, Stepper } from "./parts.jsx";
 
 // Loaded on first open: keeps the first screen light on phones.
@@ -60,7 +61,7 @@ function OpenTables({ onJoin }) {
     <ul className="flex flex-col gap-1.5">
       {list.map((t) => (
         <li key={t.code} className="a-fade-up flex items-center gap-2 rounded-2xl border-[2.5px] border-ink bg-cream py-1.5 pl-2 pr-1.5">
-          <span className="text-2xl">{t.avatar}</span>
+          <Face id={t.avatar} size={32} />
           <div className="min-w-0 flex-1 leading-tight">
             <div className="truncate text-sm font-black">{t.host}</div>
             <div className="text-[11px] font-bold text-ink-soft">{MODE_INFO[t.mode]?.emoji} {MODE_INFO[t.mode]?.name} · 👥 {t.players}/{t.max}</div>
@@ -143,7 +144,7 @@ export default function Home({ profile, setProfile, account, mode, setMode, solo
   const [sheet, setSheet] = useState(null); // me | solo | friends | rules
   const [shopCat, setShopCat] = useState("hat");
   const openShop = (cat = "hat") => { setSheet(null); setShopCat(cat); setPanel("shop"); };
-  const myHeads = [...AVATARS, ...(account.me?.owned || []).filter((id) => ITEMS[id]?.cat === "head")];
+  const myHeads = [...new Set([...AVATARS, ...(account.me?.owned || []).filter((id) => ITEMS[id]?.cat === "head")])];
   const [code, setCode] = useState(invite || "");
   // Android/Chrome offers "install" (fullscreen app on the home screen) via this event.
   const [installEv, setInstallEv] = useState(null);
@@ -228,19 +229,20 @@ export default function Home({ profile, setProfile, account, mode, setMode, solo
             <div className="min-w-0 flex-1"><NameInput value={profile.name} onChange={setName} /></div>
           </div>
           <div className="mt-4 text-sm font-black">{T.pickAvatar}</div>
-          <div className="mt-2 grid grid-cols-6 gap-2">
-            {myHeads.map((a) => {
+          <div className="mt-2 grid grid-cols-5 gap-1.5">
+            {myHeads.map((a, i) => {
               const on = a === profile.avatar;
               return (
-                <button key={a} onClick={() => { setProfile({ ...profile, avatar: a }); sfx("select"); }} aria-pressed={on}
-                  className={`flex aspect-square items-center justify-center rounded-2xl border-[2.5px] border-ink text-2xl ${on ? "a-hop bg-sun" : "bg-cream"}`}
-                  style={{ boxShadow: on ? "0 3px 0 #2b1d14" : "0 2px 0 #2b1d14" }}>
-                  {a}
+                <button key={a} onClick={() => { setProfile({ ...profile, avatar: a }); sfx("select"); }} aria-pressed={on} aria-label={ITEMS[a]?.name}
+                  className={`flex flex-col items-center rounded-2xl border-[2.5px] border-ink px-0.5 pb-1 pt-3 transition-transform ${on ? "-translate-y-1 bg-sun" : "bg-cream"}`}
+                  style={{ boxShadow: on ? "0 4px 0 #2b1d14" : "0 2px 0 #2b1d14" }}>
+                  <Character avatar={a} color={seatColor(i + 1)} size={44} state={on ? "happy" : "idle"} />
+                  <span className="mt-0.5 w-full truncate text-center text-[10px] font-black">{ITEMS[a]?.name}</span>
                 </button>
               );
             })}
           </div>
-          <Btn color="coral" onClick={() => openShop("head")} className="mt-4 w-full py-3 text-base">🛍️ {T.moreLooks}</Btn>
+          <Btn color="coral" onClick={() => openShop("hat")} className="mt-4 w-full py-3 text-base">🛍️ {T.moreLooks}</Btn>
         </Sheet>
       )}
 

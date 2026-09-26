@@ -3,6 +3,7 @@ import { CHAOS_INFO, RANKS, T, quipText } from "../i18n.js";
 import { sfx } from "../sfx.js";
 import { Card, CardBack } from "./cards.jsx";
 import Character, { seatColor } from "./Character.jsx";
+import { Face } from "./heads.jsx";
 import { useEffect, useState } from "react";
 import { Btn, Confetti, Starburst } from "./parts.jsx";
 
@@ -48,7 +49,7 @@ function Rewards({ view, rewards, solo }) {
       {rewards.list.length > 1 && (
         <div className="mt-2 flex flex-wrap justify-center gap-1.5 border-t-2 border-dashed border-ink/30 pt-2">
           {rewards.list.filter((r) => r.seat !== view.me).map((r) => (
-            <span key={r.seat} className="text-[11px] font-black">{view.seats[r.seat]?.avatar} +{r.got}</span>
+            <span key={r.seat} className="text-[11px] font-black"><Face id={view.seats[r.seat]?.avatar} size={18} /> +{r.got}</span>
           ))}
         </div>
       )}
@@ -121,7 +122,7 @@ export function DevilBurst({ id, seat }) {
       <div className="a-devil-card"><div className="scale-[1.7] sm:scale-[1.9]"><Card rank="D" size="lg" glow="#ffb02e" /></div></div>
       <div className="a-pop mt-20 px-4 text-center sm:mt-24" style={{ animationDelay: "0.5s" }}>
         <div className="font-black text-white" style={{ fontSize: 36, textShadow: "3px 3px 0 #000" }}>{T.devilTitle}</div>
-        <div className="mt-1 text-lg font-extrabold text-sun" style={{ textShadow: "2px 2px 0 #000" }}>{seat?.avatar} {T.devilSub}</div>
+        <div className="mt-1 text-lg font-extrabold text-sun" style={{ textShadow: "2px 2px 0 #000" }}><Face id={seat?.avatar} size={26} /> {T.devilSub}</div>
       </div>
     </div>
   );
@@ -133,7 +134,7 @@ export function LiarBurst({ burst, seat }) {
       <div className="a-burst relative flex h-[330px] w-[330px] items-center justify-center sm:h-[420px] sm:w-[420px]">
         <Starburst fill="#ff5a5f" points={16} className="absolute inset-0 h-full w-full" />
         <div className="relative text-center">
-          <div className="text-5xl">{seat?.avatar}</div>
+          <Face id={seat?.avatar} size={60} state="talk" />
           <div className="font-black text-white" style={{ fontSize: 40, textShadow: "3px 3px 0 #2b1d14" }}>{T.liar}</div>
           <div className="font-display text-3xl text-sun" style={{ textShadow: "2px 2px 0 #2b1d14" }}>{T.liarEn}</div>
         </div>
@@ -188,6 +189,37 @@ export function ChaosBanner({ event }) {
           <div className="a-wiggle my-1 inline-block text-6xl">{ev.emoji}</div>
           <div className="font-display text-3xl leading-none" style={{ textShadow: "3px 3px 0 #2b1d14" }}>{ev.name}</div>
           <div className="mt-2 text-sm font-extrabold leading-snug">{ev.desc}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Only two left: the screen splits for a face-off. */
+export function DuelSplit({ a, b }) {
+  const half = (seat, side) => (
+    <div className={`absolute inset-0 flex items-center ${side === "l" ? "duel-l justify-start pl-[8%]" : "duel-r justify-end pr-[8%]"}`}
+      style={{ background: `linear-gradient(${side === "l" ? "135deg" : "315deg"}, ${seatColor(seat.idx)}, color-mix(in srgb, ${seatColor(seat.idx)} 70%, #2b1d14))` }}>
+      <div className={`flex flex-col items-center ${side === "l" ? "mt-[-22vh]" : "mt-[22vh]"}`}>
+        <div style={side === "r" ? { transform: "scaleX(-1)" } : undefined}>
+          <Character avatar={seat.avatar} looks={seat.looks} color={seatColor(seat.idx)} size={120} state="turn" />
+        </div>
+        <div className="mt-2 max-w-[40vw] truncate rounded-full border-[3px] border-ink bg-paper px-3 font-black">{seat.name}</div>
+      </div>
+    </div>
+  );
+  return (
+    <div className="pointer-events-none fixed inset-0 z-[73] overflow-hidden">
+      {half(a, "l")}
+      {half(b, "r")}
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <div className="duel-vs relative flex h-40 w-40 items-center justify-center">
+          <Starburst fill="#ffc83d" points={14} className="absolute inset-0 h-full w-full" />
+          <span className="relative font-display text-5xl text-ink">VS</span>
+        </div>
+        <div className="duel-vs mt-2 rounded-2xl border-[3px] border-ink bg-ink px-4 py-1.5 text-center text-white" style={{ animationDelay: "0.1s" }}>
+          <div className="font-display text-2xl text-sun">⚔️ {T.finalDuel}</div>
+          <div className="text-xs font-bold">{T.finalDuelSub}</div>
         </div>
       </div>
     </div>

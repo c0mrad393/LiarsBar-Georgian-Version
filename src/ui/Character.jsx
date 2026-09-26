@@ -1,8 +1,9 @@
-// An animated bar patron: the player's emoji as the head on a little body
-// with gloved hands, reacting to the game (thinking, trembling, jumping,
-// sulking, dancing, getting hit) and wearing shop gear (`looks`).
-import { FACE_FIT, ITEMS } from "../shop.js";
+// An animated bar patron: a drawn character head (heads.jsx) on a little body
+// with paws, reacting to the game (thinking, trembling, jumping, sulking,
+// dancing, getting hit, getting caught, getting tipsy) and wearing shop gear.
+import { FACE_FIT, HEAD_INFO, ITEMS, headOf } from "../shop.js";
 import { AURAS, Body, FACE, HATS, HAT_BOX, NECK, WINGS, WINGS_BOX } from "./gear.jsx";
+import { Head } from "./heads.jsx";
 
 export const SEAT_COLORS = ["#ff5a5f", "#3a86ff", "#2ec4b6", "#9b5de5", "#ffb020", "#ff7b39"];
 export const seatColor = (i) => SEAT_COLORS[i % SEAT_COLORS.length];
@@ -124,12 +125,14 @@ function Splat({ item, size, delay }) {
 }
 
 /**
- * @param state idle | turn | nervous | happy | sad | win | talk | dead
+ * @param state idle | turn | nervous | happy | sad | win | talk | dead | busted | tipsy
+ * @param blush 0–1 red cheeks (wine drunk so far)
  * @param looks { hat, eyes, mouth, neck, hand, pet, aura, outfit, wings } item ids
  * @param hit   item that just hit this player (🍅 🥚 💐 …), with `hitKey` to replay
  * @param point angle in degrees towards a player being accused, or null
  */
-export default function Character({ avatar, color = SEAT_COLORS[0], size = 56, state = "idle", looks, hit, hitKey, hitDelay = 0, point = null }) {
+export default function Character({ avatar: rawAvatar, color = SEAT_COLORS[0], size = 56, state = "idle", looks, hit, hitKey, hitDelay = 0, point = null, blush = 0 }) {
+  const avatar = headOf(rawAvatar);
   const S = size;
   const head = S * 0.8;
   const dead = state === "dead";
@@ -141,10 +144,12 @@ export default function Character({ avatar, color = SEAT_COLORS[0], size = 56, s
   const Wings = wings?.svg && WINGS[wings.svg];
   const Neck = neck?.svg && NECK[neck.svg];
   // Blink at a different moment for each character.
-  const blinkDelay = `${((avatar?.codePointAt(0) || 0) % 40) / 10}s`;
+  const blinkDelay = `${([...avatar].reduce((h, ch) => h + ch.charCodeAt(0), 0) % 40) / 10}s`;
+  const paw = HEAD_INFO[avatar].colors;
 
   return (
-    <div className={`chr chr-${state} ${hit ? "chr-hit" : ""} ${point != null ? "chr-point" : ""} ${L.wings === "w_jet" && !dead ? "gear-bob" : ""}`} style={{ width: S, height: S * 1.22 }}>
+    <div className={`chr chr-${state} ${hit ? "chr-hit" : ""} ${point != null ? "chr-point" : ""} ${L.wings === "w_jet" && !dead ? "gear-bob" : ""}`}
+      style={{ width: S, height: S * 1.22, "--paw": paw.fur, "--paw-lit": paw.light }}>
       <span className="absolute bottom-[-4%] left-1/2 h-[10%] w-[80%] -translate-x-1/2 rounded-[50%] bg-ink/20 blur-[2px]" aria-hidden="true" />
       {Wings && !dead && (
         <svg viewBox="0 0 100 70" className="pointer-events-none absolute overflow-visible" style={{ left: S * (WINGS_BOX[wings.svg]?.[0] ?? -0.3), top: S * (WINGS_BOX[wings.svg]?.[1] ?? 0.4), width: S * (WINGS_BOX[wings.svg]?.[2] ?? 1.6) }} aria-hidden="true">
@@ -178,8 +183,8 @@ export default function Character({ avatar, color = SEAT_COLORS[0], size = 56, s
       )}
       <div className="chr-head" style={{ width: head, height: head }}>
         <div key={hitKey} className="chr-head-in h-full w-full">
-          <span className="chr-face" style={{ fontSize: head * 0.82 }}>
-            <span className="chr-face-in" style={{ animationDelay: blinkDelay }}>{dead ? "👻" : avatar}</span>
+          <span className="chr-face absolute inset-0">
+            <Head id={avatar} state={state} blush={blush} blinkDelay={blinkDelay} />
           </span>
           {!dead && mouth && <FaceGear slot="mouth" item={mouth} head={head} fit={fit} />}
           {!dead && eyes && <FaceGear slot="eyes" item={eyes} head={head} fit={fit} />}

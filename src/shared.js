@@ -1,7 +1,7 @@
 // Used by both the browser and the Cloudflare room server.
 import { MAX_SEATS, MODES, PERSONAS } from "./engine.js";
 import { EMOTES, PHRASES } from "./i18n.js";
-import { ALL_AVATARS, FREE_AVATARS, FREE_THROWS } from "./shop.js";
+import { FREE_THROWS, headOf } from "./shop.js";
 
 export { MAX_SEATS, MODES, EMOTES, PHRASES };
 
@@ -18,8 +18,8 @@ export const THROWABLES = FREE_THROWS; // everyone has these; more in the shop
 export const FX_GAP = 1200; // ms between throws / chat lines per player
 
 export const cleanName = (n, fallback = "სტუმარი") => String(n || "").replace(/\s+/g, " ").trim().slice(0, 16) || fallback;
-/** Any known head (ownership of premium heads is checked by the ledger / room). */
-export const cleanAvatar = (a) => (ALL_AVATARS.includes(a) ? a : FREE_AVATARS[0]);
+/** A head we can draw (ownership of premium heads is checked by the ledger / room). */
+export const cleanAvatar = headOf;
 export const cleanCode = (c) => (c || "").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 12);
 
 /** Each bot's signature accessories. */

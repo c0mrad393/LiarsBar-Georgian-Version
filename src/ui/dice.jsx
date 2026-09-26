@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { FACE_NAMES, T } from "../i18n.js";
 import { sfx } from "../sfx.js";
 import { seatColor } from "./Character.jsx";
+import { Face } from "./heads.jsx";
 
 const PIPS = {
   1: [[50, 50]],
@@ -59,7 +60,7 @@ export function BidBadge({ bid, seat, total }) {
         <Die face={bid.f} size={38} />
       </div>
       <div className="mt-1.5 whitespace-nowrap rounded-full border-2 border-ink bg-sun px-2.5 text-[11px] font-black">
-        {seat?.avatar} {seat?.name} · {T.atLeast} {bid.q}/{total}
+        <Face id={seat?.avatar} size={16} /> {seat?.name} · {T.atLeast} {bid.q}/{total}
       </div>
     </div>
   );
@@ -149,7 +150,7 @@ export function RevealDice({ reveal, seats }) {
       <div className="flex max-w-[92vw] flex-col gap-1 rounded-2xl border-[2.5px] border-ink bg-paper/95 p-2" style={{ boxShadow: "0 4px 0 #2b1d14" }}>
         {rows.map(({ s, dice }) => (
           <div key={s.idx} className="flex items-center gap-1.5">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-ink text-sm" style={{ background: seatColor(s.idx) }}>{s.avatar}</span>
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 border-ink" style={{ background: seatColor(s.idx) }}><Face id={s.avatar} size={20} /></span>
             {dice.map((d, j) => {
               const hit = d === bid.f || d === 1;
               const delay = 500 + n++ * step;

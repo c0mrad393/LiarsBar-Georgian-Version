@@ -8,9 +8,11 @@ import { Card } from "./cards.jsx";
 import Character, { seatColor } from "./Character.jsx";
 import Hand from "./Hand.jsx";
 import { BidPicker, Die, MyDice, RevealDice } from "./dice.jsx";
-import { ChaosBanner, DevilBurst, GameOver, LiarBurst, RevealCards } from "./overlays.jsx";
+import { Face } from "./heads.jsx";
+import { ChaosBanner, DevilBurst, DuelSplit, GameOver, LiarBurst, RevealCards } from "./overlays.jsx";
 import { Btn, Chambers, Confetti, SoundToggle, Timer } from "./parts.jsx";
 import Roulette from "./Roulette.jsx";
+import BarScene from "./BarScene.jsx";
 import Table, { Bubble, Emotes } from "./Table.jsx";
 
 const BUBBLE_MS = 2800;
@@ -58,6 +60,9 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
   const [devil, setDevil] = useState(null);
   const [confetti, setConfetti] = useState(0);
   const [chaos, setChaos] = useState(null);
+  const [lamps, setLamps] = useState(0); // bumps on every shot: the bar's lamps flicker
+  const [duel, setDuel] = useState(null);
+  const duelShown = useRef(false);
   const [sheet, setSheet] = useState(null); // react | log
   // One-time hint that you can throw things at people.
   const [tip, setTip] = useState(false);
@@ -99,7 +104,20 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
     for (const ev of fresh) {
       const q = quipText(ev);
       switch (ev.type) {
-        case "deal": sfx("deal"); break;
+        case "start": duelShown.current = false; break;
+        case "deal":
+        case "roll": {
+          if (ev.type === "deal") sfx("deal");
+          // Down to the last two: a split-screen face-off, once per game.
+          const alive = view.seats.filter((p) => p.alive);
+          if (alive.length === 2 && !duelShown.current && view.phase !== "gameover") {
+            duelShown.current = true;
+            sfx("devil");
+            setDuel({ id: ev.id, a: alive[0], b: alive[1] });
+            setTimeout(() => setDuel((d) => (d?.id === ev.id ? null : d)), 2700);
+          }
+          break;
+        }
         case "chaos":
           sfx("joker");
           setChaos({ id: ev.id, event: ev.event });
@@ -113,9 +131,10 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
           setTimeout(() => setBurst((b) => (b?.id === ev.id ? null : b)), 1250);
           speak(ev.seat, q);
           moment(ev.seat, "talk", 2600, ev.other);
+          if (ev.other != null) moment(ev.other, "nervous", 2600); // the accused starts sweating
           break;
-        case "truth": speak(ev.seat, q); moment(ev.seat, "happy", 2400); break;
-        case "bluff": speak(ev.seat, q); moment(ev.seat, "sad", 3200); break;
+        case "truth": speak(ev.seat, q); moment(ev.seat, "happy", 2400); if (ev.other != null) moment(ev.other, "sad", 2400); break;
+        case "bluff": speak(ev.seat, q); moment(ev.seat, "busted", 3400); if (ev.other != null) moment(ev.other, "happy", 2400); break; // caught: the nose grows
         case "devil":
           sfx("devil");
           setDevil({ id: ev.id, seat: ev.seat });
@@ -124,8 +143,8 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
           speak(ev.seat, q);
           moment(ev.seat, "win", 3000);
           break;
-        case "safe": sfx("click"); speak(ev.seat, q); moment(ev.seat, "happy", 2200); break;
-        case "dead": sfx("bang"); setFlash(ev.id); setShake("hard"); speak(ev.seat, q); break;
+        case "safe": sfx("click"); speak(ev.seat, q); moment(ev.seat, ev.wine ? "tipsy" : "happy", ev.wine ? 3000 : 2200); break;
+        case "dead": sfx("bang"); setFlash(ev.id); setLamps(ev.id); setShake("hard"); speak(ev.seat, q); break;
         case "win": sfx("win"); setConfetti(ev.id); break;
         case "left": case "back": sfx("join"); break;
         default:
@@ -193,7 +212,7 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
   const up = view.seats[view.turn];
   const waiting =
     view.phase === "playing" && up ? (
-      <><span className="a-bob inline-block text-xl">{up.avatar}</span><span className="truncate">{up.name} {T.thinking}</span></>
+      <><Face id={up.avatar} size={26} className="a-bob" /><span className="truncate">{up.name} {T.thinking}</span></>
     ) : view.phase === "dealing" ? (
       <>{dice ? "🎲" : "🃏"} {T.round} {view.round}</>
     ) : view.phase === "reveal" ? (
@@ -219,8 +238,10 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
       {devil && <DevilBurst id={devil.id} seat={view.seats[devil.seat]} />}
       {confetti ? <Confetti key={confetti} /> : null}
       {chaos && <ChaosBanner key={chaos.id} event={chaos.event} />}
+      {duel && <DuelSplit key={duel.id} a={duel.a} b={duel.b} />}
 
-      <div className="mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-4 px-2 sm:px-4 lg:grid-cols-[1fr_270px]">
+      <BarScene mode={view.opts?.mode} flicker={lamps} />
+      <div className="relative z-10 mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-4 px-2 sm:px-4 lg:grid-cols-[1fr_270px]">
         <div className="flex min-w-0 flex-col">
           {/* top bar */}
           <header className="safe-t flex items-center justify-between gap-1.5 pb-1">
@@ -280,7 +301,7 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
               <div className="relative flex min-w-0 items-center gap-2">
                 <div className="relative">
                   <Emotes list={fx.filter((f) => f.kind === "emote" && f.seat === me)} />
-                  <Character avatar={mine.avatar} looks={mine.looks} color={seatColor(me)} size={54} state={myMood.state} hit={myHit?.item} hitKey={myHit?.id} hitDelay={650}
+                  <Character avatar={mine.avatar} looks={mine.looks} color={seatColor(me)} size={54} state={myMood.state} blush={dice ? mine.pulls / 5 : 0} hit={myHit?.item} hitKey={myHit?.id} hitDelay={650}
                     point={myMood.point != null ? -60 : null} />
                   <Bubble text={bubbles[me]?.text || (mySay && PHRASES[mySay.i])} />
                 </div>
