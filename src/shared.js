@@ -24,11 +24,11 @@ export const cleanCode = (c) => (c || "").toLowerCase().replace(/[^a-z0-9]/g, ""
 
 /** Each bot's signature accessories. */
 export const BOT_LOOKS = {
-  pig: { hat: "hat_duck", neck: "n_redbow", hand: "h_drumstick" },
-  fox: { eyes: "eye_sun", outfit: "o_hawaii", hand: "h_wine" },
+  pig: { hat: "hat_party", neck: "n_redbow", hand: "h_beer" },
+  fox: { eyes: "eye_sun", outfit: "o_hoodie", hand: "h_wine" },
   bull: { hat: "hat_top", mouth: "m_curly", outfit: "o_tux" },
-  cat: { hat: "hat_bow", pet: "p_mouse", aura: "a_hearts" },
-  bear: { hat: "hat_grad", eyes: "eye_glasses", hand: "h_beer", outfit: "o_pajama" },
+  cat: { hat: "hat_chef", neck: "n_scarf" },
+  bear: { hat: "hat_papakha", eyes: "eye_glasses", mouth: "m_stache", outfit: "o_chokha" },
 };
 
 /** Each bot's title (an achievement id, like a player's). */

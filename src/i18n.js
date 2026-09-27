@@ -255,6 +255,7 @@ export const T = {
   titleOff: "ტიტულის მოხსნა",
   music: "მუსიკა",
   sounds: "ხმები",
+  table3d: "3D მაგიდა",
   finalDuelSub: "ორი დარჩა. ერთი წავა სახლში 🏠",
   // public tables
   online: "ონლაინ",

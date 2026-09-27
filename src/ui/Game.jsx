@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Component, Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import { fallbackTo2D, use3D } from "../settings.js";
 import { useWakeLock } from "../device.js";
 import { ITEMS } from "../shop.js";
 import { MAX_PLAY } from "../engine.js";
@@ -12,11 +13,22 @@ import { BidPicker, Die, MyDice, RevealDice } from "./dice.jsx";
 import { Face } from "./heads.jsx";
 import { ChaosBanner, DevilBurst, DuelSplit, GameOver, LiarBurst, RevealCards } from "./overlays.jsx";
 import { Btn, Chambers, Confetti, SoundToggle, Timer, TitleTag } from "./parts.jsx";
-import Roulette from "./Roulette.jsx";
+import Roulette, { RouletteHud } from "./Roulette.jsx";
 import BarScene from "./BarScene.jsx";
 import { EmoteWheel, useEmoteWheel } from "./EmoteWheel.jsx";
 import { TamadaTip, useTutorial } from "./Tutorial.jsx";
 import Table, { Bubble, Emotes } from "./Table.jsx";
+
+// three.js loads only for players on the 3D table.
+const Table3D = lazy(() => import("./Table3D.jsx"));
+
+/** If the 3D table can't load or crashes, carry on in 2D. */
+class Guard3D extends Component {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(err) { console.error("3D table failed, using 2D", err); fallbackTo2D(); }
+  render() { return this.state.failed ? null : this.props.children; }
+}
 
 const BUBBLE_MS = 2800;
 export const backOf = (looks) => ITEMS[looks?.cards]?.back || "red";
@@ -54,6 +66,7 @@ function Log({ view, nm }) {
 export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo, myLooks, throwables, canRestart, onAgain, onLeave, onToLobby }) {
   const me = view.me;
   const mine = view.seats[me];
+  const three = use3D();
   const [selected, setSelected] = useState([]);
   const [bubbles, setBubbles] = useState({});
   const [moments, setMoments] = useState({});
@@ -235,6 +248,16 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
     <div className="a-pop font-display text-3xl text-white" style={{ textShadow: "2px 3px 0 #2b1d14" }}>{dice ? <><span className="a-cup inline-block">🎲</span> {T.diceRound}</> : <>🃏 {T.round} {view.round}!</>}</div>
   ) : null;
 
+  // On the 3D table the cards flip in 3D; the verdict is stamped over the table.
+  const stamp = view.reveal && !dice && (
+    <div key={view.log[0]?.id} className="a-stamp rounded-xl border-[3px] border-ink px-4 py-1 font-display text-2xl tracking-wide text-white"
+      style={{ animationDelay: "1400ms", background: view.reveal.devil ? "#2a0508" : view.reveal.truthful ? "#3f7d4c" : "#c23b2e", textShadow: "2px 2px 0 #1c1510" }}
+      onAnimationStart={() => sfx(view.reveal.devil ? "devil" : view.reveal.truthful ? "truth" : "bluff")}>
+      {view.reveal.devil ? `😈 ${RANKS.D.geo}!` : view.reveal.truthful ? `✅ ${T.truth}` : `❌ ${T.bluff}`}
+    </div>
+  );
+  const center3d = view.reveal ? (dice ? <div className="origin-center scale-90"><RevealDice reveal={view.reveal} seats={view.seats} /></div> : stamp) : view.phase === "dealing" ? center : null;
+
   return (
     <div className={`relative flex min-h-[100dvh] flex-col overflow-x-hidden ${shake === "hard" ? "a-shake" : shake === "soft" ? "a-nudge" : ""}`}>
       <div className="rotate-hint fixed inset-0 z-[99] flex-col items-center justify-center gap-3 bg-cream text-center">
@@ -253,11 +276,22 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
           onPhrases={() => { wheel.close(); setSheet("react"); }} />
       )}
 
-      <BarScene mode={view.opts?.mode} flicker={lamps} />
-      <div className="relative z-10 mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-4 px-2 sm:px-4 lg:grid-cols-[1fr_270px]">
+      {three ? (
+        <div ref={tableRef} className="fixed inset-0 z-0">
+          <Guard3D>
+          <Suspense fallback={<BarScene mode={view.opts?.mode} />}>
+            <Table3D view={view} states={states} bubbles={Object.fromEntries(Object.entries(bubbles).map(([k, v]) => [k, v?.text]))} fx={fx}
+              myLooks={myLooks} throwables={throwables} onThrow={(to, item) => { unlockAudio(); throwAt(to, item); }} flicker={lamps} center={center3d} />
+          </Suspense>
+          </Guard3D>
+        </div>
+      ) : (
+        <BarScene mode={view.opts?.mode} flicker={lamps} />
+      )}
+      <div className={`relative z-10 mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-4 px-2 sm:px-4 lg:grid-cols-[1fr_270px] ${three ? "pointer-events-none" : ""}`}>
         <div className="flex min-w-0 flex-col">
           {/* top bar */}
-          <header className="safe-t flex items-center justify-between gap-1.5 pb-1">
+          <header className="safe-t pointer-events-auto flex items-center justify-between gap-1.5 pb-1">
             <button onClick={onLeave} className="comic-sm flex h-10 items-center rounded-full bg-paper px-3 text-sm font-extrabold" aria-label={T.leave}>
               ←<span className="ml-1 hidden sm:inline">{T.leave}</span>
             </button>
@@ -295,6 +329,9 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
           </header>
 
           {/* table */}
+          {three ? (
+            <div className="min-h-[270px] flex-1 short:min-h-[220px] sm:min-h-[340px]" />
+          ) : (
           <div ref={tableRef} className="contents">
           <Table
             view={view}
@@ -309,9 +346,10 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
             className="min-h-[270px] flex-1 short:min-h-[220px] sm:min-h-[340px] lg:max-h-[520px]"
           />
           </div>
+          )}
 
           {/* me */}
-          <div className="safe-b relative mt-2 short:mt-0">
+          <div className="safe-b pointer-events-auto relative mt-2 short:mt-0">
             <div className="relative flex items-center justify-between gap-2">
               <div className="relative flex min-w-0 items-center gap-2">
                 <div className="relative">
@@ -402,7 +440,7 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
           </div>
         </div>
 
-        <aside className="comic hidden max-h-[calc(100dvh-24px)] flex-col self-start rounded-3xl bg-paper p-3 lg:sticky lg:top-3 lg:mt-3 lg:flex">
+        <aside className="comic pointer-events-auto hidden max-h-[calc(100dvh-24px)] flex-col self-start rounded-3xl bg-paper p-3 lg:sticky lg:top-3 lg:mt-3 lg:flex">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-sm font-black">📜 {T.log}</span>
             <span className="rounded-full border-2 border-ink bg-sun px-2 text-[11px] font-black">{T.round} {view.round}</span>
@@ -411,7 +449,9 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
         </aside>
       </div>
 
-      {view.phase === "roulette" && view.roulette && <Roulette view={view} nm={nm} onPull={() => act({ type: "pull" })} />}
+      {view.phase === "roulette" && view.roulette && (three
+        ? <RouletteHud view={view} nm={nm} onPull={() => act({ type: "pull" })} />
+        : <Roulette view={view} nm={nm} onPull={() => act({ type: "pull" })} />)}
       {view.phase === "gameover" && <GameOver view={view} nm={nm} rewards={rewards} solo={solo} canRestart={canRestart} onAgain={onAgain} onLeave={onLeave} onToLobby={onToLobby} fx={fx} emote={(e) => { unlockAudio(); emote(e); }} />}
     </div>
   );

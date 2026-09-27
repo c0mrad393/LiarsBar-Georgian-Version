@@ -243,3 +243,69 @@ export default function Roulette({ view, nm, onPull }) {
     </div>
   );
 }
+
+/**
+ * The 3D table's roulette: the scene shows the revolver (or the glass); this
+ * is just the heads-up display: who, why, the odds, your trigger, the verdict.
+ */
+export function RouletteHud({ view, nm, onPull }) {
+  const r = view.roulette;
+  const v = view.seats[r.victim];
+  const mine = r.victim === view.me;
+  const dead = r.result === "dead";
+  const wine = view.kind === "dice";
+  const slow = view.dramatic;
+  const event = view.event;
+  useEffect(() => {
+    if (!slow || !r.spinning) return;
+    sfx("heart");
+    const t = setInterval(() => sfx("heart"), 430);
+    return () => clearInterval(t);
+  }, [slow, r.spinning]);
+  const pullsBefore = r.result ? r.chamber : v.pulls;
+  const odds = 6 - pullsBefore;
+  return (
+    <>
+      {slow && (
+        <>
+          <div className="slowmo-bar pointer-events-none fixed inset-x-0 top-0 z-[63] h-[7vh] bg-black" />
+          <div className="slowmo-bar slowmo-bar-b pointer-events-none fixed inset-x-0 bottom-0 z-[63] h-[7vh] bg-black" />
+        </>
+      )}
+      <div className="a-pop pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+64px)] z-[62] flex justify-center px-4">
+        <div className="comic rounded-2xl bg-paper px-4 py-2 text-center">
+          <div className={`font-display text-xs tracking-widest ${wine ? "text-grape" : "text-coral"}`}>{r.reason === "devil" ? `😈 ${T.devilRoulette}` : wine ? `🍷 ${T.wineRoulette}` : `🔫 ${T.roulette}`}</div>
+          <div className="text-base font-black">{mine ? T.you : v.name} · {wine ? T.faceGlass : T.facesGun}</div>
+          <div className="text-[11px] font-bold text-ink-soft">
+            {T[r.reason]} · {event === "safe" ? "🛟" : `${T.chance}: ${event === "double" && odds > 1 ? 2 : 1}/${odds}`}
+            {r.queue?.length ? ` · ${T.queue}: ${r.queue.map((i) => view.seats[i].name).join(", ")}` : ""}
+          </div>
+          {slow && !r.result && <div className="mx-auto mt-1 w-fit rounded-full bg-ink px-2 text-[10px] font-black text-sun">🎬 {T.clutch}</div>}
+        </div>
+      </div>
+      {r.result && (
+        <div className="pointer-events-none fixed inset-0 z-[62] flex flex-col items-center justify-center">
+          <div className="a-pop relative flex items-center justify-center" style={{ width: dead ? 240 : 170, height: dead ? 240 : 170 }}>
+            <Starburst fill={dead ? "#c23b2e" : "#eab54a"} points={dead ? 16 : 11} className={`absolute inset-0 h-full w-full ${dead ? "a-spin-slow" : ""}`} />
+            <span className={`relative font-display ${dead ? "text-5xl text-white" : "text-3xl text-ink"}`} style={{ textShadow: dead ? "3px 3px 0 #1c1510" : "none" }}>
+              {dead ? (wine ? `☠️ ${T.poisoned}` : T.bang) : r.jam ? `🛟 ${T.jammed}` : wine ? `🍷 ${T.tasty}` : T.click}
+            </span>
+          </div>
+        </div>
+      )}
+      {mine && !r.spinning && !r.result && (
+        <div className="safe-b fixed inset-x-0 bottom-[max(16px,9vh)] z-[64] mx-auto flex w-[min(92vw,380px)] flex-col items-center gap-2">
+          <HoldToPull onPull={onPull} wine={wine} />
+          <Timer deadline={view.deadline} offset={view.clockOffset} className="relative z-[62]" />
+        </div>
+      )}
+      {!mine && !r.result && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-[max(20px,9vh)] z-[62] flex justify-center">
+          <div className="rounded-full bg-black/60 px-4 py-1.5 text-sm font-black text-paper">
+            {r.spinning ? (wine ? T.sipping : T.pulling) : <>🤞 {nm(r.victim)}… <Timer deadline={view.deadline} offset={view.clockOffset} className="ml-1" /></>}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

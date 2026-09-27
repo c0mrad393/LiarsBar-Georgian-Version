@@ -121,6 +121,16 @@ export const HATS = {
       <circle cx="50" cy="2" r="7" fill="#ff5a5f" {...sw} strokeWidth="2.5" />
     </g>
   ),
+  // Georgian papakha: a tall fleecy wool hat.
+  papakha: () => (
+    <g>
+      <path d="M22 58V22q0-12 28-12t28 12v36Z" fill="#2e2620" {...sw} />
+      {[[30, 20], [44, 16], [58, 18], [70, 24], [28, 36], [42, 32], [56, 34], [70, 38], [32, 50], [48, 48], [64, 50]].map(([x, y], i) => (
+        <path key={i} d={`M${x - 5} ${y}q2.5-4 5 0t5 0`} fill="none" stroke="#6b5a4c" strokeWidth="2.4" strokeLinecap="round" />
+      ))}
+      <path d="M22 54q28 8 56 0" fill="none" stroke="#6b5a4c" strokeWidth="3" />
+    </g>
+  ),
   chef: () => (
     <g>
       <path d="M26 58V40q-14-4-10-18 6-12 18-6 6-12 16-12t16 12q12-6 18 6 4 14-10 18v18Z" fill="#fff" {...sw} />
@@ -170,7 +180,7 @@ export const HATS = {
   ),
 };
 // [top, width] as fractions of the head, so each drawing sits on (or floats above) the head.
-export const HAT_BOX = { party: [-0.24, 0.62], chef: [-0.26, 0.7], propeller: [-0.34, 0.84], raincloud: [-0.62, 0.9], viking: [-0.42, 1.06], halo: [-0.38, 0.8], ufo: [-0.7, 1.1] };
+export const HAT_BOX = { papakha: [-0.3, 0.72], party: [-0.24, 0.62], chef: [-0.26, 0.7], propeller: [-0.34, 0.84], raincloud: [-0.62, 0.9], viking: [-0.42, 1.06], halo: [-0.38, 0.8], ufo: [-0.7, 1.1] };
 
 // ------------------------------------------------------------------ neck ---
 export const NECK = {

@@ -13,6 +13,10 @@ const BOARD_SIZE = 50;
 
 // Premium emoji heads sold before the drawn characters replaced them (2026-09-26).
 // Owners get the coins back once; see migrateHeads().
+// Accessories retired when the game moved to 3D (2026-09-27): only a small,
+// hand-fitted set stayed. Owners are refunded once; see migrateItems().
+const RETIRED_ITEM_PRICES = {"hat_bucket":70,"hat_banana":80,"hat_egg":100,"hat_helmet":110,"hat_cupcake":120,"hat_plant":130,"hat_pizza":140,"hat_pineapple":140,"hat_cake":150,"hat_duck":160,"hat_melon":160,"hat_chicken":180,"hat_octo":200,"hat_propeller":200,"hat_cloud":220,"hat_fire":300,"hat_ufo":350,"eye_goggles":90,"eye_mask":110,"eye_googly":120,"eye_3d":130,"eye_snorkel":140,"eye_patch":160,"eye_stars":220,"eye_laser":400,"m_tongue":100,"m_lolly":110,"m_nose":120,"m_fangs":150,"m_rose":150,"m_gum":180,"m_gold":250,"n_tie":80,"n_beads":100,"n_bib":110,"n_lei":120,"h_hotdog":80,"h_icecream":90,"h_drumstick":90,"h_phone":100,"h_baguette":110,"h_teddy":120,"h_balloon":120,"h_fish":130,"h_wand":180,"h_guitar":220,"h_money":300,"p_chick":150,"p_mouse":150,"p_frog":150,"p_lizard":180,"p_cat":200,"p_bee":200,"p_bat":220,"p_parrot":250,"a_flies":150,"a_stink":150,"a_bubbles":160,"a_dizzy":180,"a_notes":180,"a_sparkle":200,"a_hearts":200,"a_fire":300,"a_money":420,"o_pajama":120,"o_prison":150,"o_chef":150,"o_sailor":160,"o_hawaii":180,"o_hero":320,"w_cape":200,"w_bat":250,"w_angel":300,"w_devil":300,"w_jet":380};
+
 const LEGACY_HEAD_PRICES = {
   "🦝": 60, "🐌": 60, "🦀": 80, "🦥": 80, "🦩": 90, "🐳": 100, "🦦": 100, "🦒": 100, "🎃": 110, "🐺": 120,
   "🦈": 120, "👽": 130, "🤖": 130, "🐲": 160, "🤡": 160, "🧟": 170, "🧛": 170, "🥔": 180, "🧀": 200, "🍷": 200,
@@ -65,6 +69,21 @@ export class Ledger extends DurableObject {
     if (!cols.includes("stats")) this.sql.exec("ALTER TABLE players ADD COLUMN stats TEXT NOT NULL DEFAULT '{}'");
     if (!cols.includes("title")) this.sql.exec("ALTER TABLE players ADD COLUMN title TEXT NOT NULL DEFAULT ''");
     this.migrateHeads();
+    this.migrateItems();
+  }
+
+  /** Refund retired accessories once (spendable coins only; leaderboards untouched). */
+  migrateItems() {
+    if (this.sql.exec("SELECT 1 FROM kv WHERE k = 'items_v3'").toArray().length) return;
+    this.ctx.storage.transactionSync(() => {
+      for (const [item, price] of Object.entries(RETIRED_ITEM_PRICES)) {
+        for (const { player } of this.sql.exec("SELECT player FROM owned WHERE item = ?", item).toArray()) {
+          this.sql.exec("UPDATE players SET coins = coins + ? WHERE id = ?", price, player);
+        }
+        this.sql.exec("DELETE FROM owned WHERE item = ?", item);
+      }
+      this.sql.exec("INSERT INTO kv (k, v) VALUES ('items_v3', ?)", String(Date.now()));
+    });
   }
 
   /**

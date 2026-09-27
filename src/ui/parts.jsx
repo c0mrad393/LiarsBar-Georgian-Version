@@ -3,6 +3,7 @@ import { T } from "../i18n.js";
 import { ACH } from "../achievements.js";
 import { isMuted, setMuted, sfx, unlockAudio } from "../sfx.js";
 import { isMusicOn, setMusicOn } from "../music.js";
+import { is3D, set3D, webglOK } from "../settings.js";
 
 const BTN = {
   sun: "bg-sun text-ink",
@@ -90,6 +91,7 @@ export function Timer({ deadline, offset, className = "" }) {
 export function SoundToggle({ className = "" }) {
   const [m, setM] = useState(isMuted());
   const [music, setMusic] = useState(isMusicOn());
+  const [three, setThree] = useState(is3D());
   const [open, setOpen] = useState(false);
   useEffect(() => {
     if (!open) return;
@@ -115,9 +117,10 @@ export function SoundToggle({ className = "" }) {
         {m && !music ? "🔇" : music ? "🎵" : "🔊"}
       </button>
       {open && (
-        <div className="a-pop comic absolute right-0 top-12 z-[70] w-48 rounded-2xl bg-paper p-1.5">
+        <div className="a-pop comic absolute right-0 top-12 z-[70] w-52 rounded-2xl bg-paper p-1.5">
           {row("🎵", T.music, music, () => { setMusicOn(!music); setMusic(!music); unlockAudio(); })}
           {row("🔊", T.sounds, !m, () => { setMuted(!m); setM(!m); if (m) { unlockAudio(); sfx("pop"); } })}
+          {webglOK() && row("🧊", T.table3d, three, () => { set3D(!three); setThree(!three); sfx("select"); })}
         </div>
       )}
     </div>
