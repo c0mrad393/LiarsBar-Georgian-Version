@@ -14,7 +14,8 @@ function serviceWorker() {
     apply: "build",
     enforce: "post",
     generateBundle(_, bundle) {
-      const built = Object.keys(bundle).filter((f) => f.startsWith("assets/") && !f.endsWith(".map"));
+      // The 3D test page (3d.html) and three.js stay out of the offline cache.
+      const built = Object.keys(bundle).filter((f) => f.startsWith("assets/") && !f.endsWith(".map") && !/^assets\/(three|table3d)-/.test(f));
       const files = ["./", "./manifest.webmanifest", "./icon-192.png", "./icon-512.png", "./apple-touch-icon.png", ...built.map((f) => `./${f}`)];
       const version = createHash("sha256").update(files.join("|")).digest("hex").slice(0, 10);
       const source = readFileSync(new URL("./src/sw-template.js", import.meta.url), "utf8")
@@ -44,7 +45,18 @@ function nonBlockingCss() {
 export default defineConfig({
   base: "./",
   plugins: [react(), tailwindcss(), serviceWorker(), nonBlockingCss()],
-  build: { target: "es2020", cssCodeSplit: true },
+  build: {
+    target: "es2020",
+    cssCodeSplit: true,
+    rollupOptions: {
+      // 3d.html: a playable 3D prototype, separate from the game itself.
+      input: { main: "index.html", table3d: "3d.html" },
+      output: {
+        entryFileNames: (c) => (c.name === "table3d" ? "assets/table3d-[hash].js" : "assets/[name]-[hash].js"),
+        manualChunks: (id) => (id.includes("node_modules/three/") ? "three" : undefined),
+      },
+    },
+  },
   // server/.wrangler holds the local room server's database; don't reload the page on its writes.
   server: { port: 5178, watch: { ignored: ["**/.wrangler/**", "**/server/**"] } },
 });
