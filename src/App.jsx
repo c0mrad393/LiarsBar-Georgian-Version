@@ -35,7 +35,7 @@ function setRoomInUrl(code) {
 function Notice({ emoji = "🍺", title, children }) {
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col items-center justify-center px-4 text-center">
-      <Logo small />
+      <Logo />
       <div className="a-pop comic mt-6 w-full rounded-3xl bg-paper p-6">
         <div className="a-wiggle inline-block text-5xl">{emoji}</div>
         <div className="mt-2 text-lg font-black">{title}</div>
@@ -104,6 +104,39 @@ function OnlineScreen({ code, create, quick, profile, mode, setMode, me, onLeave
   );
 }
 
+/** Once per visit: the dukani's door swings open onto the bar. */
+function DoorIntro() {
+  const [show, setShow] = useState(() => {
+    try {
+      if (sessionStorage.getItem("lb-door") || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return false;
+      sessionStorage.setItem("lb-door", "1");
+      return true;
+    } catch { return false; }
+  });
+  useEffect(() => {
+    if (!show) return;
+    const t = setTimeout(() => setShow(false), 1700);
+    return () => clearTimeout(t);
+  }, [show]);
+  if (!show) return null;
+  const leaf = (side) => (
+    <div className={`door-leaf door-${side} wood absolute inset-y-0 w-1/2 border-ink ${side === "l" ? "left-0 border-r-[3px]" : "right-0 border-l-[3px]"}`}>
+      <div className="absolute inset-x-[14%] top-[10%] h-[34%] rounded-lg border-[3px] border-[#5a3416] shadow-[inset_0_0_0_3px_#b07038]" />
+      <div className="absolute inset-x-[14%] bottom-[10%] h-[34%] rounded-lg border-[3px] border-[#5a3416] shadow-[inset_0_0_0_3px_#b07038]" />
+      <span className={`absolute top-1/2 h-8 w-3 -translate-y-1/2 rounded-full border-2 border-ink bg-sun ${side === "l" ? "right-4" : "left-4"}`} />
+    </div>
+  );
+  return (
+    <div className="door-intro pointer-events-none fixed inset-0 z-[200]" aria-hidden="true">
+      {leaf("l")}
+      {leaf("r")}
+      <div className="door-sign absolute left-1/2 top-[18%]">
+        <div className="sign-board rounded-lg px-4 py-1.5"><span className="sign-letters font-sign text-2xl font-black">დუქანი</span></div>
+      </div>
+    </div>
+  );
+}
+
 function Loading() {
   return (
     <div className="flex min-h-[100dvh] items-center justify-center">
@@ -156,6 +189,7 @@ export default function App() {
     return () => window.removeEventListener("popstate", onPop);
   }, [screen.name]);
 
+  const door = <DoorIntro />;
   if (screen.name === "solo") return <Suspense fallback={<Loading />}><SoloScreen profile={clean} mode={mode} bots={soloBots} me={account.me} onLeave={home} /></Suspense>;
   if (screen.name === "online")
     return (
@@ -176,6 +210,8 @@ export default function App() {
     );
 
   return (
+    <>
+    {door}
     <Home
       profile={profile}
       setProfile={setProfile}
@@ -191,5 +227,6 @@ export default function App() {
       onJoin={(code) => { setRoomInUrl(code); setAttempt(0); setScreen({ name: "online", code, create: false }); }}
       onDropInvite={home}
     />
+    </>
   );
 }

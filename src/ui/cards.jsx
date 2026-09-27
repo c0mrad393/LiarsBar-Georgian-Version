@@ -1,13 +1,19 @@
-// Playing cards drawn in SVG: real-deck look (card stock, corner indices,
-// double-headed court figures), no image files. Card viewBox is 100×140.
+// Playing cards drawn in SVG, no image files; card viewBox is 100×140.
+// The court cards are Pirosmani-style Georgian figures, double-headed like a
+// real deck: the king is a tamada with a drinking horn, the queen the actress
+// Margarita with her bouquet, the ace a horn, the joker a Tbilisi kinto.
+// Corner indices are Georgian: მ (მეფე), დ (დედოფალი), ტ (ტუზი).
 import { useId } from "react";
 
-const INK = "#231a14";
-const RED = "#c8102e";
-const BLUE = "#1f4e9c";
-const GOLD = "#e3a82b";
-const SKIN = "#f6d3ae";
-const STOCK = "#fdfaf2";
+const INK = "#1f1711";
+const RED = "#b3302a";
+const BLUE = "#24435e";
+const GOLD = "#d9a032";
+const SKIN = "#f2cfa6";
+const STOCK = "#f8f0dc";
+const HAIR = "#2a1a10";
+const SIGN_FONT = "'Noto Serif Georgian', Georgia, serif";
+const INDEX = { K: "მ", Q: "დ", A: "ტ" };
 
 const SIZES = {
   xs: "h-[34px] w-[24px] rounded-[3px]",
@@ -44,55 +50,71 @@ export function Suit({ suit, x = 0, y = 0, s = 100, color }) {
 // Each figure is drawn as its upper half (y 20…70) and repeated rotated 180°
 // about the card centre, like a real double-headed court card.
 
+/** The tamada: papakha with a little crown, big moustache, chokha with gazyri, horn raised. */
 function KingHalf({ main, trim }) {
   return (
     <g stroke={INK} strokeWidth="0.9" strokeLinejoin="round">
-      <line x1="71" y1="27" x2="64" y2="70" stroke={GOLD} strokeWidth="2.6" />
-      <circle cx="71.5" cy="25.5" r="3.2" fill={GOLD} />
-      <path d="M71.5 21.2v8.6M67.2 25.5h8.6" stroke={INK} strokeWidth="0.7" />
+      {/* drinking horn raised in a toast */}
+      <path d="M62 60Q70 50 74 30l6 1Q78 52 66 63Z" fill={GOLD} />
+      <path d="M74 30l6 1" stroke="#f3ead2" strokeWidth="1.8" />
+      <path d="M67 52l7 2M70 44l7 1.5" stroke="#8a5a14" strokeWidth="0.8" />
+      {/* chokha with gazyri rows */}
       <path d="M19 70 23 55Q34 46.5 50 46.5T77 55l4 15Z" fill={main} />
-      <path d="M36 58 34 70M64 58l2 12" stroke={GOLD} strokeWidth="2.4" />
-      <path d="M44 55h12v15H44Z" fill={trim} />
-      <path d="M46 58h8M46 62h8M46 66h8" stroke={GOLD} strokeWidth="1.2" />
-      <path d="M29 51.5Q50 60.5 71 51.5l-1.6 5.5Q50 65 30.6 57Z" fill={STOCK} />
-      {[34, 40, 46, 52, 58, 64].map((x) => <circle key={x} cx={x} cy={55 + Math.abs(x - 49) * -0.05} r="0.9" fill={INK} stroke="none" />)}
-      <path d="M40.8 35q-2 9 2.2 13l2-9Zm18.4 0q2 9-2.2 13l-2-9Z" fill={GOLD} />
-      <ellipse cx="50" cy="38" rx="8.2" ry="9.6" fill={SKIN} />
-      <path d="M42 41.5Q50 58 58 41.5 54.5 46.5 50 46.5T42 41.5Z" fill={GOLD} />
-      <path d="M44.8 43.4q5.2-3 10.4 0" fill="none" strokeWidth="1.1" />
-      <path d="M44.7 34.6h3.4M51.9 34.6h3.4" strokeWidth="0.8" />
-      <circle cx="46.6" cy="37" r="0.95" fill={INK} stroke="none" />
-      <circle cx="53.4" cy="37" r="0.95" fill={INK} stroke="none" />
-      <path d="M40.6 30.4 41.4 20l4.3 5.8L50 17.6l4.3 8.2 4.3-5.8.8 10.4Z" fill={GOLD} />
-      <rect x="40.4" y="28.2" width="19.2" height="3.4" fill={trim} />
-      <circle cx="50" cy="17.6" r="1.4" fill={RED} />
-      <circle cx="41.4" cy="20" r="1.1" fill={RED} />
-      <circle cx="58.6" cy="20" r="1.1" fill={RED} />
+      <path d="M44 48 50 62 56 48" fill={trim} />
+      {[0, 1, 2, 3].map((k) => (
+        <g key={k}>
+          <rect x={30 + k * 3} y="55" width="2" height="8" rx="0.6" fill="#e9e2cf" strokeWidth="0.5" />
+          <rect x={68 - k * 3} y="55" width="2" height="8" rx="0.6" fill="#e9e2cf" strokeWidth="0.5" />
+        </g>
+      ))}
+      <path d="M38 67h24" stroke={GOLD} strokeWidth="2" />
+      {/* face */}
+      <ellipse cx="50" cy="38.5" rx="8.2" ry="9.4" fill={SKIN} />
+      <path d="M44.2 34.6q2-1.6 4 0M51.8 34.6q2-1.6 4 0" fill="none" stroke={HAIR} strokeWidth="1.4" />
+      <circle cx="46.4" cy="37" r="0.95" fill={INK} stroke="none" />
+      <circle cx="53.6" cy="37" r="0.95" fill={INK} stroke="none" />
+      <circle cx="44.8" cy="40.5" r="1.4" fill="#e39a8a" stroke="none" />
+      <circle cx="55.2" cy="40.5" r="1.4" fill="#e39a8a" stroke="none" />
+      <path d="M50 41.5q-5.5-1.5-8.5 2.5 3.5-.8 5.5.6Q49 43 50 43t2.5 1.6q2-1.4 5.5-.6-3-4-8-2.5Z" fill={HAIR} />
+      <path d="M47.5 46q2.5 1.2 5 0" fill="none" strokeWidth="0.8" />
+      {/* papakha and its little crown */}
+      <path d="M40.5 32q0-9 9.5-9t9.5 9Z" fill="#3b2a1d" />
+      <path d="M42 29q2-2 4 0t4 0 4 0 4 0" fill="none" stroke="#6b4b31" strokeWidth="0.8" />
+      <path d="M44.5 23.5 45 18l2.6 2.6L50 16.2l2.4 4.4L55 18l.5 5.5Z" fill={GOLD} />
+      <circle cx="50" cy="16.2" r="1.1" fill={RED} />
     </g>
   );
 }
 
+/** Margarita, the actress Pirosmani loved: white dress, dark hair, a bouquet. */
 function QueenHalf({ main, trim }) {
   return (
     <g stroke={INK} strokeWidth="0.9" strokeLinejoin="round">
-      <path d="M28 70 30 50" stroke="#3d7a3a" strokeWidth="1.3" />
-      <path d="M26 49a4 4 0 1 1 8 0 4 4 0 1 1-8 0Z" fill={RED} />
-      <circle cx="30" cy="49" r="1.4" fill={GOLD} />
-      <path d="M19 70 23 56Q34 47.5 50 47.5T77 56l4 14Z" fill={main} />
-      <path d="M38 53.5Q50 66 62 53.5L60 70H40Z" fill={trim} />
-      <path d="M40.5 59.5h19M41.5 64.5h17" stroke={GOLD} strokeWidth="1.4" />
-      <path d="M40 34q-4.5 15 1.5 22l4-13Zm20 0q4.5 15-1.5 22l-4-13Z" fill={GOLD} />
-      <ellipse cx="50" cy="38.5" rx="7.8" ry="9.4" fill={SKIN} />
-      <path d="M42.3 36q2.5-9 7.7-9t7.7 9q-4-5-7.7-5t-7.7 5Z" fill={GOLD} />
-      <circle cx="46.8" cy="38" r="0.95" fill={INK} stroke="none" />
-      <circle cx="53.2" cy="38" r="0.95" fill={INK} stroke="none" />
-      <path d="M45.5 35.6q1.3-.9 2.6 0M51.9 35.6q1.3-.9 2.6 0" fill="none" strokeWidth="0.6" />
-      <path d="M48 43.6q2 1.4 4 0" fill="none" stroke={RED} strokeWidth="1.1" />
-      <circle cx="45.6" cy="41.3" r="1.2" fill="#f2a5a0" stroke="none" />
-      <circle cx="54.4" cy="41.3" r="1.2" fill="#f2a5a0" stroke="none" />
-      <path d="M42.4 29.6q2-7.6 4-3.2 1.8-7.4 3.6-7.4t3.6 7.4q2-4.4 4 3.2Z" fill={GOLD} />
-      {[42.4, 46.4, 50, 53.6, 57.6].map((x, i) => <circle key={x} cx={x} cy={[29.6, 26.4, 18.6, 26.4, 29.6][i] - 1.2} r="1.15" fill={STOCK} />)}
-      <path d="M43 52.5q7 4 14 0" fill="none" stroke={STOCK} strokeWidth="1.6" strokeDasharray="0.1 2.3" strokeLinecap="round" />
+      {/* bouquet */}
+      <path d="M30 70 31 52M28 70l5-16M33 70l-1-16" stroke="#3d6b3a" strokeWidth="1.1" />
+      {[[27, 50, RED], [32, 47, "#f3ead2"], [35.5, 51, RED], [30.5, 53.5, "#e7b24a"]].map(([x, y, c], k) => (
+        <g key={k}><circle cx={x} cy={y} r="3" fill={c} /><circle cx={x} cy={y} r="0.9" fill={GOLD} stroke="none" /></g>
+      ))}
+      {/* white dress with a coloured sash */}
+      <path d="M19 70 23 56Q34 47.5 50 47.5T77 56l4 14Z" fill="#fbf4e6" />
+      <path d="M36 57q14 6 28 0l1 5q-15 6-30 0Z" fill={main} />
+      <path d="M44 49q6 5 12 0" fill="none" stroke={trim} strokeWidth="1.4" />
+      {/* hair */}
+      <path d="M40.5 40q-2-14 9.5-14t9.5 14q-1-6-9.5-7-8.5 1-9.5 7Z" fill={HAIR} />
+      <path d="M41 40q-2 8 1 12M59 40q2 8-1 12" fill="none" stroke={HAIR} strokeWidth="2.2" />
+      <ellipse cx="50" cy="39" rx="7.6" ry="9.2" fill={SKIN} />
+      <path d="M43 33q7-5 14 0-3-3.6-7-3.6T43 33Z" fill={HAIR} />
+      <circle cx="46.8" cy="38.6" r="0.95" fill={INK} stroke="none" />
+      <circle cx="53.2" cy="38.6" r="0.95" fill={INK} stroke="none" />
+      <path d="M45.4 36.2q1.4-1 2.8 0M51.8 36.2q1.4-1 2.8 0" fill="none" strokeWidth="0.6" />
+      <path d="M48 44q2 1.3 4 0" fill="none" stroke={RED} strokeWidth="1.2" />
+      <circle cx="45.4" cy="41.6" r="1.4" fill="#eda199" stroke="none" />
+      <circle cx="54.6" cy="41.6" r="1.4" fill="#eda199" stroke="none" />
+      {/* a hair-bun rose and a thin tiara */}
+      <circle cx="50" cy="24.5" r="4" fill={HAIR} />
+      <circle cx="54.5" cy="25" r="2.2" fill={RED} />
+      <path d="M44 29.5q6-3 12 0" fill="none" stroke={GOLD} strokeWidth="1.6" />
+      <circle cx="50" cy="28" r="1" fill="#f3ead2" />
     </g>
   );
 }
@@ -104,7 +126,7 @@ function Court({ rank, suit }) {
   const Half = rank === "K" ? KingHalf : QueenHalf;
   return (
     <g>
-      <rect x="17" y="20" width="66" height="100" rx="2" fill="#fffdf6" stroke={red ? RED : INK} strokeWidth="1" />
+      <rect x="17" y="20" width="66" height="100" rx="2" fill="#efe2c2" stroke={red ? RED : INK} strokeWidth="1" />
       <svg x="17" y="20" width="66" height="100" viewBox="17 20 66 100" overflow="hidden">
         <g transform="translate(0 2.6)"><Half main={main} trim={trim} /></g>
         <g transform="rotate(180 50 70) translate(0 2.6)"><Half main={main} trim={trim} /></g>
@@ -116,49 +138,55 @@ function Court({ rank, suit }) {
   );
 }
 
+/** The ace: a big curved drinking horn (ყანწი), silver-banded, with the suit on its medallion. */
 function Ace({ suit }) {
-  const big = suit === "S";
   return (
-    <g>
-      {big && <circle cx="50" cy="70" r="30" fill="none" stroke={INK} strokeWidth="0.8" strokeDasharray="1.5 2.5" />}
-      <Suit suit={suit} x={big ? 27 : 32} y={big ? 47 : 52} s={big ? 46 : 36} />
+    <g stroke={INK} strokeWidth="1.1" strokeLinejoin="round">
+      <path d="M30 104C14 80 30 50 70 36L78 48C48 58 36 80 36 104Z" fill={GOLD} />
+      <path d="M33 102C26 82 38 60 66 46" fill="none" stroke="#f6d88a" strokeWidth="2.2" opacity="0.7" />
+      <path d="M70 36l8 12" stroke="#e9e2cf" strokeWidth="4" strokeLinecap="round" />
+      <path d="M30 104l6 0" stroke="#e9e2cf" strokeWidth="3.4" strokeLinecap="round" />
+      <path d="M26 80l9 3M44 58l7 7" stroke="#e9e2cf" strokeWidth="2.4" />
+      <path d="M33 104Q20 90 30 76T56 50" fill="none" stroke="#9aa3b2" strokeWidth="1" strokeDasharray="1.6 1.4" />
+      <circle cx="47" cy="74" r="9.5" fill="#f8f0dc" />
+      <Suit suit={suit} x={41.5} y={68.5} s={11} />
     </g>
   );
 }
 
+/** The joker: a kinto, the cheeky Tbilisi street trader: cap, moustache, sash, handkerchief. */
 function JokerArt({ gid }) {
   return (
     <g stroke={INK} strokeWidth="0.9" strokeLinejoin="round">
       <defs>
         <linearGradient id={gid} x1="0" x2="1" y1="0" y2="1">
-          <stop offset="0" stopColor="#ffe8a3" />
-          <stop offset="0.5" stopColor="#ffd1f1" />
-          <stop offset="1" stopColor="#c9e7ff" />
+          <stop offset="0" stopColor="#f6dfa0" />
+          <stop offset="0.55" stopColor="#efc4a8" />
+          <stop offset="1" stopColor="#c9d9b0" />
         </linearGradient>
       </defs>
       <rect x="17" y="20" width="66" height="100" rx="3" fill={`url(#${gid})`} strokeWidth="0.8" />
-      {/* hat: three floppy points with bells */}
-      <path d="M50 52Q38 32 22 34q10 6 14 20Z" fill="#8e44ad" />
-      <path d="M50 52Q62 32 78 34q-10 6-14 20Z" fill="#27ae60" />
-      <path d="M50 52Q44 30 50 20q6 10 0 32Z" fill={RED} />
-      <circle cx="22" cy="34" r="3.2" fill={GOLD} />
-      <circle cx="78" cy="34" r="3.2" fill={GOLD} />
-      <circle cx="50" cy="20" r="3.2" fill={GOLD} />
-      <path d="M35 52h30v5H35Z" fill={GOLD} />
+      {/* handkerchief waved high */}
+      <path d="M72 30l10-6 2 12-8 4Z" fill="#fbf4e6" />
+      <circle cx="77" cy="30" r="1" fill={RED} stroke="none" />
+      <circle cx="80" cy="34" r="1" fill={RED} stroke="none" />
+      <path d="M71 34q-4 12-9 20" fill="none" stroke="#2a1d14" strokeWidth="4" strokeLinecap="round" />
+      {/* black arkhaluk with a red sash */}
+      <path d="M24 120q2-26 26-30 24 4 26 30Z" fill="#2a1d14" />
+      <path d="M31 106q19 6 38 0l1 6q-20 6-40 0Z" fill={RED} />
+      <path d="M50 90v16" stroke="#e9e2cf" strokeWidth="1" strokeDasharray="1.5 2" />
       {/* face */}
-      <ellipse cx="50" cy="68" rx="13" ry="14" fill={SKIN} />
-      <circle cx="44.5" cy="64" r="1.6" fill={INK} stroke="none" />
-      <circle cx="55.5" cy="64" r="1.6" fill={INK} stroke="none" />
-      <path d="M42 61q2.5-2 5 0M53 61q2.5-2 5 0" fill="none" strokeWidth="0.8" />
-      <circle cx="50" cy="68.5" r="2.4" fill={RED} />
-      <path d="M41.5 72.5Q50 83 58.5 72.5Q50 77 41.5 72.5Z" fill="#fff" />
-      <circle cx="41" cy="71" r="2" fill="#f2a5a0" stroke="none" />
-      <circle cx="59" cy="71" r="2" fill="#f2a5a0" stroke="none" />
-      {/* ruff collar */}
-      <path d="M30 88l5-6 5 6 5-6 5 6 5-6 5 6 5-6 5 6-5 8H35Z" fill={STOCK} />
-      <path d="M26 120q2-18 24-24 22 6 24 24Z" fill="#8e44ad" />
-      <path d="M50 96v24" stroke={GOLD} strokeWidth="2" />
-      <path d="M26 120q2-18 24-24v24Z" fill="#27ae60" />
+      <ellipse cx="50" cy="72" rx="12.5" ry="13.5" fill={SKIN} />
+      <path d="M43 68.5q2.5-1.8 5 0M52 68.5q2.5-1.8 5 0" fill="none" strokeWidth="0.9" />
+      <path d="M44 71q1.5-1.2 3 0M53 71q1.5-1.2 3 0" fill="none" strokeWidth="1.3" />
+      <circle cx="41.5" cy="76" r="2" fill="#e39a8a" stroke="none" />
+      <circle cx="58.5" cy="76" r="2" fill="#e39a8a" stroke="none" />
+      <path d="M50 76q-7-2-11 3 4-1 6 .8Q48 78 50 78t5 1.8q2-1.8 6-.8-4-5-11-3Z" fill={HAIR} />
+      <path d="M45 81q5 4 10 0" fill="none" strokeWidth="1" />
+      {/* kinto cap */}
+      <path d="M36 62q1-12 14-12t14 12Z" fill="#2a1d14" />
+      <path d="M34 62h32l-3 3H37Z" fill="#3b2a1d" />
+      <path d="M40 57q10-3 20 0" fill="none" stroke="#6b4b31" strokeWidth="0.8" />
     </g>
   );
 }
@@ -202,19 +230,19 @@ function DevilArt({ gid }) {
 function Corner({ rank, suit, special }) {
   const red = suit === "H" || suit === "D";
   if (special) {
-    const color = special === "D" ? "#ffd166" : "#8e44ad";
-    const word = special === "D" ? "DEVIL" : "JOKER";
+    const color = special === "D" ? "#ffd166" : RED;
+    const word = special === "D" ? "ეშმაკი" : "ჯოკერი";
     return (
       <g>
-        {word.split("").map((ch, i) => (
-          <text key={i} x="9" y={16 + i * 9} textAnchor="middle" fontFamily="Georgia, 'Times New Roman', serif" fontWeight="700" fontSize="9" fill={color} stroke={special === "D" ? INK : "none"} strokeWidth="0.4">{ch}</text>
+        {[...word].map((ch, i) => (
+          <text key={i} x="9" y={15 + i * 9} textAnchor="middle" fontFamily={SIGN_FONT} fontWeight="900" fontSize="8.5" fill={color} stroke={special === "D" ? INK : "none"} strokeWidth="0.4">{ch}</text>
         ))}
       </g>
     );
   }
   return (
     <g>
-      <text x="9.5" y="17" textAnchor="middle" fontFamily="Georgia, 'Times New Roman', serif" fontWeight="700" fontSize="15" fill={red ? RED : INK}>{rank}</text>
+      <text x="9.5" y="17" textAnchor="middle" fontFamily={SIGN_FONT} fontWeight="900" fontSize="14" fill={red ? RED : INK}>{INDEX[rank] || rank}</text>
       <Suit suit={suit} x={4.5} y={20} s={10} />
     </g>
   );
@@ -260,7 +288,7 @@ export function Card({ rank, suit = "S", size = "md", selected, glow, className 
   );
 }
 
-const BACK_BADGE = { red: "🍺", blue: "🍺", money: "💲", rainbow: "🌈", leopard: "🐆", georgia: "✚", gold: "👑", galaxy: "🪐" };
+const BACK_BADGE = { red: "🍷", blue: "🍷", money: "💲", rainbow: "🌈", leopard: "🐆", georgia: "✚", gold: "👑", galaxy: "🪐" };
 
 /** The back of a card. `back` is a style from the shop (c_* items); default the classic red lattice. */
 export function CardBack({ size = "sm", back = "red", className = "", style }) {

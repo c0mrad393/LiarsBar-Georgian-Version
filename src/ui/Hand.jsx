@@ -12,6 +12,7 @@ export default function Hand({ cards, selected, canPick, onToggle, onPlay, round
   const tc = RANKS[tableCard] || RANKS.K;
   const drag = useRef(null);
   const [lift, setLift] = useState(0);
+  const [lean, setLean] = useState(0); // sideways pull while dragging: the card tilts with it
   const n = cards.length;
 
   const down = (e, id) => {
@@ -27,7 +28,7 @@ export default function Hand({ cards, selected, canPick, onToggle, onPlay, round
       d.moved = true;
       if (!selected.includes(d.id)) onToggle(d.id); // dragging a card picks it
     }
-    if (d.moved) setLift(Math.min(0, dy));
+    if (d.moved) { setLift(Math.min(0, dy)); setLean(Math.max(-18, Math.min(18, (e.clientX - d.x0) * 0.25))); }
   };
   const up = (e) => {
     const d = drag.current;
@@ -35,6 +36,7 @@ export default function Hand({ cards, selected, canPick, onToggle, onPlay, round
     if (!d) return;
     const dy = e.clientY - d.y0;
     setLift(0);
+    setLean(0);
     if (!d.moved) onToggle(d.id);
     else if (dy < -FLING) onPlay(selected.includes(d.id) ? selected : [...selected, d.id]);
   };
@@ -51,15 +53,15 @@ export default function Hand({ cards, selected, canPick, onToggle, onPlay, round
             onPointerDown={(e) => down(e, c.id)}
             onPointerMove={move}
             onPointerUp={up}
-            onPointerCancel={() => { drag.current = null; setLift(0); }}
+            onPointerCancel={() => { drag.current = null; setLift(0); setLean(0); }}
             onClick={(e) => { if (e.detail === 0 && canPick) onToggle(c.id); }} // keyboard
             disabled={!canPick}
             className="a-deal -mx-2 sm:-mx-1.5"
             style={{ animationDelay: `${i * 90}ms`, zIndex: on ? 20 : i }}
             aria-pressed={on}>
             <div
-              className={`relative ${lift ? "" : "transition-transform duration-200"} ${canPick && !on ? "hover:-translate-y-3" : ""}`}
-              style={{ transform: `translateY(${y}px) rotate(${on && lift ? 0 : off * 6}deg) ${on && lift < -FLING ? "scale(1.08)" : ""}` }}>
+              className={`relative ${lift ? "" : "card-spring"} ${canPick && !on ? "hover:-translate-y-3" : ""}`}
+              style={{ transform: `translateY(${y}px) rotate(${on && lift ? lean : off * 6}deg) ${on && lift < -FLING ? "scale(1.08)" : on ? "scale(1.04)" : ""}` }}>
               {c.rank === "?" ? (
                 // Chaos "blind" round: you play your own cards face down too.
                 <CardBack size="lg" back={back} className={`${on ? "outline outline-4 outline-sun" : ""} ${canPick ? "" : "saturate-[.6]"}`} />

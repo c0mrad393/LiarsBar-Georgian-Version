@@ -15,6 +15,7 @@ import { Btn, Chambers, Confetti, SoundToggle, Timer, TitleTag } from "./parts.j
 import Roulette from "./Roulette.jsx";
 import BarScene from "./BarScene.jsx";
 import { EmoteWheel, useEmoteWheel } from "./EmoteWheel.jsx";
+import { TamadaTip, useTutorial } from "./Tutorial.jsx";
 import Table, { Bubble, Emotes } from "./Table.jsx";
 
 const BUBBLE_MS = 2800;
@@ -81,6 +82,7 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
   const tableRef = useRef(null);
   const sendEmote = useCallback((e) => { unlockAudio(); emote(e); }, [emote]);
   const wheel = useEmoteWheel(tableRef, sendEmote);
+  const tut = useTutorial(view, solo);
   const lastSeen = useRef(null);
   const seenFx = useRef(new Set());
   useWakeLock(view.phase !== "gameover");
@@ -245,6 +247,7 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
       {confetti ? <Confetti key={confetti} /> : null}
       {chaos && <ChaosBanner key={chaos.id} event={chaos.event} />}
       {duel && <DuelSplit key={duel.id} a={duel.a} b={duel.b} />}
+      {tut.text && view.phase !== "gameover" && <TamadaTip text={tut.text} step={tut.step} onNext={tut.next} onSkip={tut.skip} />}
       {wheel.wheel && (
         <EmoteWheel {...wheel.wheel} onPick={(e) => { sendEmote(e); wheel.close(); }} onClose={wheel.close}
           onPhrases={() => { wheel.close(); setSheet("react"); }} />
@@ -318,7 +321,7 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
                   <Bubble text={bubbles[me]?.text || (mySay && PHRASES[mySay.i])} />
                 </div>
                 <div className="min-w-0">
-                  <div className="max-w-[140px] truncate text-sm font-black">{mine.title && <TitleTag id={mine.title} short className="mr-0.5" />}{mine.name}</div>
+                  <div className="on-night max-w-[140px] truncate text-sm font-black">{mine.title && <TitleTag id={mine.title} short className="mr-0.5" />}{mine.name}</div>
                   <Chambers pulls={mine.pulls} dead={!mine.alive} small />
                 </div>
               </div>
@@ -349,10 +352,10 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
               ) : mine.hand.length ? (
                 <Hand cards={mine.hand} selected={selected} canPick={canPick} onToggle={toggle} onPlay={play} round={view.round} tableCard={view.tableCard} back={backOf(myLooks)} />
               ) : (
-                <div className="flex min-h-[90px] items-center justify-center text-sm font-extrabold text-ink-soft">🫳 {T.outOfCards}</div>
+                <div className="on-night-soft flex min-h-[90px] items-center justify-center text-sm font-extrabold">🫳 {T.outOfCards}</div>
               )
             ) : (
-              <div className="flex min-h-[90px] flex-col items-center justify-center gap-1 text-sm font-extrabold text-ink-soft"><span className="a-bob inline-block text-3xl">👻</span>{T.youDead}</div>
+              <div className="on-night-soft flex min-h-[90px] flex-col items-center justify-center gap-1 text-sm font-extrabold"><span className="a-bob inline-block text-3xl">👻</span>{T.youDead}</div>
             )}
 
             {/* actions on your turn; otherwise a calm line saying who's up */}
@@ -377,12 +380,12 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
                     )}
                   </>
                 ) : (
-                  <div className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-ink/5 px-3 text-sm font-extrabold text-ink-soft">{waiting}</div>
+                  <div className="on-night-soft flex flex-1 items-center justify-center gap-2 rounded-2xl border-2 border-cream/10 bg-black/35 px-3 text-sm font-extrabold">{waiting}</div>
                 )}
               </div>
             )}
 
-            {tip && (
+            {tip && !tut.text && (
               <div className="a-pop pointer-events-none absolute -top-16 left-1/2 z-40 w-max max-w-[92vw] -translate-x-1/2 rounded-2xl border-[2.5px] border-ink bg-sun px-3 py-1 text-center text-xs font-black leading-relaxed" style={{ boxShadow: "0 3px 0 #2b1d14" }}>
                 {T.tipThrow}<br />{T.tipWheel}
               </div>

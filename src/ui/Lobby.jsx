@@ -69,7 +69,7 @@ export default function Lobby({ lobby, isHost, setBots, setMode, setPublic, onSt
         <button onClick={onLeave} className="comic-sm rounded-full bg-paper px-4 py-2 text-sm font-extrabold">← {T.leave}</button>
         <SoundToggle />
       </div>
-      <div className="mt-4"><Logo small /></div>
+      <div className="mt-4"><Logo /></div>
 
       <section className="a-pop comic mt-5 rounded-3xl bg-sun p-5 text-center">
         <div className="text-xs font-extrabold uppercase tracking-widest text-ink-soft">{T.roomCode}</div>
@@ -141,7 +141,7 @@ export default function Lobby({ lobby, isHost, setBots, setMode, setPublic, onSt
             );
           }
           return (
-            <div key={`e${i}`} className="flex flex-col items-center justify-center rounded-3xl border-[3px] border-dashed border-ink/25 p-3 text-ink-soft">
+            <div key={`e${i}`} className="on-night-soft flex flex-col items-center justify-center rounded-3xl border-[3px] border-dashed border-cream/25 p-3">
               <div className="a-wiggle text-3xl opacity-50">🪑</div>
               <div className="mt-1 text-[10px] font-bold">{T.emptySeat}</div>
             </div>
@@ -149,7 +149,7 @@ export default function Lobby({ lobby, isHost, setBots, setMode, setPublic, onSt
         })}
       </section>
 
-      {seats.length < lobby.max && <p className="mt-4 text-center text-sm font-bold text-ink-soft">{T.waitingPlayers}</p>}
+      {seats.length < lobby.max && <p className="on-night-soft mt-4 text-center text-sm font-bold">{T.waitingPlayers}</p>}
 
       {isHost ? (
         <div className="mt-5 flex flex-col gap-3">
@@ -159,7 +159,7 @@ export default function Lobby({ lobby, isHost, setBots, setMode, setPublic, onSt
           </div>
           <Btn color="coral" disabled={!ready} onClick={onStart} className="py-4 text-xl">🔥 {T.start}</Btn>
           {!ready && <p className="text-center text-sm font-bold text-coral">{T.needTwo}</p>}
-          <p className="text-center text-xs font-semibold text-ink-soft">💡 {lobby.public ? T.autoStartHint : T.keepOpen}</p>
+          <p className="on-night-soft text-center text-xs font-semibold">💡 {lobby.public ? T.autoStartHint : T.keepOpen}</p>
         </div>
       ) : (
         <div className="comic mt-6 rounded-2xl bg-paper px-4 py-4 text-center font-extrabold">

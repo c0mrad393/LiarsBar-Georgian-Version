@@ -45,7 +45,7 @@ export function MyDice({ dice, round, bidFace }) {
           </div>
         ))}
       </div>
-      <div className="text-[11px] font-extrabold text-ink-soft">{T.onesWild}</div>
+      <div className="on-night-soft text-[11px] font-extrabold">{T.onesWild}</div>
     </div>
   );
 }

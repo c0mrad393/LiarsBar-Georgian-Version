@@ -5,7 +5,6 @@ import { cleanCode } from "../shared.js";
 import { fetchTables } from "../online.js";
 import { useMusic } from "../music.js";
 import { sfx } from "../sfx.js";
-import { Card } from "./cards.jsx";
 import Character, { seatColor } from "./Character.jsx";
 import { PERSONAS } from "../engine.js";
 import { BOT_LOOKS } from "../shared.js";
@@ -77,18 +76,44 @@ function OpenTables({ onJoin }) {
   );
 }
 
-/** The home screen's neon sign on a swinging wooden board. */
+/** A drinking horn (ყანწი) and a wine jug, painted like on Pirosmani's tavern signs. */
+function Kantsi({ flip }) {
+  return (
+    <svg viewBox="0 0 60 40" className="h-6 w-9 shrink-0 min-[400px]:h-8 min-[400px]:w-12" style={flip ? { transform: "scaleX(-1)" } : undefined} aria-hidden="true">
+      <path d="M4 10Q26 6 52 14Q44 30 30 34Q14 30 4 10Z" fill="#c98d22" stroke="#f7eedb" strokeWidth="1.6" />
+      <path d="M4 10Q26 6 52 14" fill="none" stroke="#f7eedb" strokeWidth="2.4" />
+      <path d="M14 18q14 4 30 0M20 26q10 3 18 0" fill="none" stroke="#7a4a14" strokeWidth="1.6" />
+      <path d="M52 14q6 2 6 8" fill="none" stroke="#f7eedb" strokeWidth="1.6" />
+    </svg>
+  );
+}
+function Jug() {
+  return (
+    <svg viewBox="0 0 40 44" className="h-7 w-6 shrink-0 min-[400px]:h-9 min-[400px]:w-8" aria-hidden="true">
+      <path d="M14 4h12l-2 8q10 6 10 18q0 12-14 12T6 30q0-12 10-18Z" fill="#b5462a" stroke="#f7eedb" strokeWidth="1.6" strokeLinejoin="round" />
+      <path d="M30 16q8 0 7 9t-9 8" fill="none" stroke="#f7eedb" strokeWidth="1.8" />
+      <path d="M11 28q9 4 18 0" fill="none" stroke="#eab54a" strokeWidth="1.6" />
+      <ellipse cx="14" cy="22" rx="2.5" ry="5" fill="#fff" opacity="0.25" />
+    </svg>
+  );
+}
+
+/** The home screen's tavern sign: black board, hand-painted letters, swinging on two strings. */
 function Sign() {
   return (
     <div className="flex flex-col items-center pt-5">
       <div className="sign-swing relative">
         <svg className="absolute -top-7 left-1/2 -translate-x-1/2" width="170" height="30" aria-hidden="true">
-          <path d="M85 2L14 28M85 2L156 28" stroke="#2b1d14" strokeWidth="2.5" fill="none" />
-          <circle cx="85" cy="3" r="3.5" fill="#2b1d14" />
+          <path d="M85 2L14 28M85 2L156 28" stroke="#c9a46a" strokeWidth="2" fill="none" />
+          <circle cx="85" cy="3" r="3.5" fill="#c9a46a" />
         </svg>
-        <div className="wood comic rounded-2xl px-4 py-2.5 text-center short:py-1.5">
-          <h1 className="neon whitespace-nowrap text-[27px] font-black leading-tight min-[400px]:text-[32px] sm:text-5xl">{T.title}</h1>
-          <p className="font-display text-sm tracking-wide text-sun">{T.tagline}</p>
+        <div className="sign-board flex items-center gap-1.5 rounded-xl px-2.5 py-2.5 short:py-1.5">
+          <Kantsi />
+          <div className="text-center">
+            <h1 className="sign-letters whitespace-nowrap font-sign text-[22px] font-black leading-tight min-[400px]:text-[28px] sm:text-4xl">{T.title}</h1>
+            <p className="font-sign text-[11px] font-bold tracking-wide text-sun">{T.tagline}</p>
+          </div>
+          <Jug />
         </div>
       </div>
     </div>
@@ -137,24 +162,13 @@ function BarCounter({ profile, looks, onEdit, children }) {
   );
 }
 
-export function Logo({ small }) {
+/** The small tavern sign (lobby, loading screens). */
+export function Logo() {
   return (
-    <div className="flex flex-col items-center text-center">
-      {!small && (
-        <div className="relative mb-1 h-24 w-44 short:h-20">
-          {[["A", "S"], ["J"], ["K", "H"]].map(([r, suit], i) => (
-            <div key={r} className="a-deal absolute left-1/2 top-1" style={{ animationDelay: `${i * 120}ms`, marginLeft: -31 + (i - 1) * 32 }}>
-              <div style={{ transform: `rotate(${(i - 1) * 16}deg) translateY(${Math.abs(i - 1) * 8}px)` }}>
-                <Card rank={r} suit={suit} size="md" />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-      <h1 className={`font-black tracking-tight text-ink ${small ? "text-xl" : "text-4xl sm:text-5xl"}`} style={{ textShadow: small ? "none" : "3px 3px 0 #ffc83d" }}>
-        {T.title}
-      </h1>
-      {!small && <p className="mt-1 font-display text-base tracking-wide text-coral sm:text-lg">{T.tagline}</p>}
+    <div className="flex justify-center">
+      <div className="sign-board rounded-lg px-3 py-1">
+        <h1 className="sign-letters whitespace-nowrap font-sign text-lg font-black leading-tight">{T.title}</h1>
+      </div>
     </div>
   );
 }
@@ -267,7 +281,7 @@ export default function Home({ profile, setProfile, account, mode, setMode, solo
         )}
       </main>
 
-      <footer className="relative z-10 flex items-center justify-center gap-4 pb-3 text-sm font-extrabold text-ink-soft">
+      <footer className="relative z-10 flex items-center justify-center gap-4 pb-3 text-sm font-extrabold text-cream/80">
         <button onClick={() => open("rules")} className="underline decoration-wavy decoration-2 underline-offset-4">📖 {T.rules}</button>
         {installEv && <button onClick={() => { installEv.prompt(); setInstallEv(null); }} className="underline decoration-2 underline-offset-4">📲 {T.installShort}</button>}
       </footer>

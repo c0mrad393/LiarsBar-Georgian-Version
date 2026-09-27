@@ -111,6 +111,13 @@ function Pile({ pile, pileKey, from, back }) {
           <CardBack size="md" back={back} />
         </div>
       ))}
+      {/* a puff of dust as the cards slap down */}
+      <div key={`dust-${pileKey}`} className="pointer-events-none absolute inset-0">
+        {Array.from({ length: 7 }).map((_, i) => (
+          <span key={i} className="dust-puff absolute left-1/2 top-1/2 rounded-full"
+            style={{ "--dx": `${Math.cos((i / 7) * Math.PI * 2) * 46}px`, "--dy": `${Math.sin((i / 7) * Math.PI * 2) * 22}px`, animationDelay: `${420 + (pile.count - 1) * 80}ms` }} />
+        ))}
+      </div>
     </div>
   );
 }

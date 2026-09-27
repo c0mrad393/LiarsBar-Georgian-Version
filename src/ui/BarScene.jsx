@@ -1,18 +1,19 @@
-// The room around the table: a Georgian wine cellar (მარანი). Stone arch,
-// qvevri jars, churchkhela drying on a string, a grapevine and lamps that
-// sway and flicker when a shot goes off. Each mode tints the room.
+// The room around the table: an old Tbilisi dukani at night, painted the way
+// Pirosmani painted his tavern signs: black oilcloth, figures and objects lit
+// warm against it. Stone arch, qvevri jars, churchkhela on a string, a vine,
+// and lamps that sway and flicker when a shot goes off. Each mode tints it.
 // Pieces are pinned to the screen edges at fixed pixel sizes, so the room
 // looks the same on a phone and on a wide monitor (only more of it shows).
 import { memo, useId } from "react";
 
-const INK = "#2b1d14";
+const INK = "#1c1510";
 
 /** Wall, arch, glow colours per game mode. */
 const THEMES = {
-  classic: { wall: ["#fff1d6", "#f3d3a0"], arch: "#dcbb8a", deep: ["#f0d3a4", "#e2b77a"], glow: "#ffd76a" },
-  devil: { wall: ["#ffe2d8", "#f2ad97"], arch: "#cf8f78", deep: ["#eba88e", "#d4745a"], glow: "#ff7a45" },
-  chaos: { wall: ["#f3e7ff", "#d8c0fb"], arch: "#b99de2", deep: ["#d6c0f7", "#b494e6"], glow: "#c77dff" },
-  dice: { wall: ["#fde6ec", "#eebdca"], arch: "#d09aa8", deep: ["#eab6c2", "#d38a9d"], glow: "#ffb86b" },
+  classic: { wall: ["#241910", "#110c08"], arch: "#6e4c2b", deep: ["#2c1e12", "#150f0a"], glow: "#ffcf6e", pool: "#8a5a26" },
+  devil: { wall: ["#2c100c", "#130606"], arch: "#7d2c20", deep: ["#3a1510", "#1a0806"], glow: "#ff6a3d", pool: "#8f2a18" },
+  chaos: { wall: ["#1f1430", "#0d0915"], arch: "#5c4088", deep: ["#2a1b3d", "#130d1d"], glow: "#c77dff", pool: "#5a2f8f" },
+  dice: { wall: ["#29111c", "#11070c"], arch: "#6f2c46", deep: ["#361624", "#190a11"], glow: "#ffb86b", pool: "#7a2c40" },
 };
 
 const CHURCHKHELA = ["#8b2a3a", "#c47a2c", "#6d1a36", "#b5651d"];
@@ -108,9 +109,14 @@ function BarScene({ mode = "classic", flicker = 0, className = "z-0" }) {
   return (
     <div className={`bar-scene pointer-events-none fixed inset-0 overflow-hidden bar-${mode} ${className}`} aria-hidden="true"
       style={{ background: `linear-gradient(${t.wall[0]}, ${t.wall[1]})` }}>
-      {/* the cellar arch */}
-      <div className="absolute inset-x-[4%] bottom-[-40px] top-[16%] rounded-t-[50%_180px] border-[16px] border-b-0"
-        style={{ borderColor: t.arch, background: `linear-gradient(${t.deep[0]}, ${t.deep[1]})`, opacity: 0.6 }} />
+      {/* the oilcloth weave */}
+      <div className="absolute inset-0 opacity-60" style={{ backgroundImage: "repeating-linear-gradient(0deg, #ffffff06 0 1px, transparent 1px 4px), repeating-linear-gradient(90deg, #00000026 0 1px, transparent 1px 5px)" }} />
+      {/* the cellar arch, painted */}
+      <div className="absolute inset-x-[4%] bottom-[-40px] top-[16%] rounded-t-[50%_180px] border-[14px] border-b-0"
+        style={{ borderColor: t.arch, background: `linear-gradient(${t.deep[0]}, ${t.deep[1]})`, opacity: 0.75, boxShadow: `inset 0 0 0 3px #00000055, 0 0 0 3px #00000055` }} />
+      {/* lamplight pooling on the table */}
+      <div className="absolute left-1/2 top-[44%] h-[70vh] w-[120vw] max-w-[1100px] -translate-x-1/2 -translate-y-1/2 rounded-[50%] opacity-45"
+        style={{ background: `radial-gradient(closest-side, ${t.pool}, transparent)` }} />
       <div className="absolute inset-x-0 top-0"><Vine /></div>
       <div className="absolute left-[6%] top-[26px]"><Grapes /></div>
       <div className="absolute right-[6%] top-[22px]"><Grapes /></div>
