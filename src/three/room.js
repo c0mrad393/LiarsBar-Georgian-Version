@@ -9,7 +9,7 @@
 // (flames, stars, snow, dust, the musician) is cheap: sprites and points.
 import * as THREE from "three";
 import { TOON_STEPS, bake, basic, canvasTex, isShared, mesh, rng, toon } from "./kit.js";
-import { paintingsAtlas } from "./paintings.js";
+import { PIROSMANI, paintingTex } from "./paintings.js";
 import { Char3D } from "./character.js";
 
 export const THEMES = ["dukani", "marani", "tbilisi", "svaneti"];
@@ -264,7 +264,14 @@ function dukani(stat, room, live) {
   room.add(plane(W, D, selfLit(planks("#6b4424"), "#c9a07a", 0.35), [0, 0, 0], [-Math.PI / 2, 0, 0]));
   stat.add(mesh(new THREE.PlaneGeometry(W, D), toon("#24170d"), { at: [0, H, 0], rot: [Math.PI / 2, 0, 0], shadow: false }));
   for (let i = -2; i <= 2; i++) stat.add(mesh(new THREE.BoxGeometry(W, 0.16, 0.2), toon("#3a2414"), { at: [0, H - 0.08, i * 1.4] }));
-  hangPaintings(room, stat, [[0, -1.25, 2.05, -D / 2 + 0.04, 0], [2, 1.35, 2.05, -D / 2 + 0.04, 0, 0.95], [1, -W / 2 + 0.04, 1.95, -0.6, Math.PI / 2], [3, W / 2 - 0.04, 1.95, -0.4, -Math.PI / 2]]);
+  hangPaintings(room, stat, [
+    ["five-princes", -1.5, 2.05, -D / 2 + 0.04, 0, 0.75],
+    ["margarita", 1.5, 2.0, -D / 2 + 0.04, 0, 1.0],
+    ["still-life", 0.1, 2.2, -D / 2 + 0.04, 0, 0.42],
+    ["giraffe", -W / 2 + 0.04, 1.95, -0.6, Math.PI / 2, 1.0],
+    ["fisherman", W / 2 - 0.04, 1.95, -0.5, -Math.PI / 2, 1.0],
+    ["cold-beer", W / 2 - 0.04, 1.9, 1.35, -Math.PI / 2, 0.9],
+  ]);
   room.add(plane(1.1, 0.34, new THREE.MeshBasicMaterial({ map: signTex("დუქანი") }), [0.1, 2.75, -D / 2 + 0.05]));
   stat.add(mesh(new THREE.BoxGeometry(1.6, 0.06, 0.32), toon("#4a2c16"), { at: [0.1, 1.45, -D / 2 + 0.18], outline: 0.02 }));
   ["#8f2420", "#b5462a", "#8f2420"].forEach((c, i) => { const j = lathe(JUG, c); j.position.set(-0.45 + i * 0.5, 1.48, -D / 2 + 0.18); stat.add(j); });
@@ -311,7 +318,13 @@ function marani(stat, room, live) {
     stat.add(mesh(new THREE.CylinderGeometry(0.31, 0.31, 0.03, 18), toon("#5a3418"), { at: [x, 0.05, z] }));
   }
   room.add(plane(1.2, 0.36, new THREE.MeshBasicMaterial({ map: signTex("მარანი") }), [0, 2.3, -D / 2 + 0.05]));
-  hangPaintings(room, stat, [[0, -1.6, 1.65, -D / 2 + 0.04, 0, 0.9], [2, 1.6, 1.65, -D / 2 + 0.04, 0, 0.9]]);
+  hangPaintings(room, stat, [
+    ["qvevri", -1.7, 1.6, -D / 2 + 0.04, 0, 0.6],
+    ["vintage", 1.7, 1.6, -D / 2 + 0.04, 0, 0.66],
+    ["sarkis", -W / 2 + 0.04, 1.7, -1.0, Math.PI / 2, 0.75],
+    ["horn-man", -W / 2 + 0.04, 1.75, 1.3, Math.PI / 2, 0.8],
+    ["barrel", W / 2 - 0.04, 1.7, -1.0, -Math.PI / 2, 0.75],
+  ]);
   // grapevines hanging from the vault
   for (let i = 0; i < 7; i++) {
     const x = -2.4 + i * 0.8;
@@ -383,6 +396,15 @@ function tbilisi(stat, room, live) {
     }
     stat.add(f);
   }
+  // Pirosmani painted signboards for Tbilisi's taverns and shops: these hang on the houses
+  hangPaintings(room, stat, [
+    ["kinto", -0.9, 1.25, -5.96, 0, 0.9],
+    ["ortachala", 0.9, 1.25, -5.96, 0, 0.9],
+    ["night-feast", -3.9, 1.35, -5.96, 0, 0.9],
+    ["gazebo", 3.9, 1.35, -5.96, 0, 1.0],
+    ["tambourine", -5.16, 1.3, -0.9, Math.PI / 2, 1.0],
+    ["funicular", 5.16, 1.3, -0.9, -Math.PI / 2, 1.0],
+  ], "#5a3a22");
   // string lights across the yard, house to house
   const bulbs = [];
   const colors = ["#ffcf6e", "#ff8a6e", "#8fd3ff", "#b6ff8a"];
@@ -448,7 +470,14 @@ function svaneti(stat, room, live) {
   for (let i = 0; i < 3; i++) stat.add(mesh(new THREE.ConeGeometry(0.05, 0.36, 10), toon("#c98d22"), { at: [-W / 2 + 0.1, 1.9, -0.5 + i * 0.5], rot: [0, 0, -1.2], outline: 0.06 }));
   stat.add(mesh(new THREE.CircleGeometry(1.9, 20), toon("#6b5646"), { at: [0, 0.005, 0], rot: [-Math.PI / 2, 0, 0], shadow: false }));
   room.add(plane(1.0, 0.3, new THREE.MeshBasicMaterial({ map: signTex("სვანეთი") }), [-2.2, 2.9, -D / 2 + 0.06]));
-  hangPaintings(room, stat, [[1, -W / 2 + 0.04, 2.0, 1.2, Math.PI / 2, 0.9]]);
+  hangPaintings(room, stat, [
+    ["bear-moon", -0.65, 1.95, -D / 2 + 0.04, 0, 0.9],
+    ["roe-deer", 3.0, 1.9, -D / 2 + 0.04, 0, 0.6],
+    ["black-bear", -W / 2 + 0.04, 1.9, -1.6, Math.PI / 2, 0.7],
+    ["deer", -W / 2 + 0.04, 1.9, 1.4, Math.PI / 2, 0.9],
+    ["hunter", W / 2 - 0.04, 1.9, -1.4, -Math.PI / 2, 0.7],
+    ["shepherd", W / 2 - 0.04, 1.9, 1.4, -Math.PI / 2, 1.0],
+  ]);
   return { hemi: ["#b08060", "#1a0e06", 0.95], lampY: 2.5, fixture: "oil" };
 }
 
@@ -459,21 +488,16 @@ function walls(room, wallMat, wainMat) {
   }
 }
 
-let atlas = null;
-function hangPaintings(room, stat, list) {
-  atlas ||= paintingsAtlas();
-  const mat = new THREE.MeshBasicMaterial({ map: atlas });
-  for (const [cell, x, y, z, ry, w = 1.1] of list) {
-    const geo = new THREE.PlaneGeometry(w, w * 0.75);
-    const uv = geo.attributes.uv;
-    const [cx, cy] = [cell % 2, 1 - Math.floor(cell / 2)];
-    for (let i = 0; i < uv.count; i++) uv.setXY(i, (cx + uv.getX(i)) / 2, (cy + uv.getY(i)) / 2);
-    const art = new THREE.Mesh(geo, mat);
+/** Pirosmani's paintings in dark wooden frames: [name, x, y, z, turn, height]. */
+function hangPaintings(room, stat, list, frameColor = "#3a2414") {
+  for (const [name, x, y, z, ry, h] of list) {
+    const w = h * PIROSMANI[name][0];
+    const art = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ map: paintingTex(name) }));
     art.position.set(x, y, z);
     art.rotation.y = ry;
     art.userData.keep = true;
     room.add(art);
-    const frame = mesh(new THREE.BoxGeometry(w + 0.12, w * 0.75 + 0.12, 0.05), toon("#3a2414"), { at: [x, y, z], rot: [0, ry, 0], shadow: false });
+    const frame = mesh(new THREE.BoxGeometry(w + 0.1, h + 0.1, 0.05), toon(frameColor), { at: [x, y, z], rot: [0, ry, 0], shadow: false });
     frame.translateZ(-0.03);
     stat.add(frame);
   }
@@ -559,7 +583,7 @@ export function buildRoom(quality = "high", { shadows = true, theme = 0 } = {}) 
         o.geometry?.dispose();
         for (const m of [].concat(o.material || [])) {
           if (isShared(m)) continue;
-          if (m.map && m.map !== atlas) m.map.dispose();
+          if (m.map && !m.map.userData.keep) m.map.dispose();
           m.dispose();
         }
       });
