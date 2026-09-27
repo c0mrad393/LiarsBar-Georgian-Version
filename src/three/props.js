@@ -4,7 +4,7 @@ import * as THREE from "three";
 import { createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { Card } from "../ui/cards.jsx";
-import { basic, canvasTex, mesh, toon } from "./kit.js";
+import { basic, canvasTex, mat, mesh } from "./kit.js";
 
 // ---------------------------------------------------------------- revolver ---
 
@@ -15,28 +15,34 @@ import { basic, canvasTex, mesh, toon } from "./kit.js";
  */
 export function revolver() {
   const g = new THREE.Group();
-  const steel = toon("#8c95a3");
-  const dark = toon("#454b56");
-  const wood = toon("#7a4020");
+  const steel = mat("#9aa3b2", { metalness: 0.85, roughness: 0.3 });
+  const dark = mat("#3a3f48", { metalness: 0.8, roughness: 0.38 });
+  const wood = mat("#6b3818", { grain: "wood", roughness: 0.5 });
   const add = (m) => (g.add(m), m);
-  add(mesh(new THREE.CylinderGeometry(0.017, 0.017, 0.2, 12), steel, { outline: 0.12, at: [-0.1, 0.02, 0], rot: [0, 0, Math.PI / 2] }));
+  add(mesh(new THREE.CylinderGeometry(0.017, 0.018, 0.2, 20), steel, { at: [-0.1, 0.02, 0], rot: [0, 0, Math.PI / 2] }));
   add(mesh(new THREE.BoxGeometry(0.19, 0.012, 0.02), dark, { at: [-0.1, 0.04, 0] })); // rib
   add(mesh(new THREE.BoxGeometry(0.012, 0.02, 0.008), dark, { at: [-0.19, 0.05, 0] })); // front sight
-  add(mesh(new THREE.TorusGeometry(0.009, 0.004, 6, 10), dark, { at: [-0.2, 0.02, 0], rot: [0, Math.PI / 2, 0] })); // muzzle
-  const cyl = add(mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.07, 12), steel, { outline: 0.08, at: [0.03, 0.015, 0], rot: [0, 0, Math.PI / 2] }));
+  add(mesh(new THREE.TorusGeometry(0.01, 0.005, 8, 16), dark, { at: [-0.2, 0.02, 0], rot: [0, Math.PI / 2, 0] })); // muzzle
+  add(mesh(new THREE.CircleGeometry(0.008, 12), basic("#050505"), { at: [-0.2005, 0.02, 0], rot: [0, -Math.PI / 2, 0], shadow: false })); // the bore
+  const cyl = add(mesh(new THREE.CylinderGeometry(0.037, 0.037, 0.07, 24), steel, { at: [0.03, 0.015, 0], rot: [0, 0, Math.PI / 2] }));
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2;
-    cyl.add(mesh(new THREE.BoxGeometry(0.01, 0.072, 0.006), dark, { at: [Math.cos(a) * 0.036, 0, Math.sin(a) * 0.036], rot: [0, -a, 0], shadow: false }));
+    cyl.add(mesh(new THREE.BoxGeometry(0.012, 0.072, 0.008), dark, { at: [Math.cos(a) * 0.035, 0, Math.sin(a) * 0.035], rot: [0, -a, 0], shadow: false }));
   }
-  add(mesh(new THREE.BoxGeometry(0.08, 0.05, 0.03), steel, { outline: 0.06, at: [0.08, 0.005, 0] })); // frame
+  add(mesh(new THREE.BoxGeometry(0.08, 0.052, 0.032), steel, { at: [0.08, 0.005, 0] })); // frame
   const hammer = new THREE.Group();
   hammer.position.set(0.11, 0.03, 0);
   hammer.add(mesh(new THREE.BoxGeometry(0.014, 0.04, 0.012), dark, { at: [0.004, 0.018, 0], rot: [0, 0, -0.4] }));
   g.add(hammer);
-  add(mesh(new THREE.TorusGeometry(0.022, 0.005, 6, 12, Math.PI), dark, { at: [0.06, -0.022, 0], rot: [0, 0, Math.PI] })); // guard
+  add(mesh(new THREE.TorusGeometry(0.022, 0.005, 8, 16, Math.PI), dark, { at: [0.06, -0.022, 0], rot: [0, 0, Math.PI] })); // guard
   add(mesh(new THREE.BoxGeometry(0.006, 0.02, 0.006), dark, { at: [0.058, -0.022, 0] })); // trigger
-  const grip = add(mesh(new THREE.BoxGeometry(0.04, 0.1, 0.034), wood, { outline: 0.07, at: [0.125, -0.055, 0], rot: [0, 0, -0.35] }));
-  grip.add(mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.036, 8), toon("#d9d9e0"), { rot: [Math.PI / 2, 0, 0], shadow: false }));
+  const grip = add(mesh(new THREE.CapsuleGeometry(0.02, 0.07, 6, 12), wood, { at: [0.128, -0.058, 0], rot: [0, 0, 0.35], scale: [1.05, 1, 0.85] }));
+  grip.add(mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.036, 10), mat("#d9d9e0", { metalness: 0.9, roughness: 0.25 }), { rot: [Math.PI / 2, 0, 0], shadow: false }));
+  // where a hand holds it
+  const hold = new THREE.Object3D();
+  hold.position.set(0.13, -0.06, 0.012);
+  g.add(hold);
+  g.userData.grip = hold;
   g.userData.hammer = hammer;
   /** Pull the hammer back (0…1). */
   g.userData.cock = (k) => { hammer.rotation.z = -0.9 * k; };
@@ -68,17 +74,17 @@ export function muzzleFlash() {
 
 export function wineGlass() {
   const g = new THREE.Group();
-  const glass = new THREE.MeshToonMaterial({ color: "#e8f4ff", transparent: true, opacity: 0.45 });
+  const glass = new THREE.MeshStandardMaterial({ color: "#e8f4ff", roughness: 0.05, metalness: 0, transparent: true, opacity: 0.35, depthWrite: false });
   const bowl = new THREE.Mesh(new THREE.LatheGeometry([[0.001, 0], [0.035, 0.01], [0.045, 0.05], [0.04, 0.09]].map(([x, y]) => new THREE.Vector2(x, y)), 16), glass);
   bowl.position.y = 0.09;
-  const wine = new THREE.Mesh(new THREE.LatheGeometry([[0.001, 0], [0.033, 0.01], [0.041, 0.045], [0.001, 0.045]].map(([x, y]) => new THREE.Vector2(x, y)), 16), toon("#8f1f2b"));
+  const wine = new THREE.Mesh(new THREE.LatheGeometry([[0.001, 0], [0.033, 0.01], [0.041, 0.045], [0.001, 0.045]].map(([x, y]) => new THREE.Vector2(x, y)), 16), mat("#8f1f2b"));
   wine.position.y = 0.092;
   const stem = mesh(new THREE.CylinderGeometry(0.006, 0.006, 0.09, 8), glass, { at: [0, 0.045, 0], shadow: false });
   const foot = mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.006, 16), glass, { at: [0, 0.003, 0], shadow: false });
   g.add(bowl, wine, stem, foot);
   g.userData.wine = wine;
   /** Poisoned wine turns green. */
-  g.userData.poison = (on) => { wine.material = toon(on ? "#57cc3b" : "#8f1f2b"); };
+  g.userData.poison = (on) => { wine.material = mat(on ? "#57cc3b" : "#8f1f2b"); };
   return g;
 }
 
@@ -105,7 +111,7 @@ export function die(face) {
   // box face order: +x, -x, +y, -y, +z, -z; opposite faces sum to 7
   const rest = [1, 2, 3, 4, 5, 6].filter((n) => n !== face && n !== 7 - face);
   const order = [rest[0], rest[1], face, 7 - face, rest[2], rest[3]];
-  const mats = order.map((n) => new THREE.MeshToonMaterial({ map: dieTex(n) }));
+  const mats = order.map((n) => new THREE.MeshStandardMaterial({ map: dieTex(n), roughness: 0.35 }));
   const m = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.05), mats);
   m.castShadow = true;
   return m;
@@ -113,7 +119,7 @@ export function die(face) {
 /** A leather dice cup (open end down). */
 export function diceCup() {
   const pts = [[0.001, 0.14], [0.06, 0.14], [0.075, 0.02], [0.08, 0]].map(([x, y]) => new THREE.Vector2(x, y));
-  return mesh(new THREE.LatheGeometry(pts, 18), toon("#9a5a2c", { side: THREE.DoubleSide }), { outline: 0.04 });
+  return mesh(new THREE.LatheGeometry(pts, 18), mat("#9a5a2c", { side: THREE.DoubleSide }));
 }
 
 // ------------------------------------------------------------------ cards ---
@@ -195,8 +201,9 @@ function faceTex(rank) {
 /** A two-sided card lying face down; `reveal(rank)` gives it a face. */
 export function card3d(back = "red") {
   const g = new THREE.Group();
-  const face = new THREE.Mesh(cardGeo, new THREE.MeshBasicMaterial({ map: backTex(back), transparent: true }));
-  const rear = new THREE.Mesh(cardGeo, new THREE.MeshBasicMaterial({ map: backTex(back), transparent: true }));
+  // opaque with cut-out corners: transparent cards re-sort every frame and flicker where they overlap
+  const face = new THREE.Mesh(cardGeo, new THREE.MeshBasicMaterial({ map: backTex(back), alphaTest: 0.5 }));
+  const rear = new THREE.Mesh(cardGeo, new THREE.MeshBasicMaterial({ map: backTex(back), alphaTest: 0.5 }));
   rear.rotation.y = Math.PI;
   face.castShadow = rear.castShadow = true;
   g.add(face, rear);

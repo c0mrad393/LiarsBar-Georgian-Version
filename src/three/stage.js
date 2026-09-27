@@ -4,8 +4,8 @@
 // wrapper (ui/Table3D.jsx) calls sync() and gives DOM labels to pin to heads.
 import * as THREE from "three";
 import { HEAD_INFO, ITEMS, headOf } from "../shop.js";
-import { Char3D } from "./character.js";
-import { blob, damp, emojiTex, mesh, runTweens, toon, tween } from "./kit.js";
+import { Char3D, outfitMat } from "./character.js";
+import { blob, damp, emojiTex, mat, mesh, runTweens, studioEnv, tween } from "./kit.js";
 import { buildRoom } from "./room.js";
 import { CARD_H, card3d, diceCup, die, preloadFaces, revolver, wineGlass } from "./props.js";
 
@@ -42,7 +42,9 @@ export class Stage {
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color("#120c08");
-    this.camera = new THREE.PerspectiveCamera(60, 1, 0.05, 30);
+    this.scene.environment = studioEnv(r);
+    this.scene.environmentIntensity = 0.3;
+    this.camera = new THREE.PerspectiveCamera(60, 1, 0.08, 30);
     this.camera.position.set(0, 1.62, 2.5); // my seat
     this.camera.lookAt(0, 0.82, -0.5);
     this.scene.add(this.camera);
@@ -50,10 +52,10 @@ export class Stage {
     this.setTheme(0);
 
     // the table
-    this.cloth = mesh(new THREE.CylinderGeometry(TABLE_R, TABLE_R, 0.06, 48), toon("#2c6a40"));
+    this.cloth = mesh(new THREE.CylinderGeometry(TABLE_R, TABLE_R, 0.06, 64), mat("#2c6a40", { grain: "cloth", roughness: 0.95 }));
     this.cloth.position.y = TABLE_Y;
-    const rim = mesh(new THREE.TorusGeometry(TABLE_R, 0.055, 10, 48), toon("#6b4020"), { outline: 0.02, at: [0, TABLE_Y + 0.03, 0], rot: [Math.PI / 2, 0, 0] });
-    const leg = mesh(new THREE.CylinderGeometry(0.12, 0.34, TABLE_Y, 16), toon("#4a2c16"), { at: [0, TABLE_Y / 2, 0] });
+    const rim = mesh(new THREE.TorusGeometry(TABLE_R, 0.055, 16, 64), mat("#6b4020", { grain: "wood", roughness: 0.45 }), { at: [0, TABLE_Y + 0.03, 0], rot: [Math.PI / 2, 0, 0] });
+    const leg = mesh(new THREE.CylinderGeometry(0.12, 0.34, TABLE_Y, 24), mat("#4a2c16", { grain: "wood" }), { at: [0, TABLE_Y / 2, 0] });
     this.scene.add(this.cloth, rim, leg);
     this.scene.add(blob(2.9, 0.55));
     // the ring that marks whose turn it is
@@ -62,16 +64,21 @@ export class Stage {
     this.ring.visible = false;
     this.scene.add(this.ring);
 
-    // my own revolver / glass, first person
-    // my revolver, first person: at the right edge, muzzle turned to my temple, my paw on the grip
+    // my revolver, first person: it rises at the right edge of the screen, muzzle
+    // up and turned back toward my temple, my paw on the grip, my sleeve below
     this.myGun = new THREE.Group();
     this.myGunModel = revolver();
-    this.myGunModel.rotation.set(0, Math.PI - 0.75, 0.5);
+    this.myGunModel.rotation.set(0.35, 0.25, -Math.PI / 2 - 0.3);
     this.myGun.add(this.myGunModel);
-    this.myPaw = mesh(new THREE.SphereGeometry(0.065, 14, 10), toon("#f4e2bd"), { outline: 0.08, at: [-0.1, -0.09, 0.06] });
-    this.myGun.add(this.myPaw);
-    this.myGun.scale.setScalar(0.8);
-    this.myGun.position.set(0.14, -0.05, -0.42);
+    // paw and sleeve hang off the grip, the arm running down-right off the screen
+    const grip = this.myGunModel.userData.grip;
+    this.myPaw = mesh(new THREE.SphereGeometry(0.07, 20, 14), mat("#f4e2bd", { grain: "fur" }), { scale: [1, 1.1, 0.95] });
+    grip.add(this.myPaw);
+    this.mySleeve = mesh(new THREE.CapsuleGeometry(0.068, 0.6, 8, 16), mat("#c23b2e", { grain: "cloth" }), { at: [0.25, 0.24, -0.02], rot: [0, 0, -0.81] });
+    grip.add(this.mySleeve);
+    this.myGun.scale.setScalar(0.5);
+    this.gunY = -0.05;
+    this.myGun.position.set(0.14, this.gunY, -0.5);
     this.myGun.visible = false;
     this.camera.add(this.myGun);
     this.myGlass = wineGlass();
@@ -157,7 +164,7 @@ export class Stage {
     const sig = `${view.me}|${view.seats.map((s) => `${s.avatar}:${JSON.stringify(s.looks || {})}`).join("|")}`;
     if (sig === this.sig) return;
     this.sig = sig;
-    for (const s of this.seats) if (s.char) this.scene.remove(s.char.root);
+    for (const s of this.seats) s.char?.dispose();
     const angles = seatAngles(n);
     this.seats = view.seats.map((p) => {
       const k = (p.idx - view.me + n) % n;
@@ -211,7 +218,7 @@ export class Stage {
     this.view = view;
     this.seat(view);
     const felt = ITEMS[myLooks?.felt]?.felt;
-    this.cloth.material = toon(felt ? felt[1] : "#2c6a40");
+    this.cloth.material = mat(felt ? felt[1] : "#2c6a40", { grain: "cloth", roughness: 0.95 });
     if (flicker && flicker !== this.flickered) { this.flickered = flicker; this.room.flicker(); this.shake = 1; }
 
     // events since last time: cards thrown, reveals, dice
@@ -226,7 +233,7 @@ export class Stage {
     this.syncPile(view);
     // after a call, the lifted cards settle back onto the table face up
     if (view.phase !== "reveal" && this.revealed?.length) {
-      this.revealed.forEach((c, i) => tween(c, { pos: new THREE.Vector3((i - (this.revealed.length - 1) / 2) * 0.12, TABLE_Y + 0.04, 0.05), rot: [-Math.PI / 2, 0, (i - 1) * 0.2], scale: 1.2, dur: 500 }));
+      this.revealed.forEach((c, i) => tween(c, { pos: new THREE.Vector3((i - (this.revealed.length - 1) / 2) * 0.12, TABLE_Y + 0.04 + i * 0.003, 0.05), rot: [-Math.PI / 2, 0, (i - 1) * 0.2], scale: 1.2, dur: 500 }));
       this.revealed = [];
     }
     this.syncDice(view);
@@ -246,11 +253,14 @@ export class Stage {
     }
     const r = view.roulette;
     const meVictim = view.phase === "roulette" && r && r.victim === view.me && !r.result;
-    this.myGun.visible = meVictim && !dice;
+    const showGun = meVictim && !dice;
+    if (showGun && !this.myGun.visible) { this.myGun.position.y = this.gunY - 0.35; tween(this.myGun, { pos: new THREE.Vector3(this.gunX(), this.gunY, -0.5), dur: 420 }); }
+    this.myGun.visible = showGun;
     this.myGlass.visible = meVictim && dice;
     this.myGunModel.userData.cock(r?.spinning ? 1 : 0);
     const myFur = HEAD_INFO[headOf(view.seats[view.me]?.avatar)]?.colors.fur;
-    if (myFur) this.myPaw.material = toon(myFur);
+    if (myFur) this.myPaw.material = mat(myFur, { grain: "fur" });
+    this.mySleeve.material = outfitMat(myLooks?.outfit, SEAT_COLORS[view.me % SEAT_COLORS.length]);
 
     // fx: things thrown across the table
     for (const f of fx) {
@@ -273,11 +283,11 @@ export class Stage {
       const last = this.pile.slice(-cards.length);
       this.revealed = last;
       last.forEach((c, i) => {
-        const x = (i - (cards.length - 1) / 2) * 0.17;
-        tween(c, { pos: new THREE.Vector3(x, TABLE_Y + 0.3, 0.45), rot: [-0.45 + Math.PI, 0, 0], scale: 1.7, dur: 450, delay: 150 + i * 90 });
+        const x = (i - (cards.length - 1) / 2) * 0.2;
+        tween(c, { pos: new THREE.Vector3(x, TABLE_Y + 0.3, 0.45 + i * 0.01), rot: [-0.45 + Math.PI, 0, 0], scale: 1.7, dur: 450, delay: 150 + i * 90 });
         setTimeout(() => {
           c.userData.reveal(cards[i]?.rank);
-          tween(c, { rot: [-0.45, 0, (i - (cards.length - 1) / 2) * -0.08], dur: 420 });
+          tween(c, { rot: [-0.45, 0, 0], dur: 420 });
         }, 700 + i * 260);
       });
     }
@@ -373,10 +383,10 @@ export class Stage {
     this.camerawork(dt, t);
     this.turnRing(t);
     this.rattle(t);
+    this.adapt(dt); // before drawing: a resolution change clears the canvas
     this.renderer.render(this.scene, this.camera);
-    if (import.meta.env.DEV) window.__stage3d = { calls: this.renderer.info.render.calls, tris: this.renderer.info.render.triangles, pr: this.renderer.getPixelRatio(), shadows: this.renderer.shadowMap.enabled, phase: this.view?.phase };
+    if (import.meta.env.DEV) window.__stage3d = { calls: this.renderer.info.render.calls, tris: this.renderer.info.render.triangles, pr: this.renderer.getPixelRatio(), shadows: this.renderer.shadowMap.enabled, phase: this.view?.phase, round: this.view?.round, dead: this.seats.filter((s) => s.char?.dead).length, alive: this.view?.seats.filter((p) => p.alive).length };
     this.pinLabels();
-    this.adapt(dt);
   }
 
   camerawork(dt, t) {
@@ -393,8 +403,8 @@ export class Stage {
       dolly = 0.28;
     } else if (v?.phase === "roulette" && r && r.victim !== me && this.seatOf(r.victim)?.char) {
       look = this.headPos(r.victim).add(new THREE.Vector3(0, -0.12, 0));
-      dolly = v.dramatic ? 0.42 : 0.25;
-      fov = this.baseFov - (v.dramatic ? 12 : 4);
+      dolly = v.dramatic ? 0.3 : 0.18;
+      fov = this.baseFov - (v.dramatic ? 6 : 2);
     } else if (v?.phase === "gameover" && v.winner != null && v.winner !== me && this.seatOf(v.winner)?.char) {
       look = this.headPos(v.winner);
       dolly = 0.2;
@@ -418,8 +428,14 @@ export class Stage {
       cam.rotateX((Math.random() - 0.5) * this.shake * 0.04);
       this.shake *= 0.9;
     }
-    if (this.myGun.visible) this.myGun.position.y = -0.05 + Math.sin(t * 40) * 0.003;
+    if (this.myGun.visible && r?.spinning) this.myGun.position.set(this.gunX(), this.gunY + Math.sin(t * 40) * 0.003, -0.5);
     if (this.myGlass.visible) this.myGlass.rotation.z = damp(this.myGlass.rotation.z, r?.spinning ? 1.2 : 0, 4, dt);
+  }
+
+  /** My revolver's place: near the right edge of the screen, whatever its shape. */
+  gunX() {
+    const cam = this.camera;
+    return 0.5 * Math.tan((cam.fov * Math.PI) / 360) * cam.aspect * 0.62;
   }
 
   turnRing(t) {

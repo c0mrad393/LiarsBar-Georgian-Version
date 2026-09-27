@@ -88,7 +88,7 @@ export function Timer({ deadline, offset, className = "" }) {
 }
 
 /** Sound button: opens two switches, effects and music. */
-export function SoundToggle({ className = "" }) {
+export function SoundToggle({ className = "", glass = false }) {
   const [m, setM] = useState(isMuted());
   const [music, setMusic] = useState(isMusicOn());
   const [three, setThree] = useState(is3D());
@@ -112,7 +112,7 @@ export function SoundToggle({ className = "" }) {
     <div className={`relative ${className}`}>
       <button
         onClick={() => { unlockAudio(); setOpen(!open); }}
-        className="comic-sm flex h-10 w-10 items-center justify-center rounded-full bg-paper text-lg transition-transform active:scale-90"
+        className={`${glass ? "glass" : "comic-sm bg-paper"} flex h-10 w-10 items-center justify-center rounded-full text-lg transition-transform active:scale-90`}
         aria-label={T.sound} aria-expanded={open} title={T.sound}>
         {m && !music ? "🔇" : music ? "🎵" : "🔊"}
       </button>

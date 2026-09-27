@@ -5,13 +5,12 @@ import { cleanCode } from "../shared.js";
 import { fetchTables } from "../online.js";
 import { useMusic } from "../music.js";
 import { sfx } from "../sfx.js";
-import Character, { seatColor } from "./Character.jsx";
+import Character, { Avatar, seatColor } from "./Character.jsx";
 import { PERSONAS } from "../engine.js";
 import { BOT_LOOKS } from "../shared.js";
 import BarScene from "./BarScene.jsx";
 import Guard3D from "./Guard3D.jsx";
 import { use3D } from "../settings.js";
-import { Face } from "./heads.jsx";
 import { Btn, CoinChip, Sheet, SoundToggle, Stepper, TitleTag } from "./parts.jsx";
 
 // Loaded on first open: keeps the first screen light on phones.
@@ -80,7 +79,7 @@ function OpenTables({ onJoin }) {
     <ul className="flex flex-col gap-1.5">
       {list.map((t) => (
         <li key={t.code} className="a-fade-up flex items-center gap-2 rounded-2xl border-[2.5px] border-ink bg-cream py-1.5 pl-2 pr-1.5">
-          <Face id={t.avatar} size={32} />
+          <Avatar id={t.avatar} size={32} />
           <div className="min-w-0 flex-1 leading-tight">
             <div className="truncate text-sm font-black">{t.host}</div>
             <div className="text-[11px] font-bold text-ink-soft">{MODE_INFO[t.mode]?.emoji} {MODE_INFO[t.mode]?.name} · 👥 {t.players}/{t.max}</div>
@@ -266,8 +265,8 @@ export default function Home({ profile, setProfile, account, mode, setMode, solo
         <CoinChip coins={account.me?.coins ?? (account.error ? "—" : 0)} onClick={() => setPanel("profile")} className={account.me?.dailyReady ? "a-hop" : ""} />
         <div className="flex items-center gap-2">
           <button onClick={() => openShop()} className="comic-sm flex h-10 items-center gap-1 rounded-full bg-coral px-3 text-sm font-black text-white" aria-label={T.shop}>🛍️<span className="hidden sm:inline">{T.shop}</span></button>
-          <button onClick={() => setPanel("board")} className="comic-sm flex h-10 w-10 items-center justify-center rounded-full bg-paper text-lg" aria-label={T.leaderboard}>🏆</button>
-          <SoundToggle />
+          <button onClick={() => setPanel("board")} className={`${three ? "glass" : "comic-sm bg-paper"} flex h-10 w-10 items-center justify-center rounded-full text-lg`} aria-label={T.leaderboard}>🏆</button>
+          <SoundToggle glass={three} />
         </div>
       </div>
 

@@ -56,6 +56,8 @@ const RAW = {
     ["h_beer", "ლუდი", 0, { e: "🍺" }], ["h_wine", "ღვინის ჭიქა", 150, { e: "🍷" }],
   ],
   outfit: [
+    ["o_tshirt", "მაისური", 0, { svg: "tshirt" }], ["o_sweater", "სვიტერი", 0, { svg: "sweater" }],
+    ["o_track", "სპორტული", 120, { svg: "track" }], ["o_leather", "ტყავის ქურთუკი", 180, { svg: "leather" }],
     ["o_hoodie", "ჰუდი", 120, { svg: "hoodie" }], ["o_tux", "სმოკინგი", 200, { svg: "tux" }],
     ["o_chokha", "ჩოხა", 400, { svg: "chokha" }], ["o_gold", "ოქროს კოსტიუმი", 500, { svg: "goldsuit" }],
   ],

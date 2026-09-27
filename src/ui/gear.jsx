@@ -281,6 +281,14 @@ export function Body({ outfit, color, noTie }) {
         <rect x="0" y="48" width="100" height="5" fill="#c9ccd6" />
         <path d="M48 50h4l-1 12h-2Z" fill="#c9ccd6" stroke={INK} strokeWidth="0.8" />
       </>, false);
+    case "o_tshirt":
+      return base("#f2efe6", <><path d="M38 12q12 10 24 0" fill="none" stroke="#cfc8b6" strokeWidth="4" /><circle cx="50" cy="38" r="8" fill="#c23b2e" /></>, false);
+    case "o_sweater":
+      return base("#2f5d8a", <><path d="M38 12q12 12 24 0" fill="none" stroke="#24496d" strokeWidth="6" />{[40, 48].map((y) => <rect key={y} x="0" y={y} width="100" height="3" fill="#f2efe6" />)}</>, false);
+    case "o_track":
+      return base("#1f4fa0", <><path d="M30 14 26 62M70 14 74 62" stroke="#f2efe6" strokeWidth="3" /><path d="M50 16v46" stroke="#c9ccd4" strokeWidth="2" /></>, false);
+    case "o_leather":
+      return base("#2b1d16", <><path d="M42 12 50 60 58 12Z" fill="#f2efe6" /><path d="M36 12 46 34 42 44Z M64 12 54 34 58 44Z" fill="#3a2a20" /><path d="M56 22v34" stroke="#c9ccd4" strokeWidth="1.5" /></>, false);
     case "o_gold":
       return base("#ffd54a", <><path d="M36 14 50 58 64 14Z" fill="#fff4c2" /><text x="22" y="40" fontSize="9" className="gear-twinkle">✨</text><text x="70" y="50" fontSize="9" className="gear-twinkle" style={{ animationDelay: "0.5s" }}>✨</text></>, false);
     default:

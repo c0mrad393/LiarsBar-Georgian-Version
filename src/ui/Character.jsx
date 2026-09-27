@@ -1,9 +1,12 @@
 // An animated bar patron: a drawn character head (heads.jsx) on a little body
 // with paws, reacting to the game (thinking, trembling, jumping, sulking,
 // dancing, getting hit, getting caught, getting tipsy) and wearing shop gear.
+import { Suspense, lazy } from "react";
 import { FACE_FIT, HEAD_INFO, ITEMS, headOf } from "../shop.js";
+import { use3D } from "../settings.js";
+import Guard3D from "./Guard3D.jsx";
 import { AURAS, Body, FACE, HATS, HAT_BOX, NECK, WINGS, WINGS_BOX } from "./gear.jsx";
-import { Head } from "./heads.jsx";
+import { Face, Head } from "./heads.jsx";
 
 export const SEAT_COLORS = ["#ff5a5f", "#3a86ff", "#2ec4b6", "#9b5de5", "#ffb020", "#ff7b39"];
 export const seatColor = (i) => SEAT_COLORS[i % SEAT_COLORS.length];
@@ -200,7 +203,34 @@ function Splat({ item, size, delay }) {
  * @param hit   item that just hit this player (🍅 🥚 💐 …), with `hitKey` to replay
  * @param point angle in degrees towards a player being accused, or null
  */
-export default function Character({ avatar: rawAvatar, color = SEAT_COLORS[0], size = 56, state = "idle", looks, hit, hitKey, hitDelay = 0, point = null, blush = 0, hold = null, firing = false, result = null }) {
+const Portrait3D = lazy(() => import("./Portrait3D.jsx"));
+
+/** The character: a 3D portrait when 3D is on (the drawn one while it loads, or in 2D). */
+export default function Character(props) {
+  const three = use3D();
+  if (!three || props.hold) return <Drawn {...props} />;
+  const drawn = <Drawn {...props} />;
+  return (
+    <Guard3D fallback={drawn}>
+      <Suspense fallback={drawn}>
+        <Portrait3D {...props} avatar={headOf(props.avatar)} />
+      </Suspense>
+    </Guard3D>
+  );
+}
+
+/** Just the face in a circle: a 3D close-up, or the drawn head in 2D. */
+export function Avatar({ id, looks, color = SEAT_COLORS[0], size = 32, state = "idle", className = "" }) {
+  const three = use3D();
+  if (!three) return <Face id={id} size={size} state={state} className={className} />;
+  return (
+    <span className={`relative inline-block shrink-0 overflow-hidden rounded-full align-middle ${className}`} style={{ width: size, height: size }}>
+      <span className="absolute left-0" style={{ top: -size * 0.08 }}><Character avatar={id} looks={looks} color={color} size={size} state={state} /></span>
+    </span>
+  );
+}
+
+function Drawn({ avatar: rawAvatar, color = SEAT_COLORS[0], size = 56, state = "idle", looks, hit, hitKey, hitDelay = 0, point = null, blush = 0, hold = null, firing = false, result = null }) {
   const avatar = headOf(rawAvatar);
   const S = size;
   const head = S * 0.8;

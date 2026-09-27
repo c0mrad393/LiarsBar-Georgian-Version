@@ -4,14 +4,13 @@ import Guard3D from "./Guard3D.jsx";
 import { useWakeLock } from "../device.js";
 import { ITEMS } from "../shop.js";
 import { MAX_PLAY } from "../engine.js";
-import { CHAOS_INFO, MODE_INFO, PHRASES, RANKS, T, describe, quipText } from "../i18n.js";
+import { CHAOS_INFO, MODE_INFO, PHRASES, RANKS, T, quipText } from "../i18n.js";
 import { sfx, unlockAudio } from "../sfx.js";
 import { useMusic } from "../music.js";
 import { Card } from "./cards.jsx";
-import Character, { seatColor } from "./Character.jsx";
+import Character, { Avatar, seatColor } from "./Character.jsx";
 import Hand from "./Hand.jsx";
 import { BidPicker, Die, MyDice, RevealDice } from "./dice.jsx";
-import { Face } from "./heads.jsx";
 import { ChaosBanner, DevilBurst, DuelSplit, GameOver, LiarBurst, RevealCards } from "./overlays.jsx";
 import { Btn, Chambers, Confetti, SoundToggle, Timer, TitleTag } from "./parts.jsx";
 import Roulette, { RouletteHud } from "./Roulette.jsx";
@@ -38,24 +37,6 @@ function moodOf(view, i, moments) {
   return { state: "idle" };
 }
 
-function Log({ view, nm }) {
-  return (
-    <div className="no-scrollbar flex-1 space-y-1.5 overflow-y-auto pr-1">
-      {view.log.map((e) => {
-        const text = describe(e, nm);
-        if (!text) return null;
-        const tone = { devil: "bg-[#ffd0d0]", call: "bg-[#ffe1e2]", dead: "bg-[#ffe1e2]", bluff: "bg-[#ffe1e2]", truth: "bg-[#d8f5f1]", safe: "bg-[#fff1c7]", win: "bg-[#fff1c7]", deal: "bg-[#e6effd]", roll: "bg-[#e6effd]", chaos: "bg-[#efe3fb]" }[e.type] || "bg-cream";
-        return (
-          <div key={e.id} className={`a-fade-up rounded-xl px-2.5 py-1.5 text-[12px] font-semibold leading-snug ${tone}`}>
-            {text}
-            {quipText(e) && <div className="text-[11px] font-bold italic text-ink-soft">„{quipText(e)}“</div>}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo, myLooks, throwables, canRestart, onAgain, onLeave, onToLobby }) {
   const me = view.me;
   const mine = view.seats[me];
@@ -72,7 +53,7 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
   const [lamps, setLamps] = useState(0); // bumps on every shot: the bar's lamps flicker
   const [duel, setDuel] = useState(null);
   const duelShown = useRef(false);
-  const [sheet, setSheet] = useState(null); // react | log
+  const [sheet, setSheet] = useState(null); // react
   // One-time hint that you can throw things at people.
   const [tip, setTip] = useState(false);
   useEffect(() => {
@@ -215,6 +196,7 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
   };
   const call = () => { if (canCall) act({ type: "call" }); };
 
+  const pill = three ? "glass" : "comic-sm bg-paper";
   const states = {};
   for (const s of view.seats) states[s.idx] = moodOf(view, s.idx, moments);
   const myMood = states[me];
@@ -226,12 +208,12 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
   const up = view.seats[view.turn];
   const waiting =
     view.phase === "playing" && up ? (
-      <><Face id={up.avatar} size={26} className="a-bob" /><span className="truncate">{up.name} {T.thinking}</span></>
+      <><Avatar id={up.avatar} looks={up.looks} color={seatColor(up.idx)} size={26} /><span className="truncate">{up.name} {T.thinking}</span></>
     ) : view.phase === "dealing" ? (
       <>{dice ? "🎲" : "🃏"} {T.round} {view.round}</>
     ) : view.phase === "reveal" ? (
       <span className="a-wiggle inline-block text-xl">👀</span>
-    ) : view.phase === "roulette" && view.roulette ? (
+    ) : view.phase === "roulette" && view.roulette && !three ? (
       <>{dice ? "🍷" : "🔫"} {view.seats[view.roulette.victim]?.name} {dice ? T.faceGlass : T.facesGun}</>
     ) : null;
 
@@ -243,8 +225,8 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
 
   // On the 3D table the cards flip in 3D; the verdict is stamped over the table.
   const stamp = view.reveal && !dice && (
-    <div key={view.log[0]?.id} className="a-stamp rounded-xl border-[3px] border-ink px-4 py-1 font-display text-2xl tracking-wide text-white"
-      style={{ animationDelay: "1400ms", background: view.reveal.devil ? "#2a0508" : view.reveal.truthful ? "#3f7d4c" : "#c23b2e", textShadow: "2px 2px 0 #1c1510" }}
+    <div key={view.log[0]?.id} className="a-stamp glass rounded-full px-5 py-1.5 text-xl font-black tracking-wide"
+      style={{ animationDelay: "1400ms", color: view.reveal.devil ? "#ff8a6e" : view.reveal.truthful ? "#9ee6a8" : "#ff8a7a" }}
       onAnimationStart={() => sfx(view.reveal.devil ? "devil" : view.reveal.truthful ? "truth" : "bluff")}>
       {view.reveal.devil ? `😈 ${RANKS.D.geo}!` : view.reveal.truthful ? `✅ ${T.truth}` : `❌ ${T.bluff}`}
     </div>
@@ -258,7 +240,7 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
         <span className="px-6 text-lg font-black">{T.rotate}</span>
       </div>
       {flash ? <div key={flash} className="a-flash pointer-events-none fixed inset-0 z-[75] bg-white" onAnimationEnd={() => setFlash(0)} /> : null}
-      {burst && <LiarBurst burst={burst.id} seat={view.seats[burst.seat]} />}
+      {burst && <LiarBurst burst={burst.id} seat={view.seats[burst.seat]} three={three} />}
       {devil && <DevilBurst id={devil.id} seat={view.seats[devil.seat]} />}
       {confetti ? <Confetti key={confetti} /> : null}
       {chaos && <ChaosBanner key={chaos.id} event={chaos.event} />}
@@ -281,43 +263,39 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
       ) : (
         <BarScene mode={view.opts?.mode} flicker={lamps} />
       )}
-      <div className={`relative z-10 mx-auto grid w-full max-w-6xl flex-1 grid-cols-1 gap-4 px-2 sm:px-4 lg:grid-cols-[1fr_270px] ${three ? "pointer-events-none" : ""}`}>
-        <div className="flex min-w-0 flex-col">
+      <div className={`relative z-10 mx-auto flex w-full max-w-3xl flex-1 flex-col px-2 sm:px-4 ${three ? "pointer-events-none" : ""}`}>
+        <div className="flex min-w-0 flex-1 flex-col">
           {/* top bar */}
           <header className="safe-t pointer-events-auto flex items-center justify-between gap-1.5 pb-1">
-            <button onClick={onLeave} className="comic-sm flex h-10 items-center rounded-full bg-paper px-3 text-sm font-extrabold" aria-label={T.leave}>
-              ←<span className="ml-1 hidden sm:inline">{T.leave}</span>
-            </button>
+            <button onClick={onLeave} className={`${pill} flex h-10 w-10 items-center justify-center rounded-full text-lg font-black`} aria-label={T.leave} title={T.leave}>←</button>
             {dice ? (
-              <div className="comic-sm flex h-10 items-center gap-1.5 rounded-full bg-paper pl-1 pr-3">
+              <div className={`${pill} flex h-10 items-center gap-1.5 rounded-full pl-1 pr-3`}>
                 <Die face={1} size={30} />
                 <div className="leading-none">
-                  <div className="text-[8px] font-extrabold uppercase tracking-wider text-ink-soft">{T.diceTotal}</div>
+                  <div className="text-[8px] font-extrabold uppercase tracking-wider opacity-60">{T.diceTotal}</div>
                   <div className="text-sm font-black">🎲 {view.totalDice}</div>
                 </div>
               </div>
             ) : (
-              <div className="comic-sm flex items-center gap-1.5 rounded-full bg-paper py-0.5 pl-0.5 pr-3">
+              <div className={`${pill} flex items-center gap-1.5 rounded-full py-0.5 pl-0.5 pr-3`}>
                 <Card key={`${view.round}-${view.tableCard}`} rank={view.tableCard} suit={{ K: "H", Q: "D", A: "S" }[view.tableCard]} size="xs" className="a-pop" />
                 <div className="leading-none">
-                  <div className="text-[8px] font-extrabold uppercase tracking-wider text-ink-soft">{T.tableCard}</div>
-                  <div className="text-sm font-black" style={{ color: tc.color }}>{tc.emoji} {tc.geo}</div>
+                  <div className="text-[8px] font-extrabold uppercase tracking-wider opacity-60">{T.tableCard}</div>
+                  <div className="text-sm font-black" style={{ color: three ? undefined : tc.color }}>{tc.emoji} {tc.geo}</div>
                 </div>
               </div>
             )}
             <div className="flex items-center gap-1.5">
               {view.opts?.mode === "devil" && (
-                <span className="comic-sm flex h-10 items-center rounded-full bg-[#2a0508] px-2.5 text-sm font-black text-sun" title={MODE_INFO.devil.hint}>😈</span>
+                <span className={`${three ? "glass" : "comic-sm bg-[#2a0508] text-sun"} flex h-10 w-10 items-center justify-center rounded-full text-sm font-black`} title={MODE_INFO.devil.hint}>😈</span>
               )}
               {ev && (
                 <button key={view.event + view.round} onClick={() => setChaos({ id: Math.random(), event: view.event })} title={`${ev.name} ${ev.desc}`} aria-label={`${ev.name} ${ev.desc}`}
-                  className="a-pop comic-sm flex h-10 items-center gap-1 rounded-full bg-grape px-2.5 text-sm font-black text-white">
+                  className={`a-pop ${three ? "glass" : "comic-sm bg-grape text-white"} flex h-10 items-center gap-1 rounded-full px-2.5 text-sm font-black`}>
                   <span className="a-wiggle inline-block">{ev.emoji}</span><span className="hidden sm:inline">{ev.name}</span>
                 </button>
               )}
-              <span className="comic-sm flex h-10 items-center rounded-full bg-sun px-2.5 text-xs font-black sm:text-sm" title={T.round}>#{view.round}</span>
-              <button onClick={() => setSheet(sheet === "log" ? null : "log")} className="comic-sm flex h-10 w-10 items-center justify-center rounded-full bg-paper text-lg lg:hidden" aria-label={T.log}>📜</button>
-              <SoundToggle />
+              <SoundToggle glass={three} />
             </div>
           </header>
 
@@ -364,7 +342,7 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
                   </span>
                 )}
                 <button onClick={(e) => { unlockAudio(); sfx("pop"); setSheet(null); const r = e.currentTarget.getBoundingClientRect(); wheel.openAt(r.left + r.width / 2, r.top - 60); }} aria-label={T.react}
-                  className={`comic-sm flex h-11 w-11 items-center justify-center rounded-full text-xl transition-transform active:scale-90 ${sheet === "react" ? "bg-sun" : "bg-paper"}`}>😀</button>
+                  className={`${three ? "glass" : "comic-sm"} flex h-11 w-11 items-center justify-center rounded-full text-xl transition-transform active:scale-90 ${sheet === "react" ? "!bg-sun" : three ? "" : "bg-paper"}`}>😀</button>
               </div>
               {sheet === "react" && (
                 <div className="a-pop comic absolute bottom-full right-0 z-50 mb-2 w-[min(92vw,340px)] rounded-3xl bg-paper p-2.5">
@@ -411,7 +389,7 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
                     )}
                   </>
                 ) : (
-                  <div className="on-night-soft flex flex-1 items-center justify-center gap-2 rounded-2xl border-2 border-cream/10 bg-black/35 px-3 text-sm font-extrabold">{waiting}</div>
+                  waiting && <div className={`${three ? "glass" : "on-night-soft border-2 border-cream/10 bg-black/35"} mx-auto flex max-w-full items-center justify-center gap-2 self-center rounded-full px-4 py-1.5 text-sm font-extrabold`}>{waiting}</div>
                 )}
               </div>
             )}
@@ -421,25 +399,8 @@ export default function Game({ view, act, fx, emote, throwAt, say, rewards, solo
                 {T.tipThrow}<br />{T.tipWheel}
               </div>
             )}
-            {sheet === "log" && (
-              <div className="a-sheet comic fixed inset-x-2 bottom-2 z-[55] flex max-h-[60dvh] flex-col rounded-3xl bg-paper p-3 lg:hidden">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-sm font-black">📜 {T.log}</span>
-                  <button onClick={() => setSheet(null)} className="rounded-full border-2 border-ink px-2 text-sm font-black" aria-label={T.close}>✕</button>
-                </div>
-                <Log view={view} nm={nm} />
-              </div>
-            )}
           </div>
         </div>
-
-        <aside className="comic pointer-events-auto hidden max-h-[calc(100dvh-24px)] flex-col self-start rounded-3xl bg-paper p-3 lg:sticky lg:top-3 lg:mt-3 lg:flex">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm font-black">📜 {T.log}</span>
-            <span className="rounded-full border-2 border-ink bg-sun px-2 text-[11px] font-black">{T.round} {view.round}</span>
-          </div>
-          <Log view={view} nm={nm} />
-        </aside>
       </div>
 
       {view.phase === "roulette" && view.roulette && (three

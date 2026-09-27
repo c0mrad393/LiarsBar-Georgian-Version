@@ -3,7 +3,7 @@ import { CHAOS_INFO, END_EMOTES, RANKS, T, quipText } from "../i18n.js";
 import { ACH } from "../achievements.js";
 import { sfx } from "../sfx.js";
 import { Card, CardBack } from "./cards.jsx";
-import Character, { seatColor } from "./Character.jsx";
+import Character, { Avatar, seatColor } from "./Character.jsx";
 import { Face } from "./heads.jsx";
 import { useEffect, useState } from "react";
 import { Btn, Confetti, Starburst } from "./parts.jsx";
@@ -62,7 +62,7 @@ function Rewards({ view, rewards, solo }) {
       {rewards.list.length > 1 && (
         <div className="mt-2 flex flex-wrap justify-center gap-1.5 border-t-2 border-dashed border-ink/30 pt-2">
           {rewards.list.filter((r) => r.seat !== view.me).map((r) => (
-            <span key={r.seat} className="text-[11px] font-black"><Face id={view.seats[r.seat]?.avatar} size={18} /> +{r.got}</span>
+            <span key={r.seat} className="text-[11px] font-black"><Avatar id={view.seats[r.seat]?.avatar} looks={view.seats[r.seat]?.looks} color={seatColor(r.seat)} size={18} /> +{r.got}</span>
           ))}
         </div>
       )}
@@ -135,13 +135,22 @@ export function DevilBurst({ id, seat }) {
       <div className="a-devil-card"><div className="scale-[1.7] sm:scale-[1.9]"><Card rank="D" size="lg" glow="#ffb02e" /></div></div>
       <div className="a-pop mt-20 px-4 text-center sm:mt-24" style={{ animationDelay: "0.5s" }}>
         <div className="font-black text-white" style={{ fontSize: 36, textShadow: "3px 3px 0 #000" }}>{T.devilTitle}</div>
-        <div className="mt-1 text-lg font-extrabold text-sun" style={{ textShadow: "2px 2px 0 #000" }}><Face id={seat?.avatar} size={26} /> {T.devilSub}</div>
+        <div className="mt-1 text-lg font-extrabold text-sun" style={{ textShadow: "2px 2px 0 #000" }}><Avatar id={seat?.avatar} looks={seat?.looks} size={26} /> {T.devilSub}</div>
       </div>
     </div>
   );
 }
 
-export function LiarBurst({ burst, seat }) {
+export function LiarBurst({ burst, seat, three }) {
+  // over the 3D table: just the word, slammed down, with a dark hush behind it
+  if (three) return (
+    <div key={burst} className="pointer-events-none fixed inset-0 z-[70] flex items-center justify-center" style={{ background: "radial-gradient(circle at 50% 50%, rgb(0 0 0 / 0.45), transparent 60%)" }}>
+      <div className="a-burst text-center">
+        <div className="font-black text-paper" style={{ fontSize: 46, lineHeight: 1.1, textShadow: "0 0 28px rgb(194 59 46 / 0.9), 0 3px 0 #1c1510" }}>{T.liar}</div>
+        <div className="mt-1 text-sm font-black uppercase tracking-[0.3em] text-paper/70">{seat?.name}</div>
+      </div>
+    </div>
+  );
   return (
     <div key={burst} className="pointer-events-none fixed inset-0 z-[70] flex items-center justify-center">
       <div className="a-burst relative flex h-[330px] w-[330px] items-center justify-center sm:h-[420px] sm:w-[420px]">
@@ -178,7 +187,7 @@ function EndReactions({ view, fx, emote }) {
                 <span key={f.id} className="a-float-up pointer-events-none absolute bottom-6 z-10 text-3xl" style={{ left: `${10 + f.x * 30}%`, "--r": `${(f.x - 0.5) * 40}deg` }}>{f.e}</span>
               ))}
               <span className={`flex h-10 w-10 items-center justify-center rounded-full border-[2.5px] border-ink ${s.idx === view.me ? "ring-2 ring-sun ring-offset-1" : ""}`} style={{ background: seatColor(s.idx) }}>
-                <Face id={s.avatar} size={34} state={s.idx === view.winner ? "win" : "sad"} />
+                <Avatar id={s.avatar} looks={s.looks} color={seatColor(s.idx)} size={34} state={s.idx === view.winner ? "win" : "sad"} />
               </span>
               <span className="mt-0.5 max-w-[48px] truncate text-[10px] font-black">{s.name}</span>
             </div>

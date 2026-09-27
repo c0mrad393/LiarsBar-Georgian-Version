@@ -1,44 +1,107 @@
-// Shared bits for the 3D table: cartoon (toon) materials with outlines,
-// canvas textures, a tiny tween engine, and static-mesh baking to keep the
-// draw-call count low on phones.
+// Shared bits for the 3D scenes: materials with fur/cloth/wood grain, canvas
+// textures, a tiny tween engine, and static-mesh baking to keep the draw-call
+// count low on phones.
 import * as THREE from "three";
 import { mergeGeometries } from "three/addons/utils/BufferGeometryUtils.js";
-
-// Three flat light steps: the painted, cartoon look.
-const steps = new THREE.DataTexture(new Uint8Array([90, 90, 90, 255, 170, 170, 170, 255, 255, 255, 255, 255]), 3, 1);
-steps.minFilter = steps.magFilter = THREE.NearestFilter;
-steps.needsUpdate = true;
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 
 const cache = new Map();
 const sharedMats = new WeakSet();
 /** Materials from the shared cache must outlive any one room or character. */
 export const isShared = (m) => sharedMats.has(m);
-/** A shared toon material per colour (+ options). */
-export function toon(color, opts = {}) {
-  const key = `${color}|${JSON.stringify(opts)}`;
-  if (!cache.has(key)) { const m = new THREE.MeshToonMaterial({ color, gradientMap: steps, ...opts }); sharedMats.add(m); cache.set(key, m); }
+
+// ------------------------------------------------------------- surfaces ---
+// Small tiling canvases that give fur, cloth, knit and wood their grain. They
+// are nearly white, so they tint by the material colour, and double as bump
+// maps: the light catches the fibres.
+
+const surfaces = new Map();
+function surface(kind) {
+  if (surfaces.has(kind)) return surfaces.get(kind);
+  const r = rng(kind.length * 97);
+  const c = document.createElement("canvas");
+  c.width = c.height = 256;
+  const g = c.getContext("2d");
+  g.fillStyle = "#f2f2f2";
+  g.fillRect(0, 0, 256, 256);
+  const tone = (lo, hi, a = 1) => { const v = Math.round(lo + r() * (hi - lo)); return `rgba(${v},${v},${v},${a})`; };
+  if (kind === "fur") {
+    for (let i = 0; i < 40; i++) { g.fillStyle = tone(215, 255, 0.35); g.beginPath(); g.arc(r() * 256, r() * 256, 10 + r() * 30, 0, Math.PI * 2); g.fill(); }
+    g.lineCap = "round";
+    for (let i = 0; i < 2600; i++) {
+      const x = r() * 256, y = r() * 256, a = Math.PI / 2 + (r() - 0.5) * 0.9, l = 3 + r() * 7;
+      g.strokeStyle = tone(190, 255, 0.55);
+      g.lineWidth = 0.6 + r() * 0.9;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); g.stroke();
+    }
+  } else if (kind === "cloth") {
+    for (let y = 0; y < 256; y += 3) for (let x = 0; x < 256; x += 3) { g.fillStyle = tone((x + y) % 6 ? 205 : 225, 250, 0.7); g.fillRect(x, y, 2, 2); }
+    for (let i = 0; i < 30; i++) { g.fillStyle = tone(200, 245, 0.15); g.fillRect(0, r() * 256, 256, 1 + r() * 3); }
+  } else if (kind === "knit") {
+    for (let y = 0; y < 256; y += 8) for (let x = 0; x < 256; x += 8) {
+      g.strokeStyle = tone(170, 215);
+      g.lineWidth = 1.6;
+      g.beginPath(); g.moveTo(x, y); g.lineTo(x + 4, y + 7); g.lineTo(x + 8, y); g.stroke();
+    }
+  } else if (kind === "wood") {
+    for (let i = 0; i < 90; i++) {
+      const y = r() * 256;
+      g.strokeStyle = tone(150, 225, 0.5);
+      g.lineWidth = 0.5 + r() * 2;
+      g.beginPath(); g.moveTo(0, y);
+      for (let x = 0; x <= 256; x += 32) g.lineTo(x, y + Math.sin(x * 0.03 + i) * 3);
+      g.stroke();
+    }
+  } else if (kind === "leather") {
+    for (let i = 0; i < 1800; i++) { g.fillStyle = tone(200, 245, 0.5); g.fillRect(r() * 256, r() * 256, 1.5, 1.5); }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = 4;
+  const rep = { fur: [4, 3], cloth: [5, 5], knit: [6, 6], wood: [2, 2], leather: [3, 3] }[kind] || [2, 2];
+  t.repeat.set(...rep);
+  surfaces.set(kind, t);
+  return t;
+}
+
+/**
+ * The shared material per colour (+ options): soft and a little rough, like
+ * clay, felt and painted wood. `grain` adds a surface (fur | cloth | knit |
+ * wood | leather) with its bump.
+ */
+export function mat(color, { grain, ...opts } = {}) {
+  const key = `${color}|${grain || ""}|${JSON.stringify(opts)}`;
+  if (!cache.has(key)) {
+    const extra = grain ? { map: surface(grain), bumpMap: surface(grain), bumpScale: grain === "fur" ? 1.6 : 0.9 } : {};
+    const m = new THREE.MeshStandardMaterial({ color, roughness: 0.82, metalness: 0, ...extra, ...opts });
+    sharedMats.add(m);
+    cache.set(key, m);
+  }
   return cache.get(key);
 }
-export const OUTLINE = new THREE.MeshBasicMaterial({ color: "#120c08", side: THREE.BackSide });
-sharedMats.add(OUTLINE);
-export { steps as TOON_STEPS };
 export const basic = (color, opts = {}) => {
   const key = `b|${color}|${JSON.stringify(opts)}`;
   if (!cache.has(key)) { const m = new THREE.MeshBasicMaterial({ color, ...opts }); sharedMats.add(m); cache.set(key, m); }
   return cache.get(key);
 };
 
-/** A mesh; `outline` > 0 adds an inverted-hull outline that much bigger. */
-export function mesh(geo, mat, { outline = 0, shadow = true, at, rot, scale } = {}) {
-  const m = new THREE.Mesh(geo, mat);
+/** A soft studio light that every surface reflects a little (eyes, steel, glass). */
+const envs = new WeakMap();
+export function studioEnv(renderer) {
+  if (!envs.has(renderer)) {
+    const pm = new THREE.PMREMGenerator(renderer);
+    envs.set(renderer, pm.fromScene(new RoomEnvironment(), 0.04).texture);
+    pm.dispose();
+  }
+  return envs.get(renderer);
+}
+
+/** A mesh with shadows on, placed. */
+export function mesh(geo, material, { shadow = true, at, rot, scale } = {}) {
+  const m = new THREE.Mesh(geo, material);
   m.castShadow = shadow;
   m.receiveShadow = true;
-  if (outline) {
-    const o = new THREE.Mesh(geo, OUTLINE);
-    o.scale.setScalar(1 + outline);
-    o.userData.outline = true;
-    m.add(o);
-  }
   if (at) m.position.set(...at);
   if (rot) m.rotation.set(...rot);
   if (scale) (typeof scale === "number" ? m.scale.setScalar(scale) : m.scale.set(...scale));
@@ -62,8 +125,8 @@ export function bake(group) {
   });
   for (const o of drop) o.parent?.remove(o);
   const out = new THREE.Group();
-  for (const [mat, geos] of byMat) {
-    const m = new THREE.Mesh(mergeGeometries(geos), mat);
+  for (const [material, geos] of byMat) {
+    const m = new THREE.Mesh(mergeGeometries(geos), material);
     m.receiveShadow = true;
     m.castShadow = false; // the room sits outside the lamp's cone: receiving is enough
     out.add(m);
@@ -177,9 +240,9 @@ export function bakeLocal(group) {
   };
   walk(group);
   for (const c of drop) if (c.parent && !drop.includes(c.parent)) c.parent.remove(c);
-  for (const [mat, geos] of byMat) {
-    const m = new THREE.Mesh(mergeGeometries(geos), mat);
-    m.castShadow = mat !== OUTLINE;
+  for (const [material, geos] of byMat) {
+    const m = new THREE.Mesh(mergeGeometries(geos), material);
+    m.castShadow = true;
     m.receiveShadow = true;
     group.add(m);
   }

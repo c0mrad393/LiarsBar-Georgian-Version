@@ -2,7 +2,7 @@
 // table, you facing the camera and the others around it — chatting, laughing,
 // sipping wine — while the camera drifts slowly from side to side.
 import * as THREE from "three";
-import { blob, mesh, toon } from "./kit.js";
+import { blob, mat, mesh, runTweens, studioEnv } from "./kit.js";
 import { buildRoom } from "./room.js";
 import { Char3D } from "./character.js";
 
@@ -14,9 +14,9 @@ const MOODS = ["idle", "talk", "happy", "turn", "idle", "win", "talk"];
 
 function emptyChair() {
   const g = new THREE.Group();
-  const wood = toon("#4a2c16");
-  g.add(mesh(new THREE.BoxGeometry(0.48, 0.06, 0.46), wood, { at: [0, 0.48, 0], outline: 0.03 }));
-  g.add(mesh(new THREE.BoxGeometry(0.48, 0.62, 0.05), wood, { at: [0, 0.82, -0.23], outline: 0.03 }));
+  const wood = mat("#5a3418", { grain: "wood" });
+  g.add(mesh(new THREE.BoxGeometry(0.48, 0.06, 0.46), wood, { at: [0, 0.48, 0] }));
+  g.add(mesh(new THREE.BoxGeometry(0.48, 0.62, 0.05), wood, { at: [0, 0.82, -0.23] }));
   for (const [x, z] of [[-0.2, -0.2], [0.2, -0.2], [-0.2, 0.19], [0.2, 0.19]]) g.add(mesh(new THREE.BoxGeometry(0.05, 0.46, 0.05), wood, { at: [x, 0.23, z] }));
   return g;
 }
@@ -39,10 +39,12 @@ export class Showcase {
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color("#120c08");
+    this.scene.environment = studioEnv(r);
+    this.scene.environmentIntensity = 0.3;
     this.camera = new THREE.PerspectiveCamera(55, 1, 0.05, 30);
-    this.cloth = mesh(new THREE.CylinderGeometry(TABLE_R, TABLE_R, 0.06, 40), toon("#2c6a40"), { at: [0, TABLE_Y, 0] });
-    const rim = mesh(new THREE.TorusGeometry(TABLE_R, 0.055, 8, 40), toon("#6b4020"), { outline: 0.02, at: [0, TABLE_Y + 0.03, 0], rot: [Math.PI / 2, 0, 0] });
-    const leg = mesh(new THREE.CylinderGeometry(0.12, 0.34, TABLE_Y, 14), toon("#4a2c16"), { at: [0, TABLE_Y / 2, 0] });
+    this.cloth = mesh(new THREE.CylinderGeometry(TABLE_R, TABLE_R, 0.06, 40), mat("#2c6a40", { grain: "cloth", roughness: 0.95 }), { at: [0, TABLE_Y, 0] });
+    const rim = mesh(new THREE.TorusGeometry(TABLE_R, 0.055, 8, 40), mat("#6b4020", { grain: "wood", roughness: 0.45 }), { at: [0, TABLE_Y + 0.03, 0], rot: [Math.PI / 2, 0, 0] });
+    const leg = mesh(new THREE.CylinderGeometry(0.12, 0.34, TABLE_Y, 24), mat("#4a2c16", { grain: "wood" }), { at: [0, TABLE_Y / 2, 0] });
     this.scene.add(this.cloth, rim, leg, blob(2.9, 0.55));
     this.cast = [];
     this.sig = "";
@@ -105,7 +107,7 @@ export class Showcase {
       this.scene.add(this.room.group);
       if (this.ready) this.renderer.compileAsync?.(this.room.group, this.camera, this.scene);
     }
-    if (felt) this.cloth.material = toon(felt);
+    if (felt) this.cloth.material = mat(felt, { grain: "cloth", roughness: 0.95 });
     const sig = cast.map((c) => `${c.key}:${c.empty ? "-" : c.avatar}:${JSON.stringify(c.looks || {})}`).join("|");
     if (sig !== this.sig) {
       this.sig = sig;
@@ -116,6 +118,7 @@ export class Showcase {
       this.cast = order.slice(0, OFFSETS.length).map((c, k) => {
         const id = c.key + (c.empty ? "-" : c.avatar) + JSON.stringify(c.looks || {});
         const keep = old.get(id);
+        old.delete(id);
         const a = -Math.PI / 2 + OFFSETS[k];
         const pos = new THREE.Vector3(Math.cos(a) * SEAT_R, 0, Math.sin(a) * SEAT_R);
         let root, char = null;
@@ -132,6 +135,7 @@ export class Showcase {
         this.scene.add(root);
         return { key: c.key, empty: !!c.empty, you: !!c.you, root, char };
       });
+      for (const gone of old.values()) gone.char?.dispose();
       this.nextMood = 0;
     }
     if (!this.warmed) this.warm();
@@ -178,6 +182,7 @@ export class Showcase {
     const d = this.tall ? 4.3 : 4.1;
     this.camera.position.set(Math.sin(th) * d, 2.05, Math.cos(th) * d);
     this.camera.lookAt(0, 1.0, -0.3);
+    runTweens(performance.now());
     this.life(t);
     this.room.update(t, dt);
     for (const c of this.cast) c.char?.update(dt, t);
@@ -190,6 +195,7 @@ export class Showcase {
     this.ro.disconnect();
     this.renderer.domElement.removeEventListener("pointerup", this.onUp);
     this.room?.dispose();
+    for (const c of this.cast) c.char?.dispose();
     this.renderer.dispose();
     this.renderer.forceContextLoss?.();
     this.renderer.domElement.remove();

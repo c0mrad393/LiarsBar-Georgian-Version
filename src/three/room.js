@@ -8,7 +8,7 @@
 // black on phones; static parts are baked into a few meshes; the "life"
 // (flames, stars, snow, dust, the musician) is cheap: sprites and points.
 import * as THREE from "three";
-import { TOON_STEPS, bake, basic, canvasTex, isShared, mesh, rng, toon } from "./kit.js";
+import { bake, basic, canvasTex, isShared, mat, mesh, rng } from "./kit.js";
 import { PIROSMANI, paintingTex } from "./paintings.js";
 import { Char3D } from "./character.js";
 
@@ -155,23 +155,24 @@ function mountainsTex() {
 
 // ---------------------------------------------------------------- helpers ---
 
-/** A toon surface that shows its own paint even in the dark. */
+/** A painted surface that shows its own paint even in the dark. */
 function selfLit(tex, color, glow = 0.42) {
-  return new THREE.MeshToonMaterial({ map: tex, color, gradientMap: TOON_STEPS, emissive: "#ffffff", emissiveMap: tex, emissiveIntensity: glow });
+  return new THREE.MeshStandardMaterial({ map: tex, bumpMap: tex, bumpScale: 1.2, color, roughness: 0.92, emissive: "#ffffff", emissiveMap: tex, emissiveIntensity: glow });
 }
-function plane(w, h, mat, pos, rot = [0, 0, 0]) {
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
+function plane(w, h, material, pos, rot = [0, 0, 0]) {
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), material);
   m.position.set(...pos);
   m.rotation.set(...rot);
   m.receiveShadow = true;
   m.userData.keep = true;
   return m;
 }
-function lathe(profile, color, outline = 0.03, seg = 20) {
-  return mesh(new THREE.LatheGeometry(profile.map(([x, y]) => new THREE.Vector2(x, y)), seg), toon(color), { outline });
+function lathe(profile, color, seg = 40) {
+  return mesh(new THREE.LatheGeometry(profile.map(([x, y]) => new THREE.Vector2(x, y)), seg), mat(color, { grain: "leather", roughness: 0.75, side: THREE.DoubleSide }));
 }
-const JUG = [[0.001, 0], [0.12, 0.01], [0.16, 0.12], [0.13, 0.26], [0.07, 0.32], [0.075, 0.38], [0.001, 0.38]];
-const QVEVRI = Array.from({ length: 13 }, (_, i) => { const t = i / 12; return [0.05 + Math.sin(t * Math.PI) * 0.46 + (t > 0.85 ? 0.06 : 0), t * 1.15]; });
+const JUG = [[0.001, 0], [0.09, 0.005], [0.14, 0.05], [0.165, 0.13], [0.15, 0.22], [0.1, 0.29], [0.065, 0.33], [0.07, 0.37], [0.082, 0.39], [0.06, 0.39]];
+// a qvevri: pointed foot, wide shoulders, a short neck and a thick lip
+const QVEVRI = [[0.001, 0], [0.1, 0.04], [0.26, 0.18], [0.39, 0.4], [0.455, 0.64], [0.44, 0.8], [0.35, 0.94], [0.22, 1.03], [0.17, 1.07], [0.2, 1.1], [0.2, 1.15], [0.15, 1.15], [0.14, 1.1]];
 
 function glowSprite(tex, color, size) {
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
@@ -229,9 +230,9 @@ function flame(tex, x, y, z, s = 0.12) {
 function musician() {
   const npc = new Char3D({ avatar: "av_tur", looks: { hat: "hat_papakha", outfit: "o_chokha", mouth: "m_curly" }, color: "#2a1e2e" });
   const pan = new THREE.Group();
-  pan.add(mesh(new THREE.SphereGeometry(0.13, 14, 10), toon("#b86a2c"), { scale: [1, 1.25, 0.45], outline: 0.04 }));
-  pan.add(mesh(new THREE.BoxGeometry(0.04, 0.36, 0.03), toon("#6b3a1c"), { at: [0, 0.3, 0], outline: 0.06 }));
-  pan.add(mesh(new THREE.BoxGeometry(0.06, 0.08, 0.035), toon("#4a2810"), { at: [0, 0.5, 0] }));
+  pan.add(mesh(new THREE.SphereGeometry(0.13, 14, 10), mat("#b86a2c"), { scale: [1, 1.25, 0.45] }));
+  pan.add(mesh(new THREE.BoxGeometry(0.04, 0.36, 0.03), mat("#6b3a1c"), { at: [0, 0.3, 0] }));
+  pan.add(mesh(new THREE.BoxGeometry(0.06, 0.08, 0.035), mat("#4a2810"), { at: [0, 0.5, 0] }));
   pan.add(mesh(new THREE.CircleGeometry(0.035, 12), basic("#1c1510"), { at: [0, 0.02, 0.06] }));
   pan.position.set(0.04, 0.3, 0.27);
   pan.rotation.set(0.2, 0, -0.95);
@@ -262,8 +263,8 @@ function dukani(stat, room, live) {
   const wainMat = selfLit(planks("#5a3418", [3, 1]), "#c08a60", 0.4);
   walls(room, wallMat, wainMat);
   room.add(plane(W, D, selfLit(planks("#6b4424"), "#c9a07a", 0.35), [0, 0, 0], [-Math.PI / 2, 0, 0]));
-  stat.add(mesh(new THREE.PlaneGeometry(W, D), toon("#24170d"), { at: [0, H, 0], rot: [Math.PI / 2, 0, 0], shadow: false }));
-  for (let i = -2; i <= 2; i++) stat.add(mesh(new THREE.BoxGeometry(W, 0.16, 0.2), toon("#3a2414"), { at: [0, H - 0.08, i * 1.4] }));
+  stat.add(mesh(new THREE.PlaneGeometry(W, D), mat("#24170d"), { at: [0, H, 0], rot: [Math.PI / 2, 0, 0], shadow: false }));
+  for (let i = -2; i <= 2; i++) stat.add(mesh(new THREE.BoxGeometry(W, 0.16, 0.2), mat("#3a2414"), { at: [0, H - 0.08, i * 1.4] }));
   hangPaintings(room, stat, [
     ["five-princes", -1.5, 2.05, -D / 2 + 0.04, 0, 0.75],
     ["margarita", 1.5, 2.0, -D / 2 + 0.04, 0, 1.0],
@@ -273,10 +274,10 @@ function dukani(stat, room, live) {
     ["cold-beer", W / 2 - 0.04, 1.9, 1.35, -Math.PI / 2, 0.9],
   ]);
   room.add(plane(1.1, 0.34, new THREE.MeshBasicMaterial({ map: signTex("დუქანი") }), [0.1, 2.75, -D / 2 + 0.05]));
-  stat.add(mesh(new THREE.BoxGeometry(1.6, 0.06, 0.32), toon("#4a2c16"), { at: [0.1, 1.45, -D / 2 + 0.18], outline: 0.02 }));
+  stat.add(mesh(new THREE.BoxGeometry(1.6, 0.06, 0.32), mat("#4a2c16"), { at: [0.1, 1.45, -D / 2 + 0.18] }));
   ["#8f2420", "#b5462a", "#8f2420"].forEach((c, i) => { const j = lathe(JUG, c); j.position.set(-0.45 + i * 0.5, 1.48, -D / 2 + 0.18); stat.add(j); });
   for (const [x, z, s] of [[-2.9, -2.9, 1.1], [2.9, -2.8, 1], [-3.0, 1.8, 0.9], [2.95, 2.1, 1.05]]) { const q = lathe(QVEVRI, "#b85c2c"); q.position.set(x, 0, z); q.scale.setScalar(s); stat.add(q); }
-  stat.add(mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.8, 16), toon("#6b4020"), { at: [2.3, 0.4, -3.0], outline: 0.03 }));
+  stat.add(mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.8, 16), mat("#6b4020"), { at: [2.3, 0.4, -3.0] }));
   churchkhela(stat, -W / 2 + 0.2, 1.2);
   // the musician on a stool in the back corner, facing the table
   const m = musician();
@@ -303,19 +304,19 @@ function marani(stat, room, live) {
   vault.scale.set(1, 1, 0.33);
   vault.userData.keep = true;
   room.add(vault);
-  for (let i = -2; i <= 2; i++) stat.add(mesh(new THREE.TorusGeometry(W / 2 - 0.02, 0.07, 6, 24, Math.PI), toon("#4a3a2c"), { at: [0, 2.2, i * 1.5], scale: [1, 0.33, 1] }));
+  for (let i = -2; i <= 2; i++) stat.add(mesh(new THREE.TorusGeometry(W / 2 - 0.02, 0.07, 6, 24, Math.PI), mat("#4a3a2c"), { at: [0, 2.2, i * 1.5], scale: [1, 0.33, 1] }));
   // barrels along the walls, lying down
   for (const side of [-1, 1]) for (let i = 0; i < 4; i++) {
     const z = -2.6 + i * 1.3;
-    const b = mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.9, 16), toon("#7a4a24"), { at: [side * (W / 2 - 0.55), 0.42, z], rot: [0, 0, Math.PI / 2], outline: 0.02 });
+    const b = mesh(new THREE.CylinderGeometry(0.42, 0.42, 0.9, 16), mat("#7a4a24"), { at: [side * (W / 2 - 0.55), 0.42, z], rot: [0, 0, Math.PI / 2] });
     stat.add(b);
-    for (const dx of [-0.3, 0.3]) stat.add(mesh(new THREE.TorusGeometry(0.43, 0.02, 6, 20), toon("#3a3a3a"), { at: [side * (W / 2 - 0.55) + dx, 0.42, z], rot: [0, Math.PI / 2, 0] }));
-    stat.add(mesh(new THREE.CircleGeometry(0.34, 16), toon("#5a3418"), { at: [side * (W / 2 - 0.55) - side * 0.455, 0.42, z], rot: [0, -side * Math.PI / 2, 0] }));
+    for (const dx of [-0.3, 0.3]) stat.add(mesh(new THREE.TorusGeometry(0.43, 0.02, 6, 20), mat("#3a3a3a"), { at: [side * (W / 2 - 0.55) + dx, 0.42, z], rot: [0, Math.PI / 2, 0] }));
+    stat.add(mesh(new THREE.CircleGeometry(0.34, 16), mat("#5a3418"), { at: [side * (W / 2 - 0.55) - side * 0.455, 0.42, z], rot: [0, -side * Math.PI / 2, 0] }));
   }
   // qvevri buried in the floor: only their mouths and lids show
   for (const [x, z] of [[-1.9, 2.2], [0, 2.7], [1.9, 2.2], [-2.3, -1.2], [2.3, -1.4]]) {
-    stat.add(mesh(new THREE.TorusGeometry(0.3, 0.07, 8, 20), toon("#b85c2c"), { at: [x, 0.03, z], rot: [Math.PI / 2, 0, 0] }));
-    stat.add(mesh(new THREE.CylinderGeometry(0.31, 0.31, 0.03, 18), toon("#5a3418"), { at: [x, 0.05, z] }));
+    stat.add(mesh(new THREE.TorusGeometry(0.3, 0.07, 8, 20), mat("#b85c2c"), { at: [x, 0.03, z], rot: [Math.PI / 2, 0, 0] }));
+    stat.add(mesh(new THREE.CylinderGeometry(0.31, 0.31, 0.03, 18), mat("#5a3418"), { at: [x, 0.05, z] }));
   }
   room.add(plane(1.2, 0.36, new THREE.MeshBasicMaterial({ map: signTex("მარანი") }), [0, 2.3, -D / 2 + 0.05]));
   hangPaintings(room, stat, [
@@ -326,15 +327,25 @@ function marani(stat, room, live) {
     ["barrel", W / 2 - 0.04, 1.7, -1.0, -Math.PI / 2, 0.75],
   ]);
   // grapevines hanging from the vault
+  const berry = new THREE.SphereGeometry(0.028, 12, 8);
+  const leafGeo = vineLeaf();
+  const rg = rng(71);
   for (let i = 0; i < 7; i++) {
-    const x = -2.4 + i * 0.8;
-    for (let j = 0; j < 5; j++) stat.add(mesh(new THREE.SphereGeometry(0.05, 8, 6), toon(j % 2 ? "#5b2a6e" : "#7b2d8e"), { at: [x + (j % 2) * 0.05, 2.6 - j * 0.08, -2.2], shadow: false }));
-    for (let k = 0; k < 4; k++) stat.add(mesh(new THREE.CircleGeometry(0.06, 5), toon(k % 2 ? "#4f8a3a" : "#3f7030", { side: THREE.DoubleSide }), { at: [x - 0.1 + k * 0.07, 2.7 + (k % 2) * 0.05, -2.2], rot: [0, 0, k], shadow: false }));
+    const x = -2.4 + i * 0.8, top = 2.72;
+    // a bunch: rows of berries narrowing to a point
+    for (let row = 0; row < 6; row++) {
+      const n = 5 - Math.floor(row * 0.8), rr = 0.07 - row * 0.011;
+      for (let j = 0; j < n; j++) {
+        const a = (j / n) * Math.PI * 2 + row;
+        stat.add(mesh(berry, mat(rg() < 0.5 ? "#4a1d5c" : "#6a2a7e", { roughness: 0.3 }), { at: [x + Math.cos(a) * rr, top - 0.06 - row * 0.042, -2.2 + Math.sin(a) * rr], shadow: false }));
+      }
+    }
+    for (let k = 0; k < 3; k++) stat.add(mesh(leafGeo, mat(k % 2 ? "#3d6b2c" : "#2f5a24", { side: THREE.DoubleSide, roughness: 0.6 }), { at: [x - 0.1 + k * 0.1, top + 0.02, -2.25 + k * 0.03], rot: [-0.9, 0, (k - 1) * 0.7], shadow: false }));
   }
   // candles on the barrels, flickering
   const ft = flameTex();
   for (const [x, z] of [[-W / 2 + 0.55, -2.6], [W / 2 - 0.55, -1.3], [-W / 2 + 0.55, 0], [W / 2 - 0.55, 1.3]]) {
-    stat.add(mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.16, 10), toon("#f3ead2"), { at: [x, 0.92, z] }));
+    stat.add(mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.16, 10), mat("#f3ead2"), { at: [x, 0.92, z] }));
     const f = flame(ft, x, 1.0, z, 0.07);
     room.add(f);
     live.push(f.userData.update);
@@ -382,14 +393,14 @@ function tbilisi(stat, room, live) {
     f.position.set(x, 0, z);
     f.rotation.y = ry;
     // balcony: floor, railing with carved posts, roof
-    f.add(mesh(new THREE.BoxGeometry(5.5, 0.1, 0.9), toon("#5a3a22"), { at: [0, 1.9, 0.45] }));
-    for (let i = 0; i <= 22; i++) f.add(mesh(new THREE.BoxGeometry(0.05, 0.55, 0.05), toon(i % 2 ? "#3f6f9e" : "#5a8ab8"), { at: [-2.7 + i * 0.25, 2.2, 0.88] }));
-    f.add(mesh(new THREE.BoxGeometry(5.5, 0.07, 0.07), toon("#3f6f9e"), { at: [0, 2.5, 0.88] }));
-    for (const px of [-2.7, -0.9, 0.9, 2.7]) f.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.3, 8), toon("#5a3a22"), { at: [px, 2.55, 0.85] }));
-    f.add(mesh(new THREE.BoxGeometry(5.6, 0.08, 0.08), toon("#5a3a22"), { at: [0, 3.2, 0.85] }));
+    f.add(mesh(new THREE.BoxGeometry(5.5, 0.1, 0.9), mat("#5a3a22"), { at: [0, 1.9, 0.45] }));
+    for (let i = 0; i <= 22; i++) f.add(mesh(new THREE.BoxGeometry(0.05, 0.55, 0.05), mat(i % 2 ? "#3f6f9e" : "#5a8ab8"), { at: [-2.7 + i * 0.25, 2.2, 0.88] }));
+    f.add(mesh(new THREE.BoxGeometry(5.5, 0.07, 0.07), mat("#3f6f9e"), { at: [0, 2.5, 0.88] }));
+    for (const px of [-2.7, -0.9, 0.9, 2.7]) f.add(mesh(new THREE.CylinderGeometry(0.05, 0.05, 1.3, 8), mat("#5a3a22"), { at: [px, 2.55, 0.85] }));
+    f.add(mesh(new THREE.BoxGeometry(5.6, 0.08, 0.08), mat("#5a3a22"), { at: [0, 3.2, 0.85] }));
     // tiled roof edge
-    f.add(mesh(new THREE.BoxGeometry(fw + 0.2, 0.18, 0.7), toon("#8a3a22"), { at: [0, 3.55, 0.2], rot: [0.35, 0, 0] }));
-    for (const cx of [-3.2, 3.4]) f.add(mesh(new THREE.BoxGeometry(0.35, 0.7, 0.35), toon("#6a5040"), { at: [cx, 3.9, -0.1] }));
+    f.add(mesh(new THREE.BoxGeometry(fw + 0.2, 0.18, 0.7), mat("#8a3a22"), { at: [0, 3.55, 0.2], rot: [0.35, 0, 0] }));
+    for (const cx of [-3.2, 3.4]) f.add(mesh(new THREE.BoxGeometry(0.35, 0.7, 0.35), mat("#6a5040"), { at: [cx, 3.9, -0.1] }));
     for (const wx of [-1.8, 0, 1.8]) {
       f.add(mesh(new THREE.PlaneGeometry(0.55, 0.7), windowMat, { at: [wx, 2.65, 0.02], shadow: false }));
       f.add(mesh(new THREE.PlaneGeometry(0.5, 0.75), windowMat, { at: [wx, 0.95, 0.02], shadow: false }));
@@ -428,23 +439,23 @@ function svaneti(stat, room, live) {
   const logMat = selfLit(logs([1, 6]), "#d8a878", 0.42);
   walls(room, logMat, null);
   room.add(plane(W, D, selfLit(planks("#5a3a20", [4, 4]), "#c09070", 0.35), [0, 0, 0], [-Math.PI / 2, 0, 0]));
-  stat.add(mesh(new THREE.PlaneGeometry(W, D), toon("#2a1a0e"), { at: [0, H, 0], rot: [Math.PI / 2, 0, 0], shadow: false }));
-  for (let i = -3; i <= 3; i++) stat.add(mesh(new THREE.CylinderGeometry(0.12, 0.12, W, 10), toon("#4a2c16"), { at: [0, H - 0.14, i * 1.1], rot: [0, 0, Math.PI / 2] }));
+  stat.add(mesh(new THREE.PlaneGeometry(W, D), mat("#2a1a0e"), { at: [0, H, 0], rot: [Math.PI / 2, 0, 0], shadow: false }));
+  for (let i = -3; i <= 3; i++) stat.add(mesh(new THREE.CylinderGeometry(0.12, 0.12, W, 10), mat("#4a2c16"), { at: [0, H - 0.14, i * 1.1], rot: [0, 0, Math.PI / 2] }));
   // the window onto the mountains, with snow falling outside
   const view = plane(2.2, 1.4, new THREE.MeshBasicMaterial({ map: mountainsTex() }), [1.2, 1.9, -D / 2 + 0.03]);
   room.add(view);
-  stat.add(mesh(new THREE.BoxGeometry(2.4, 0.12, 0.12), toon("#3a2414"), { at: [1.2, 2.66, -D / 2 + 0.08] }));
-  stat.add(mesh(new THREE.BoxGeometry(2.4, 0.12, 0.12), toon("#3a2414"), { at: [1.2, 1.14, -D / 2 + 0.08] }));
-  for (const x of [0.05, 1.2, 2.35]) stat.add(mesh(new THREE.BoxGeometry(0.1, 1.6, 0.1), toon("#3a2414"), { at: [x, 1.9, -D / 2 + 0.08] }));
+  stat.add(mesh(new THREE.BoxGeometry(2.4, 0.12, 0.12), mat("#3a2414"), { at: [1.2, 2.66, -D / 2 + 0.08] }));
+  stat.add(mesh(new THREE.BoxGeometry(2.4, 0.12, 0.12), mat("#3a2414"), { at: [1.2, 1.14, -D / 2 + 0.08] }));
+  for (const x of [0.05, 1.2, 2.35]) stat.add(mesh(new THREE.BoxGeometry(0.1, 1.6, 0.1), mat("#3a2414"), { at: [x, 1.9, -D / 2 + 0.08] }));
   const snow = particles(120, [0.1, 1.2, -D / 2 + 0.05, 2.3, 2.6, -D / 2 + 0.07], { color: "#ffffff", size: 0.035, speed: [0, 0.4, 0], wobble: 0.05, fall: true, tex: roundTex() });
   room.add(snow);
   live.push(snow.userData.update);
   // the hearth: stone, logs, a live fire, embers
   const hx = -2.2, hz = -D / 2 + 0.5;
-  stat.add(mesh(new THREE.BoxGeometry(1.6, 1.4, 0.8), toon("#5a5048"), { at: [hx, 0.7, hz], outline: 0.02 }));
-  stat.add(mesh(new THREE.BoxGeometry(1.1, 0.8, 0.5), toon("#140d08"), { at: [hx, 0.5, hz + 0.18] }));
-  stat.add(mesh(new THREE.BoxGeometry(0.6, 1.9, 0.6), toon("#4a4038"), { at: [hx, 2.35, hz - 0.1] }));
-  for (const [dx, ry] of [[-0.15, 0.3], [0.15, -0.3]]) stat.add(mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.6, 8), toon("#3a2414"), { at: [hx + dx, 0.18, hz + 0.3], rot: [0, ry, Math.PI / 2] }));
+  stat.add(mesh(new THREE.BoxGeometry(1.6, 1.4, 0.8), mat("#5a5048"), { at: [hx, 0.7, hz] }));
+  stat.add(mesh(new THREE.BoxGeometry(1.1, 0.8, 0.5), mat("#140d08"), { at: [hx, 0.5, hz + 0.18] }));
+  stat.add(mesh(new THREE.BoxGeometry(0.6, 1.9, 0.6), mat("#4a4038"), { at: [hx, 2.35, hz - 0.1] }));
+  for (const [dx, ry] of [[-0.15, 0.3], [0.15, -0.3]]) stat.add(mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.6, 8), mat("#3a2414"), { at: [hx + dx, 0.18, hz + 0.3], rot: [0, ry, Math.PI / 2] }));
   const ft = flameTex();
   for (const [dx, s] of [[-0.14, 0.2], [0.02, 0.26], [0.16, 0.18]]) {
     const f = flame(ft, hx + dx, 0.18, hz + 0.34, s);
@@ -465,10 +476,10 @@ function svaneti(stat, room, live) {
     fireGlow.material.opacity = 0.75 + Math.sin(t * 11) * 0.15;
   });
   // antlers and drinking horns on the walls, a fur rug
-  for (const s of [-1, 1]) stat.add(mesh(new THREE.TorusGeometry(0.28, 0.035, 6, 14, Math.PI * 0.8), toon("#e8d6b0"), { at: [W / 2 - 0.05, 2.2, s * 0.35], rot: [0, -Math.PI / 2, s > 0 ? 0.4 : Math.PI - 0.4] }));
-  stat.add(mesh(new THREE.BoxGeometry(0.08, 0.3, 0.24), toon("#5a3418"), { at: [W / 2 - 0.04, 2.1, 0] }));
-  for (let i = 0; i < 3; i++) stat.add(mesh(new THREE.ConeGeometry(0.05, 0.36, 10), toon("#c98d22"), { at: [-W / 2 + 0.1, 1.9, -0.5 + i * 0.5], rot: [0, 0, -1.2], outline: 0.06 }));
-  stat.add(mesh(new THREE.CircleGeometry(1.9, 20), toon("#6b5646"), { at: [0, 0.005, 0], rot: [-Math.PI / 2, 0, 0], shadow: false }));
+  for (const s of [-1, 1]) stat.add(mesh(new THREE.TorusGeometry(0.28, 0.035, 6, 14, Math.PI * 0.8), mat("#e8d6b0"), { at: [W / 2 - 0.05, 2.2, s * 0.35], rot: [0, -Math.PI / 2, s > 0 ? 0.4 : Math.PI - 0.4] }));
+  stat.add(mesh(new THREE.BoxGeometry(0.08, 0.3, 0.24), mat("#5a3418"), { at: [W / 2 - 0.04, 2.1, 0] }));
+  for (let i = 0; i < 3; i++) stat.add(mesh(new THREE.ConeGeometry(0.05, 0.36, 10), mat("#c98d22"), { at: [-W / 2 + 0.1, 1.9, -0.5 + i * 0.5], rot: [0, 0, -1.2] }));
+  stat.add(mesh(new THREE.CircleGeometry(1.9, 20), mat("#6b5646"), { at: [0, 0.005, 0], rot: [-Math.PI / 2, 0, 0], shadow: false }));
   room.add(plane(1.0, 0.3, new THREE.MeshBasicMaterial({ map: signTex("სვანეთი") }), [-2.2, 2.9, -D / 2 + 0.06]));
   hangPaintings(room, stat, [
     ["bear-moon", -0.65, 1.95, -D / 2 + 0.04, 0, 0.9],
@@ -497,15 +508,28 @@ function hangPaintings(room, stat, list, frameColor = "#3a2414") {
     art.rotation.y = ry;
     art.userData.keep = true;
     room.add(art);
-    const frame = mesh(new THREE.BoxGeometry(w + 0.1, h + 0.1, 0.05), toon(frameColor), { at: [x, y, z], rot: [0, ry, 0], shadow: false });
+    const frame = mesh(new THREE.BoxGeometry(w + 0.1, h + 0.1, 0.05), mat(frameColor), { at: [x, y, z], rot: [0, ry, 0], shadow: false });
     frame.translateZ(-0.03);
     stat.add(frame);
   }
 }
 
+/** A vine leaf: five pointed lobes. */
+function vineLeaf() {
+  const sh = new THREE.Shape();
+  const lobes = 5;
+  for (let i = 0; i <= lobes * 2; i++) {
+    const a = Math.PI / 2 + (i / (lobes * 2)) * Math.PI * 2;
+    const r = i % 2 ? 0.05 : 0.11;
+    const p = [Math.cos(a) * r, Math.sin(a) * r * 0.95];
+    if (i === 0) sh.moveTo(...p); else sh.lineTo(...p);
+  }
+  return new THREE.ShapeGeometry(sh);
+}
+
 function churchkhela(stat, x, z) {
   const ch = ["#8b2a3a", "#c47a2c", "#6d1a36", "#b5651d"];
-  for (let i = 0; i < 4; i++) for (let j = 0; j < 6; j++) stat.add(mesh(new THREE.SphereGeometry(0.045, 8, 6), toon(ch[i]), { at: [x, 2.3 - j * 0.09, z + i * 0.16], scale: [1, 1.2, 1] }));
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 6; j++) stat.add(mesh(new THREE.SphereGeometry(0.045, 8, 6), mat(ch[i]), { at: [x, 2.3 - j * 0.09, z + i * 0.16], scale: [1, 1.2, 1] }));
 }
 
 function sconces(room, stat, live, spots) {
@@ -545,20 +569,20 @@ export function buildRoom(quality = "high", { shadows = true, theme = 0 } = {}) 
   const fix = new THREE.Group();
   const bulbMat = new THREE.MeshBasicMaterial({ color: "#ffe39a" });
   if (cfg.fixture === "shade" || cfg.fixture === "oil") {
-    fix.add(mesh(new THREE.ConeGeometry(0.3, 0.24, 24, 1, true), toon(cfg.fixture === "oil" ? "#3a3a3a" : "#2a1d14", { side: THREE.DoubleSide }), { shadow: false }));
+    fix.add(mesh(new THREE.ConeGeometry(0.3, 0.24, 24, 1, true), mat(cfg.fixture === "oil" ? "#3a3a3a" : "#2a1d14", { side: THREE.DoubleSide }), { shadow: false }));
     fix.add(new THREE.Mesh(new THREE.SphereGeometry(0.09, 16, 12), bulbMat)).position.y = -0.08;
   } else if (cfg.fixture === "chandelier") {
-    fix.add(mesh(new THREE.TorusGeometry(0.45, 0.025, 6, 24), toon("#2a2420"), { rot: [Math.PI / 2, 0, 0], shadow: false }));
+    fix.add(mesh(new THREE.TorusGeometry(0.45, 0.025, 6, 24), mat("#2a2420"), { rot: [Math.PI / 2, 0, 0], shadow: false }));
     const ft = flameTex();
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2;
-      fix.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.12, 8), toon("#f3ead2"), { at: [Math.cos(a) * 0.45, 0.06, Math.sin(a) * 0.45], shadow: false }));
+      fix.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.12, 8), mat("#f3ead2"), { at: [Math.cos(a) * 0.45, 0.06, Math.sin(a) * 0.45], shadow: false }));
       const f = flame(ft, Math.cos(a) * 0.45, 0.12, Math.sin(a) * 0.45, 0.06);
       fix.add(f);
       live.push(f.userData.update);
     }
   } else if (cfg.fixture === "lantern") {
-    fix.add(mesh(new THREE.BoxGeometry(0.22, 0.3, 0.22), toon("#2a2420"), { shadow: false }));
+    fix.add(mesh(new THREE.BoxGeometry(0.22, 0.3, 0.22), mat("#2a2420"), { shadow: false }));
     fix.add(new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.24, 0.17), bulbMat));
   }
   const glow = glowSprite(roundTex(), "#ffd48a", 1.4);
