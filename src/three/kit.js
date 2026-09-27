@@ -10,16 +10,21 @@ steps.minFilter = steps.magFilter = THREE.NearestFilter;
 steps.needsUpdate = true;
 
 const cache = new Map();
+const sharedMats = new WeakSet();
+/** Materials from the shared cache must outlive any one room or character. */
+export const isShared = (m) => sharedMats.has(m);
 /** A shared toon material per colour (+ options). */
 export function toon(color, opts = {}) {
   const key = `${color}|${JSON.stringify(opts)}`;
-  if (!cache.has(key)) cache.set(key, new THREE.MeshToonMaterial({ color, gradientMap: steps, ...opts }));
+  if (!cache.has(key)) { const m = new THREE.MeshToonMaterial({ color, gradientMap: steps, ...opts }); sharedMats.add(m); cache.set(key, m); }
   return cache.get(key);
 }
 export const OUTLINE = new THREE.MeshBasicMaterial({ color: "#120c08", side: THREE.BackSide });
+sharedMats.add(OUTLINE);
+export { steps as TOON_STEPS };
 export const basic = (color, opts = {}) => {
   const key = `b|${color}|${JSON.stringify(opts)}`;
-  if (!cache.has(key)) cache.set(key, new THREE.MeshBasicMaterial({ color, ...opts }));
+  if (!cache.has(key)) { const m = new THREE.MeshBasicMaterial({ color, ...opts }); sharedMats.add(m); cache.set(key, m); }
   return cache.get(key);
 };
 
@@ -178,4 +183,24 @@ export function bakeLocal(group) {
     m.receiveShadow = true;
     group.add(m);
   }
+}
+
+// A soft round shadow on the floor (phones have no real shadows).
+let blobTex = null;
+export function blob(size, opacity) {
+  blobTex ||= (() => {
+    const c = document.createElement("canvas");
+    c.width = c.height = 64;
+    const g = c.getContext("2d");
+    const grd = g.createRadialGradient(32, 32, 2, 32, 32, 32);
+    grd.addColorStop(0, "rgba(0,0,0,1)");
+    grd.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 64, 64);
+    return new THREE.CanvasTexture(c);
+  })();
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(size, size), new THREE.MeshBasicMaterial({ map: blobTex, transparent: true, opacity, depthWrite: false }));
+  m.rotation.x = -Math.PI / 2;
+  m.position.y = 0.012;
+  return m;
 }

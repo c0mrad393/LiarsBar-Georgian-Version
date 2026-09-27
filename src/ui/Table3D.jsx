@@ -6,6 +6,7 @@ import { PHRASES, RANKS, T } from "../i18n.js";
 import { sfx } from "../sfx.js";
 import { fallbackTo2D } from "../settings.js";
 import { Stage } from "../three/stage.js";
+import BarScene from "./BarScene.jsx";
 import { BidBadge } from "./dice.jsx";
 import { Chambers, TitleTag } from "./parts.jsx";
 import { Bubble, Emotes } from "./Table.jsx";
@@ -15,9 +16,10 @@ export default function Table3D({ view, states, bubbles, fx, myLooks, throwables
   const stage = useRef(null);
   const labels = useRef({});
   const [menu, setMenu] = useState(null);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const s = new Stage(box.current, { onSeatTap: (i) => { setMenu((m) => (m === i ? null : i)); sfx("select"); }, onContextLost: fallbackTo2D });
+    const s = new Stage(box.current, { onSeatTap: (i) => { setMenu((m) => (m === i ? null : i)); sfx("select"); }, onContextLost: fallbackTo2D, onReady: () => setReady(true) });
     s.labels = (k) => labels.current[k] || null;
     stage.current = s;
     return () => s.dispose();
@@ -32,7 +34,8 @@ export default function Table3D({ view, states, bubbles, fx, myLooks, throwables
 
   return (
     <div className="fixed inset-0" onClick={() => menu != null && setMenu(null)}>
-      <div ref={box} className="absolute inset-0" />
+      {!ready && <BarScene mode={view.opts?.mode} />}
+      <div ref={box} className="absolute inset-0 transition-opacity duration-500" style={{ opacity: ready ? 1 : 0 }} />
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
         {view.seats.map((s) =>
           s.idx === view.me ? null : (

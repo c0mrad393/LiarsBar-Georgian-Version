@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useState } from "react";
+import { Suspense, lazy, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AVATARS, MODE_INFO, RULES, T } from "../i18n.js";
 import { ITEMS } from "../shop.js";
 import { cleanCode } from "../shared.js";
@@ -9,6 +9,8 @@ import Character, { seatColor } from "./Character.jsx";
 import { PERSONAS } from "../engine.js";
 import { BOT_LOOKS } from "../shared.js";
 import BarScene from "./BarScene.jsx";
+import Guard3D from "./Guard3D.jsx";
+import { use3D } from "../settings.js";
 import { Face } from "./heads.jsx";
 import { Btn, CoinChip, Sheet, SoundToggle, Stepper, TitleTag } from "./parts.jsx";
 
@@ -16,6 +18,20 @@ import { Btn, CoinChip, Sheet, SoundToggle, Stepper, TitleTag } from "./parts.js
 const Shop = lazy(() => import("./Shop.jsx"));
 const ProfileSheet = lazy(() => import("./Profile.jsx").then((m) => ({ default: m.ProfileSheet })));
 const Leaderboard = lazy(() => import("./Profile.jsx").then((m) => ({ default: m.Leaderboard })));
+const Backdrop3D = lazy(() => import("./Backdrop3D.jsx"));
+
+/** The bar behind the menus: 3D when on (2D while it loads, or if 3D is off). */
+export function Backdrop({ mode, ...rest }) {
+  const three = use3D();
+  if (!three) return <BarScene mode={mode} />;
+  return (
+    <Guard3D>
+      <Suspense fallback={<BarScene mode={mode} />}>
+        <Backdrop3D mode={mode} {...rest} />
+      </Suspense>
+    </Guard3D>
+  );
+}
 
 /** Each mode's tile colours: [picked, not picked, text on picked is light]. */
 export const MODE_SKIN = {
@@ -127,7 +143,7 @@ const COUNTER_MOODS = ["idle", "talk", "happy", "turn", "idle", "win"];
  * You at the bar counter, with the bots hanging around: they chat, cheer and
  * look about. Tap yourself to change name and look.
  */
-function BarCounter({ profile, looks, onEdit, children }) {
+function BarCounter({ profile, looks, onEdit, children, three, box }) {
   const [moods, setMoods] = useState(["idle", "idle", "idle", "idle"]);
   useEffect(() => {
     const t = setInterval(() => {
@@ -137,7 +153,10 @@ function BarCounter({ profile, looks, onEdit, children }) {
   }, []);
   const spots = [["8%", 50, 0], ["24%", 58, 1], ["76%", 58, 2], ["92%", 50, 3]];
   return (
-    <div className="relative mx-auto h-[196px] w-full max-w-sm short:h-[164px]">
+    <div ref={box} className="relative mx-auto h-[196px] w-full max-w-sm short:h-[164px]">
+      {three ? (
+        <button onClick={onEdit} aria-label={T.editProfile} className="absolute bottom-[50px] left-1/2 z-[2] h-[120px] w-[110px] -translate-x-1/2 short:h-[96px]" />
+      ) : <>
       {spots.map(([left, size, i]) => {
         const k = COUNTER_BOTS[i];
         return (
@@ -149,7 +168,9 @@ function BarCounter({ profile, looks, onEdit, children }) {
       <button onClick={onEdit} aria-label={T.editProfile} className="absolute bottom-[40px] left-1/2 z-[2] -translate-x-1/2 transition-transform active:scale-95">
         <Character avatar={profile.avatar} looks={looks} color={seatColor(0)} size={92} state="happy" />
       </button>
-      {/* the counter */}
+      </>}
+      {/* the counter (in 3D: just your name, over the table) */}
+      {three ? <div className="absolute inset-x-0 bottom-1 z-[3] flex justify-center">{children}</div> : (
       <div className="absolute inset-x-0 bottom-0 z-[3]">
         <div className="relative mx-2 h-3 rounded-t-lg border-[3px] border-b-0 border-ink bg-[#c07d3f]">
           <span className="absolute -top-6 left-[15%] text-xl">🍷</span>
@@ -158,6 +179,7 @@ function BarCounter({ profile, looks, onEdit, children }) {
         </div>
         <div className="wood comic flex h-[46px] items-center justify-center rounded-b-2xl rounded-t-md px-3">{children}</div>
       </div>
+      )}
     </div>
   );
 }
@@ -218,10 +240,28 @@ export default function Home({ profile, setProfile, account, mode, setMode, solo
   }, []);
   const open = (s) => { setSheet(s); sfx("select"); };
   const looks = account.me?.looks;
+  const three = use3D();
+  const [theme] = useState(() => (Math.random() * 4) | 0);
+  const cast = [
+    { key: "you", avatar: profile.avatar, looks, seat: 0, you: true },
+    ...COUNTER_BOTS.map((k, i) => ({ key: k, avatar: PERSONAS[k].avatar, looks: BOT_LOOKS[k], seat: i + 1 })),
+  ];
+  // the 3D patrons stand where the counter's people would: follow its place on screen
+  const counter = useRef(null);
+  const [anchor, setAnchor] = useState(0.5);
+  useLayoutEffect(() => {
+    const el = counter.current;
+    if (!el || !three) return;
+    const measure = () => { const r = el.getBoundingClientRect(); setAnchor(Math.min(0.8, Math.max(0.3, (r.top + r.height * 0.52) / innerHeight))); };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(document.body);
+    return () => ro.disconnect();
+  }, [three, invite, online]);
 
   return (
     <div className="safe-b relative mx-auto flex min-h-[100dvh] w-full max-w-md flex-col px-4 pt-3">
-      <BarScene mode={mode} />
+      <Backdrop mode={mode} cast={cast} theme={theme} felt={ITEMS[looks?.felt]?.felt?.[1]} anchor={anchor} />
       <div className="safe-t relative z-10 flex items-center justify-between gap-2">
         <CoinChip coins={account.me?.coins ?? (account.error ? "—" : 0)} onClick={() => setPanel("profile")} className={account.me?.dailyReady ? "a-hop" : ""} />
         <div className="flex items-center gap-2">
@@ -249,7 +289,7 @@ export default function Home({ profile, setProfile, account, mode, setMode, solo
           </div>
         )}
 
-        <BarCounter profile={profile} looks={looks} onEdit={() => open("me")}>
+        <BarCounter profile={profile} looks={looks} onEdit={() => open("me")} three={three} box={counter}>
           {ready ? (
             <button onClick={() => open("me")} className="flex min-w-0 items-center gap-1.5 rounded-full border-[2.5px] border-ink bg-paper px-3 py-1 text-base font-black" aria-label={T.editProfile}>
               {account.me?.title && <TitleTag id={account.me.title} short />}

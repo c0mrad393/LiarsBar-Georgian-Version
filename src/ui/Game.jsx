@@ -1,5 +1,6 @@
-import { Component, Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
-import { fallbackTo2D, use3D } from "../settings.js";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
+import { use3D } from "../settings.js";
+import Guard3D from "./Guard3D.jsx";
 import { useWakeLock } from "../device.js";
 import { ITEMS } from "../shop.js";
 import { MAX_PLAY } from "../engine.js";
@@ -21,14 +22,6 @@ import Table, { Bubble, Emotes } from "./Table.jsx";
 
 // three.js loads only for players on the 3D table.
 const Table3D = lazy(() => import("./Table3D.jsx"));
-
-/** If the 3D table can't load or crashes, carry on in 2D. */
-class Guard3D extends Component {
-  state = { failed: false };
-  static getDerivedStateFromError() { return { failed: true }; }
-  componentDidCatch(err) { console.error("3D table failed, using 2D", err); fallbackTo2D(); }
-  render() { return this.state.failed ? null : this.props.children; }
-}
 
 const BUBBLE_MS = 2800;
 export const backOf = (looks) => ITEMS[looks?.cards]?.back || "red";

@@ -5,12 +5,13 @@
 import * as THREE from "three";
 import { HEAD_INFO, ITEMS, headOf } from "../shop.js";
 import { Char3D } from "./character.js";
-import { damp, emojiTex, mesh, runTweens, toon, tween } from "./kit.js";
+import { blob, damp, emojiTex, mesh, runTweens, toon, tween } from "./kit.js";
 import { buildRoom } from "./room.js";
 import { CARD_H, card3d, diceCup, die, preloadFaces, revolver, wineGlass } from "./props.js";
 
 const TABLE_R = 1.05, TABLE_Y = 0.78, SEAT_R = 1.38;
-const SEAT_COLORS = ["#c23b2e", "#3f6f9e", "#3f7d4c", "#7a2c54", "#c98d22", "#b5462a"];
+
+export const SEAT_COLORS = ["#c23b2e", "#3f6f9e", "#3f7d4c", "#7a2c54", "#c98d22", "#b5462a"];
 
 /** Angles around the table: me at the front, the rest spread over the far side. */
 function seatAngles(n) {
@@ -19,21 +20,24 @@ function seatAngles(n) {
 }
 
 export class Stage {
-  constructor(container, { onSeatTap, onContextLost } = {}) {
+  constructor(container, { onSeatTap, onContextLost, onReady } = {}) {
+    this.onReady = onReady;
     this.container = container;
     this.onSeatTap = onSeatTap;
     const phone = matchMedia("(pointer: coarse)").matches;
     this.quality = phone ? "mid" : "high";
     const r = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
     r.setPixelRatio(Math.min(devicePixelRatio, phone ? 1.5 : 2));
-    r.shadowMap.enabled = true;
+    // Real shadows only on computers; phones get soft blob shadows (cheap, and
+    // never toggled at runtime: that would recompile every material = a freeze).
+    r.shadowMap.enabled = !phone;
     r.shadowMap.type = THREE.PCFSoftShadowMap;
     r.toneMapping = THREE.ACESFilmicToneMapping;
     r.toneMappingExposure = 1.05;
     container.appendChild(r.domElement);
     r.domElement.style.touchAction = "none";
     // the GPU dropped us (low memory, backgrounded too long): hand over to 2D
-    r.domElement.addEventListener("webglcontextlost", (e) => { e.preventDefault(); onContextLost?.(); });
+    r.domElement.addEventListener("webglcontextlost", (e) => { e.preventDefault(); if (!this.disposed) onContextLost?.(); }); // our own dispose() loses it too
     this.renderer = r;
 
     this.scene = new THREE.Scene();
@@ -42,8 +46,8 @@ export class Stage {
     this.camera.position.set(0, 1.62, 2.5); // my seat
     this.camera.lookAt(0, 0.82, -0.5);
     this.scene.add(this.camera);
-    this.room = buildRoom(this.quality === "high" ? "high" : "low");
-    this.scene.add(this.room.group);
+    this.shadows = !phone;
+    this.setTheme(0);
 
     // the table
     this.cloth = mesh(new THREE.CylinderGeometry(TABLE_R, TABLE_R, 0.06, 48), toon("#2c6a40"));
@@ -51,6 +55,7 @@ export class Stage {
     const rim = mesh(new THREE.TorusGeometry(TABLE_R, 0.055, 10, 48), toon("#6b4020"), { outline: 0.02, at: [0, TABLE_Y + 0.03, 0], rot: [Math.PI / 2, 0, 0] });
     const leg = mesh(new THREE.CylinderGeometry(0.12, 0.34, TABLE_Y, 16), toon("#4a2c16"), { at: [0, TABLE_Y / 2, 0] });
     this.scene.add(this.cloth, rim, leg);
+    this.scene.add(blob(2.9, 0.55));
     // the ring that marks whose turn it is
     this.ring = new THREE.Mesh(new THREE.RingGeometry(0.15, 0.19, 32), new THREE.MeshBasicMaterial({ color: "#eab54a", transparent: true, opacity: 0.8 }));
     this.ring.rotation.x = -Math.PI / 2;
@@ -113,16 +118,18 @@ export class Stage {
     this.ro.observe(container);
     this.resize();
 
-    this.clock = new THREE.Clock();
+    this.clock = new THREE.Timer();
     this.loop = this.loop.bind(this);
     this.raf = requestAnimationFrame(this.loop);
   }
 
   dispose() {
+    this.disposed = true;
     cancelAnimationFrame(this.raf);
     this.ro.disconnect();
     this.renderer.domElement.removeEventListener("pointerdown", this.onDown);
     this.renderer.domElement.removeEventListener("pointerup", this.onUp);
+    this.room.dispose();
     this.renderer.dispose();
     this.renderer.forceContextLoss?.();
     this.renderer.domElement.remove();
@@ -161,6 +168,7 @@ export class Stage {
         char = new Char3D({ avatar: p.avatar, looks: p.looks || {}, color: SEAT_COLORS[p.idx % SEAT_COLORS.length] });
         char.root.position.copy(pos);
         char.root.lookAt(0, 0, 0);
+        char.root.add(blob(0.9, 0.5));
         this.scene.add(char.root);
         if (!p.alive) { char.setState("dead"); }
       }
@@ -185,6 +193,17 @@ export class Stage {
     return s.char.headWorld(new THREE.Vector3());
   }
 
+  /** The room around the table: a different one each game (engine opts.scene). */
+  setTheme(theme) {
+    if (theme === this.theme) return;
+    this.theme = theme;
+    if (this.room) { this.scene.remove(this.room.group); this.room.dispose(); }
+    this.room = buildRoom(this.quality === "high" ? "high" : "low", { shadows: this.shadows, theme });
+    this.scene.add(this.room.group);
+    // a new room after the first frame (a rematch): compile its few new shaders off the main path
+    if (this.ready) this.renderer.compileAsync?.(this.room.group, this.camera, this.scene);
+  }
+
   // ---------------------------------------------------------------- sync ---
 
   /** The React side calls this on every render. */
@@ -202,7 +221,14 @@ export class Stage {
     const fresh = log.filter((e) => e.id > this.seenLog).reverse();
     if (log[0]) this.seenLog = log[0].id;
     for (const ev of fresh) this.event(ev, view);
+    this.setTheme(import.meta.env.DEV && window.__scene != null ? window.__scene : view.opts?.scene ?? 0);
+    if (!this.warmed) this.warm();
     this.syncPile(view);
+    // after a call, the lifted cards settle back onto the table face up
+    if (view.phase !== "reveal" && this.revealed?.length) {
+      this.revealed.forEach((c, i) => tween(c, { pos: new THREE.Vector3((i - (this.revealed.length - 1) / 2) * 0.12, TABLE_Y + 0.04, 0.05), rot: [-Math.PI / 2, 0, (i - 1) * 0.2], scale: 1.2, dur: 500 }));
+      this.revealed = [];
+    }
     this.syncDice(view);
 
     // characters: mood, where they look, what they hold
@@ -242,13 +268,17 @@ export class Stage {
       for (let i = 0; i < ev.n; i++) this.addCard(back, from, i * 90);
     }
     if (ev.type === "call" && view.kind !== "dice" && view.reveal?.cards) {
+      // the called cards rise toward me in a row, big and facing the camera, then flip
       const cards = view.reveal.cards;
       const last = this.pile.slice(-cards.length);
+      this.revealed = last;
       last.forEach((c, i) => {
-        c.userData.reveal(cards[i]?.rank);
-        const up = c.position.clone();
-        up.y += 0.14;
-        tween(c, { pos: up, rot: [-Math.PI / 2, 0, (i - (cards.length - 1) / 2) * 0.15], dur: 450, delay: 700 + i * 260 });
+        const x = (i - (cards.length - 1) / 2) * 0.17;
+        tween(c, { pos: new THREE.Vector3(x, TABLE_Y + 0.3, 0.45), rot: [-0.45 + Math.PI, 0, 0], scale: 1.7, dur: 450, delay: 150 + i * 90 });
+        setTimeout(() => {
+          c.userData.reveal(cards[i]?.rank);
+          tween(c, { rot: [-0.45, 0, (i - (cards.length - 1) / 2) * -0.08], dur: 420 });
+        }, 700 + i * 260);
       });
     }
   }
@@ -333,16 +363,18 @@ export class Stage {
 
   loop() {
     this.raf = requestAnimationFrame(this.loop); // browsers stop this by themselves in hidden tabs
+    this.clock.update();
     const dt = Math.min(0.05, this.clock.getDelta());
-    const t = this.clock.elapsedTime;
+    if (!this.ready) return;
+    const t = this.clock.getElapsed();
     runTweens(performance.now());
-    this.room.update(t);
+    this.room.update(t, dt);
     for (const s of this.seats) s.char?.update(dt, t);
     this.camerawork(dt, t);
     this.turnRing(t);
     this.rattle(t);
     this.renderer.render(this.scene, this.camera);
-    if (import.meta.env.DEV) window.__stage3d = { calls: this.renderer.info.render.calls, tris: this.renderer.info.render.triangles, pr: this.renderer.getPixelRatio(), shadows: this.renderer.shadowMap.enabled };
+    if (import.meta.env.DEV) window.__stage3d = { calls: this.renderer.info.render.calls, tris: this.renderer.info.render.triangles, pr: this.renderer.getPixelRatio(), shadows: this.renderer.shadowMap.enabled, phase: this.view?.phase };
     this.pinLabels();
     this.adapt(dt);
   }
@@ -355,7 +387,11 @@ export class Stage {
     let dolly = 0, fov = this.baseFov;
     const r = v?.roulette;
     const me = v?.me;
-    if (v?.phase === "roulette" && r && r.victim !== me && this.seatOf(r.victim)?.char) {
+    if (v?.phase === "reveal" && v.kind !== "dice") {
+      // lean in to read the called cards
+      look = new THREE.Vector3(0, TABLE_Y + 0.26, 0.4);
+      dolly = 0.28;
+    } else if (v?.phase === "roulette" && r && r.victim !== me && this.seatOf(r.victim)?.char) {
       look = this.headPos(r.victim).add(new THREE.Vector3(0, -0.12, 0));
       dolly = v.dramatic ? 0.42 : 0.25;
       fov = this.baseFov - (v.dramatic ? 12 : 4);
@@ -417,10 +453,39 @@ export class Stage {
       put(this.labels(s.idx), s.char.headWorld(new THREE.Vector3()).add(new THREE.Vector3(0, 0.34, 0)));
     }
     put(this.labels("table"), new THREE.Vector3(0, TABLE_Y + 0.05, 0.42));
-    put(this.labels("center"), new THREE.Vector3(0, TABLE_Y + 0.35, 0));
+    // during a cards reveal the verdict sits under the lifted cards, not on them
+    const lifted = this.view?.phase === "reveal" && this.view.kind !== "dice";
+    put(this.labels("center"), lifted ? new THREE.Vector3(0, TABLE_Y + 0.02, 0.62) : new THREE.Vector3(0, TABLE_Y + 0.35, 0));
   }
 
-  /** Slow phone? Drop resolution, then shadows. */
+  /**
+   * Compile every shader and upload every texture before the first frame,
+   * with a copy of each prop in the scene, so nothing stalls mid-game (the
+   * first revolver, the first card flip…). The canvas fades in when done.
+   */
+  warm() {
+    this.warmed = true;
+    const kit = new THREE.Group();
+    const flash = new THREE.Sprite(new THREE.SpriteMaterial({ map: emojiTex("🍅"), depthTest: false }));
+    const c = card3d("red");
+    c.userData.reveal("K");
+    kit.add(revolver(), wineGlass(), c, die(1), diceCup(), flash);
+    const probe = new Char3D({ avatar: "av_pig", looks: {}, color: "#c23b2e" });
+    probe.setHold("gun");
+    kit.add(probe.root);
+    kit.position.set(0, 1, 0);
+    this.scene.add(kit);
+    const r = this.renderer;
+    this.scene.traverse((o) => { for (const m of [].concat(o.material || [])) for (const k of ["map", "emissiveMap"]) if (m[k]) r.initTexture(m[k]); });
+    const done = () => {
+      this.scene.remove(kit);
+      this.ready = true;
+      this.onReady?.();
+    };
+    (r.compileAsync ? r.compileAsync(this.scene, this.camera) : Promise.resolve(r.compile(this.scene, this.camera))).then(done, done);
+  }
+
+  /** Slow phone? Lower the resolution (instant; shadows are decided once at start). */
   adapt(dt) {
     this.frames.push(dt);
     if (this.frames.length < 90) return;
@@ -428,11 +493,7 @@ export class Stage {
     this.frames = [];
     const r = this.renderer;
     if (avg > 0.028 && r.getPixelRatio() > 1) { r.setPixelRatio(1); this.resize(); }
-    else if (avg > 0.028 && r.shadowMap.enabled) {
-      r.shadowMap.enabled = false;
-      this.room.lamp.castShadow = false;
-      this.scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; });
-    } else if (avg > 0.034 && r.getPixelRatio() > 0.75) { r.setPixelRatio(0.75); this.resize(); }
+    else if (avg > 0.034 && r.getPixelRatio() > 0.75) { r.setPixelRatio(0.75); this.resize(); }
   }
 }
 

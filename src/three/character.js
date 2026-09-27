@@ -389,13 +389,13 @@ export class Char3D {
     // mouths: one visible at a time
     const [my, mz] = this.fit.mouth;
     const place = (m) => { m.position.set(0, my, mz); m.userData.anim = true; h.add(m); m.visible = false; return m; };
-    const lip = basic("#5a1a22");
+    const lip = basic("#8f2a3a");
     F.mouth = {
       smile: place(new THREE.Mesh(new THREE.TorusGeometry(0.042, 0.009, 6, 14, Math.PI), lip)),
       frown: place(new THREE.Mesh(new THREE.TorusGeometry(0.042, 0.009, 6, 14, Math.PI), lip)),
       flat: place(new THREE.Mesh(geo("BoxGeometry", 0.06, 0.012, 0.01), lip)),
       o: place(new THREE.Mesh(geo("CircleGeometry", 0.024, 14), lip)),
-      grin: place(new THREE.Mesh(new THREE.CircleGeometry(0.05, 16, Math.PI, Math.PI), lip)),
+      grin: place(new THREE.Mesh(new THREE.CircleGeometry(0.045, 16, Math.PI, Math.PI), basic("#6b1f2a"))),
       grit: place(new THREE.Mesh(geo("BoxGeometry", 0.08, 0.03, 0.01), basic("#fbf6ea"))),
     };
     F.mouth.smile.rotation.z = Math.PI;
@@ -405,6 +405,9 @@ export class Char3D {
     const teeth = new THREE.Mesh(geo("BoxGeometry", 0.07, 0.012, 0.005), basic("#fbf6ea"));
     teeth.position.set(0, -0.006, 0.002);
     F.mouth.grin.add(teeth);
+    const tongue = new THREE.Mesh(geo("CircleGeometry", 0.022, 12), basic("#ff7a8a"));
+    tongue.position.set(0, -0.028, 0.002);
+    F.mouth.grin.add(tongue);
     // cheeks
     F.cheeks = [-1, 1].map((s) => {
       const c = new THREE.Mesh(geo("CircleGeometry", 0.042, 14), new THREE.MeshBasicMaterial({ color: "#ff5a7a", transparent: true, opacity: 0.3 }));

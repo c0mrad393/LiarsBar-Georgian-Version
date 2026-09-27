@@ -28,6 +28,8 @@ export const MODES = ["classic", "devil", "chaos", "dice"];
 /** Chaos-mode round events. */
 export const CHAOS = ["double", "reverse", "blind", "speed", "jokers", "safe", "single", "duel", "devil"];
 export const DICE = 5;
+/** How many 3D rooms there are (dukani, marani, Old Tbilisi courtyard, Svan hut). */
+export const SCENES = 4;
 const SPEED_MS = 10000;
 export const HAND = 5;
 const SUITS = ["S", "H", "D", "C"]; // cosmetic only
@@ -157,7 +159,8 @@ export function createGame(seats, opts = {}, now = Date.now()) {
       bullet: rnd(6),
       pulls: 0,
     })),
-    opts: { turnMs: 0, pullMs: 0, mode: "classic", ...opts },
+    // scene: which 3D room this game is played in (the same for everyone at the table)
+    opts: { turnMs: 0, pullMs: 0, mode: "classic", scene: rnd(SCENES), ...opts },
     kind: opts.mode === "dice" ? "dice" : "cards",
     event: null,
     bid: null,

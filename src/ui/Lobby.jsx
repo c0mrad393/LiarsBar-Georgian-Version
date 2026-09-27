@@ -1,13 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { use3D } from "../settings.js";
 import { PERSONAS } from "../engine.js";
 import { MODE_INFO, T } from "../i18n.js";
 import { inviteLink } from "../online.js";
 import { sfx } from "../sfx.js";
 import { useMusic } from "../music.js";
-import { Logo, MODE_SKIN, ModePicker } from "./Home.jsx";
+import { Backdrop, Logo, MODE_SKIN, ModePicker } from "./Home.jsx";
 import { BOT_LOOKS, BOT_ORDER } from "../shared.js";
 import Character, { seatColor } from "./Character.jsx";
-import BarScene from "./BarScene.jsx";
 import { Btn, SoundToggle, Stepper, TitleTag } from "./parts.jsx";
 
 /** Seconds until a public table starts by itself. */
@@ -37,6 +37,29 @@ export default function Lobby({ lobby, isHost, setBots, setMode, setPublic, onSt
   const changeBots = (v) => { setBotsLocal(v); setBots(v); };
   const botCount = Math.min(bots, lobby.max - seats.length);
   const ready = seats.length + botCount >= 2;
+  const [theme] = useState(() => (Math.random() * 4) | 0);
+  const three = use3D();
+  // in 3D the table shows through a window in the page: keep the room framed on it while scrolling
+  const hole = useRef(null);
+  const [anchor, setAnchor] = useState(0.6);
+  useLayoutEffect(() => {
+    if (!three) return;
+    const measure = () => { const r = hole.current?.getBoundingClientRect(); if (r) setAnchor(Math.min(1.3, Math.max(-0.3, (r.top + r.height * 0.62) / innerHeight))); };
+    measure();
+    addEventListener("scroll", measure, { passive: true });
+    addEventListener("resize", measure);
+    const ro = new ResizeObserver(measure);
+    ro.observe(document.body);
+    return () => { removeEventListener("scroll", measure); removeEventListener("resize", measure); ro.disconnect(); };
+  }, [three]);
+  // the room behind: everyone who's in, the bots, and empty chairs for the rest
+  const cast = Array.from({ length: lobby.max }, (_, i) => {
+    const p = seats[i];
+    if (p) return { key: `p${i}`, avatar: p.avatar, looks: p.looks, seat: i, you: !!p.you };
+    const b = i - seats.length;
+    if (b < botCount) { const k = BOT_ORDER[b]; return { key: `b${k}`, avatar: PERSONAS[k].avatar, looks: BOT_LOOKS[k], seat: i }; }
+    return { key: `e${i}`, empty: true };
+  });
 
   // Little fanfare when someone walks in.
   const prev = useRef(seats.length);
@@ -64,7 +87,7 @@ export default function Lobby({ lobby, isHost, setBots, setMode, setPublic, onSt
 
   return (
     <div className="relative isolate mx-auto flex min-h-screen w-full max-w-xl flex-col px-4 pb-10 pt-4">
-      <BarScene mode={lobby.mode} className="-z-10" />
+      <div className="fixed inset-0 -z-10"><Backdrop mode={lobby.mode} cast={cast} theme={theme} anchor={anchor} /></div>
       <div className="flex items-center justify-between">
         <button onClick={onLeave} className="comic-sm rounded-full bg-paper px-4 py-2 text-sm font-extrabold">← {T.leave}</button>
         <SoundToggle />
@@ -114,6 +137,26 @@ export default function Lobby({ lobby, isHost, setBots, setMode, setPublic, onSt
         </div>
       )}
 
+      {three ? (
+        <section className="mt-3">
+          <div ref={hole} className="h-[250px] sm:h-[300px]" aria-hidden="true" />
+          <div className="flex flex-wrap justify-center gap-1.5">
+            {cast.map((c, i) => {
+              if (c.empty) return <span key={c.key} className="on-night-soft rounded-full border-2 border-dashed border-cream/30 px-2.5 py-0.5 text-[11px] font-bold">🪑 {T.emptySeat}</span>;
+              const p = seats[i];
+              const bot = !p && BOT_ORDER[i - seats.length];
+              return (
+                <span key={c.key} className={`a-pop flex items-center gap-1 rounded-full border-2 border-ink px-2.5 py-0.5 text-xs font-black ${p ? "bg-paper" : "bg-paper/75 text-ink-soft"}`} style={{ boxShadow: "0 2px 0 #1c1510", animationDelay: `${i * 50}ms` }}>
+                  {p?.title && <TitleTag id={p.title} short />}
+                  {p ? p.name : `${PERSONAS[bot].name} 🤖`}
+                  {p?.host && <span className="rounded-full bg-coral px-1 text-[9px] text-white">{T.hostTag}</span>}
+                  {p?.you && <span className="rounded-full bg-mint px-1 text-[9px] text-white">{T.you}</span>}
+                </span>
+              );
+            })}
+          </div>
+        </section>
+      ) : (
       <section className="mt-5 grid grid-cols-3 gap-2 sm:gap-3">
         {Array.from({ length: lobby.max }).map((_, i) => {
           const p = seats[i];
@@ -148,6 +191,7 @@ export default function Lobby({ lobby, isHost, setBots, setMode, setPublic, onSt
           );
         })}
       </section>
+      )}
 
       {seats.length < lobby.max && <p className="on-night-soft mt-4 text-center text-sm font-bold">{T.waitingPlayers}</p>}
 
